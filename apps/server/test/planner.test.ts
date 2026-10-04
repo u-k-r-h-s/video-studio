@@ -107,7 +107,7 @@ describe("ScenePlanner: malformed LLM responses", () => {
 });
 
 describe("ScenePlanner: script mode preserves dialogue", () => {
-  const script = `Inspector Raghu: Someone is stealing our food.\nMintu: I was only a little hungry!\nNarrator: And so the mystery ended.`;
+  const script = `Someone is stealing our food.\nI was only a little hungry!\nAnd so the mystery ended.`; // prose: no "NAME:" form, so the fallback check applies
   const input = { mode: "script" as const, text: script, language: "en" as const, targetDurationSeconds: 20 };
   const faithful = {
     scenes: [
@@ -122,7 +122,7 @@ describe("ScenePlanner: script mode preserves dialogue", () => {
     expect(plan.scenes.flatMap((s) => s.dialogue.map((d) => d.text))).toEqual(["Someone is stealing our food.", "I was only a little hungry!", "And so the mystery ended."]);
   });
 
-  it("rejects rewritten dialogue and asks the model to copy it exactly", async () => {
+  it("(prose script) rejects rewritten dialogue and asks the model to copy it exactly", async () => {
     const rewritten = { scenes: [sc({ dialogue: [{ characterId: "inspector-raghu", text: "Thieves are taking all of the food!" }] }), sc(), sc()] };
     const llm = new FakeLLM((req) => {
       if (req.messages.some((m) => m.content.includes("title and cast"))) return outline;
@@ -133,7 +133,7 @@ describe("ScenePlanner: script mode preserves dialogue", () => {
     expect(llm.requests.some((r) => r.messages.at(-1)!.content.includes("Thieves are taking all"))).toBe(true);
   });
 
-  it("fails if the model keeps rewriting", async () => {
+  it("(prose script) fails if the model keeps rewriting", async () => {
     const rewritten = { scenes: [sc({ dialogue: [{ characterId: "inspector-raghu", text: "Invented line." }] }), sc(), sc()] };
     const err = await new ScenePlanner(llmFor(rewritten), { ...opts, maxRepairs: 1 }).plan(input, profile).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(LlmValidationError);
@@ -172,5 +172,98 @@ describe("planner: prompts and clean-up for image generation", () => {
   it("turns kebab-cased props into plain words and trims the cast text", () => {
     const out = normalizeScenes({ scenes: [{ props: ["wooden-mousetrap", "Empty_Food Containers", "wooden mousetrap"], characters: [] }] }, []) as { scenes: any[] };
     expect(out.scenes[0].props).toEqual(["wooden mousetrap", "empty food containers"]);
+  });
+});
+
+import { groupLines, parseScript, scriptCast } from "../src/planner/script";
+
+describe("script mode: deterministic fidelity for NAME: line scripts", () => {
+  const script = `MEERA: Someone is leaving muddy footprints all over my bakery.
+GRANDPA: Then tonight we will set a trap with a basket of warm bread.
+NARRATOR: At midnight, a small shadow crept through the window.
+MEERA: Caught you, little fox!
+GRANDPA: Next time, just ask for a slice.`;
+  const input = { mode: "script" as const, text: script, language: "en" as const, targetDurationSeconds: 20 };
+  const castOutline = {
+    title: "Bakery Fox",
+    characters: [
+      { id: "meera", name: "Meera", description: "The baker", appearance: "round woman in an apron" },
+      { id: "grandpa", name: "Grandpa", description: "Her grandfather", appearance: "old man, white beard" },
+    ],
+  };
+  const lines = (arr: [string, string][]) => arr.map(([characterId, text]) => ({ characterId, text }));
+  const _unused = {
+    scenes: [
+      sc({ characters: ["meera", "grandpa"], dialogue: lines([["meera", "Someone is leaving muddy footprints all over my bakery."], ["grandpa", "Then tonight we will set a trap with a basket of warm bread."]]) }),
+      sc({ characters: ["meera"], dialogue: lines([["narrator", "At midnight, a small shadow crept through the window."], ["meera", "Caught you, little fox!"]]) }),
+      sc({ characters: ["grandpa"], dialogue: lines([["grandpa", "Next time, just ask for a slice."]]) }),
+    ],
+  };
+  const respond = (scenes: unknown, outline: unknown = castOutline) => new FakeLLM((req) => (req.messages.some((m) => m.content.includes("title and cast")) ? (outline as object) : (scenes as object)));
+
+  it("parses NAME: line scripts and derives the cast, mapping NARRATOR to the narrator", () => {
+    const parsed = parseScript(script)!;
+    expect(parsed).toHaveLength(5);
+    expect(parsed[2]).toMatchObject({ speaker: "NARRATOR", speakerId: "narrator" });
+    expect(scriptCast(parsed)).toEqual([{ id: "meera", name: "MEERA" }, { id: "grandpa", name: "GRANDPA" }]);
+    expect(parseScript("Just a paragraph of prose with no speakers at all.")).toBeUndefined();
+  });
+
+  const visualsOnly = (n: number) => ({ scenes: Array.from({ length: n }, (_, i) => sc({ characters: ["meera"], dialogue: [], visualDescription: `Visual for scene ${i + 1} in the bakery.` })) });
+
+  it("takes dialogue from the SCRIPT, not the model: exact text, order and speakers, whatever the model returns", async () => {
+    // the model "helpfully" invents, duplicates and rewrites dialogue (as the real llama3.2 did); it must not matter
+    const messy = { scenes: [sc({ characters: ["meera"], dialogue: lines([["meera", "Footprints!"], ["meera", "Footprints!"]]) }), sc({ characters: ["meera"], dialogue: lines([["grandpa", "Invented line."]]) }), sc({ characters: ["grandpa"], dialogue: [] })] };
+    const plan = await new ScenePlanner(respond(messy), opts).plan(input, profile);
+    expect(plan.scenes.flatMap((s) => s.dialogue.map((d) => `${d.characterId}: ${d.text}`))).toEqual([
+      "meera: Someone is leaving muddy footprints all over my bakery.",
+      "grandpa: Then tonight we will set a trap with a basket of warm bread.",
+      "narrator: At midnight, a small shadow crept through the window.",
+      "meera: Caught you, little fox!",
+      "grandpa: Next time, just ask for a slice.",
+    ]);
+    expect(plan.scenes).toHaveLength(3);
+    for (const s of plan.scenes) for (const d of s.dialogue) if (d.characterId !== "narrator") expect(s.characters).toContain(d.characterId); // speakers are visible
+  });
+
+  it("groups lines contiguously and balanced, never duplicating or dropping any", () => {
+    const parsed = parseScript(script)!;
+    for (const n of [1, 2, 3, 4, 5, 9]) {
+      const groups = groupLines(parsed, n);
+      expect(groups.flat()).toEqual(parsed);
+      expect(groups.length).toBe(Math.min(n, parsed.length));
+      expect(groups.every((g) => g.length > 0)).toBe(true);
+    }
+  });
+
+  it("requires exactly one scene per group of lines (repairs otherwise)", async () => {
+    const llm = new FakeLLM((req) => {
+      const text = req.messages.map((m) => m.content).join("\n");
+      if (text.includes("title and cast")) return castOutline;
+      return text.includes("Write exactly 3 scenes") ? visualsOnly(3) : visualsOnly(5);
+    });
+    const plan = await new ScenePlanner(llm, opts).plan(input, profile);
+    expect(plan.scenes).toHaveLength(3);
+  });
+
+  it("flags a rewritten cast (MEERA/GRANDPA became other names) and repairs it", async () => {
+    const renamed = { ...castOutline, characters: [{ ...castOutline.characters[0]!, id: "meka-phan" }, { ...castOutline.characters[1]!, id: "gramps-jax" }] };
+    const llm = new FakeLLM((req) => {
+      const text = req.messages.map((m) => m.content).join("\n");
+      if (text.includes("title and cast")) return text.includes("The cast must be exactly the script's speakers") ? castOutline : renamed;
+      return visualsOnly(3);
+    });
+    const plan = await new ScenePlanner(llm, opts).plan(input, profile);
+    expect(plan.characters.map((c) => c.id)).toEqual(["meera", "grandpa"]);
+  });
+
+  it("puts the required ids and the fixed scene groups into the prompts", async () => {
+    const llm = respond(visualsOnly(3)) as FakeLLM;
+    await new ScenePlanner(llm, opts).plan(input, profile);
+    const prompts = llm.requests.map((r) => r.messages.at(-1)!.content).join("\n");
+    expect(prompts).toContain('id "meera", name "MEERA"');
+    expect(prompts).toContain("Scene 1 contains these lines:");
+    expect(prompts).toContain("NARRATOR: At midnight");
+    expect(prompts).toContain("do not write dialogue");
   });
 });

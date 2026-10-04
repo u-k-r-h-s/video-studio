@@ -1,4 +1,6 @@
 import { LANGUAGES, NARRATOR_ID, type FormatProfile, type PlannedOutline, type LanguageId } from "@studio/shared";
+import type { ScriptLine } from "./script";
+import { scriptCast } from "./script";
 
 export interface PlanInput {
   mode: "idea" | "script";
@@ -33,7 +35,7 @@ export function expectedSceneCount(profile: FormatProfile, targetSeconds: number
   return Math.max(profile.timing.minScenes, Math.min(profile.timing.maxScenes, n));
 }
 
-export function outlinePrompt(input: PlanInput, profile: FormatProfile): string {
+export function outlinePrompt(input: PlanInput, profile: FormatProfile, script?: ScriptLine[]): string {
   const scenes = expectedSceneCount(profile, input.targetDurationSeconds);
   const source =
     input.mode === "script"
@@ -49,10 +51,10 @@ Cast rules:
 - 1 to ${profile.planning.maxCharacters} characters, each visually distinct and easy to draw as a 2D cartoon.
 - "id" is the character's name in lowercase kebab-case (words joined by hyphens). Do not reuse names from these instructions.
 - "description" is the role and personality. "appearance" is physical appearance ONLY (build, face, hair, clothing, colours) so the character can be drawn identically every time.
-- Do not include the narrator in the cast.`;
+- Do not include the narrator in the cast.${script ? `\n- The script defines the cast. The cast MUST be EXACTLY these characters, with EXACTLY these ids and names (invent only their description and appearance):\n${scriptCast(script).map((c) => `  - id "${c.id}", name "${c.name}"`).join("\n")}` : ""}`;
 }
 
-export function scenesPrompt(input: PlanInput, profile: FormatProfile, outline: PlannedOutline): string {
+export function scenesPrompt(input: PlanInput, profile: FormatProfile, outline: PlannedOutline, groups?: ScriptLine[][]): string {
   const cast = outline.characters.map((c) => `- ${c.id}: ${c.name} (${c.appearance})`).join("\n");
   const scenes = expectedSceneCount(profile, input.targetDurationSeconds);
   const base = `Cast (use ONLY these ids in "characters" and as dialogue speakers):
@@ -66,6 +68,18 @@ Scene rules:
 - "camera.movement" is one of: static, zoom_in, zoom_out, pan_left, pan_right. "camera.shot" is wide, medium or close_up.
 - "motion.entrance" (left, right, none) is where the characters enter from; "motion.emphasis" is none, impact or surprise (use impact/surprise for the big moment).
 - "duration" is the scene length in seconds.`;
+  if (input.mode === "script" && groups) {
+    const listing = groups.map((g, i) => `Scene ${i + 1} contains these lines:\n${g.map((l) => `  ${l.speaker}: ${l.text}`).join("\n")}`).join("\n\n");
+    return `Design the visuals for exactly ${groups.length} scenes of an existing script. The dialogue has ALREADY been assigned to scenes (below); do not write dialogue, leave "dialogue" as an empty list in every scene.
+
+${listing}
+
+Title: ${outline.title}
+${base}
+Write each scene's location, visualDescription, characters (who is visible), props, camera and motion so they fit the lines of THAT scene. Output exactly ${groups.length} scenes in order.
+${languageNote(input.language)}
+${input.feedback ? `\nThe user asked for these changes: ${input.feedback}\n` : ""}`;
+  }
   if (input.mode === "script") {
     return `Break this existing SCRIPT into scenes (about ${scenes}, but follow the script's own structure).
 

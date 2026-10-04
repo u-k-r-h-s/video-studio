@@ -101,7 +101,18 @@ free memory is below `MEMORY_WARN_FREE_PERCENT`; it never blocks).
 
 ## Script mode
 
-`inputMode: "script"` sends the script to Ollama to extract the cast and break it into scenes. By default dialogue
-must be copied **verbatim**: every returned line is checked against the script text (case/punctuation-insensitive)
-and the model is asked to repair any line that is not found there. Rewriting happens only when explicitly allowed
-(`allowRewrite` in the planner input; there is no UI switch for it yet).
+`inputMode: "script"` converts an existing script into scenes **without rewriting it**. Two paths:
+
+- **`NAME: line` scripts** (one speaker line per row; `NARRATOR:` maps to the narrator). The script itself defines
+  everything about the dialogue, so the model is *not trusted with it*: the cast is dictated from the speakers (the
+  outline must contain exactly those ids, otherwise it is sent back for repair), the lines are distributed over scenes
+  **deterministically** (contiguous groups in the original order, balanced by word count), and the model only designs
+  each scene's visuals (location, description, props, camera, motion) knowing which lines its scene contains. Dialogue
+  text, order and speakers always come from the script. Measured reason: on the target machine llama3.2 (3B) renamed the
+  cast, reordered lines and duplicated a line when it was asked to regroup them itself, and failed outright after
+  three repair attempts.
+- **Other scripts** (prose, no `NAME:` form): the model returns dialogue and every line is checked to occur in the script
+  (case/punctuation-insensitive); offending lines are sent back for repair. Weaker guarantee: order, speakers and
+  punctuation are not enforced.
+
+Rewriting happens only when explicitly allowed (`allowRewrite` in the planner input; there is no UI switch for it yet).

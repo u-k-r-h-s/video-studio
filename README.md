@@ -115,8 +115,8 @@ In the UI: **New project** (Idea or Script) -> scenes are generated -> **review/
 ## How the pipeline works
 
 1. **Plan**: Ollama returns a structured plan (cast + scenes + dialogue + camera/motion hints). Output is validated,
-   normalised and repaired; in Script mode dialogue is checked to be verbatim from your script. Then Ollama is
-   unloaded and verified gone.
+   normalised and repaired. In Script mode with `NAME: line` scripts the dialogue, order and cast come from your
+   script, and the model only designs each scene's visuals. Then Ollama is unloaded and verified gone.
 2. **Review**: nothing heavy runs until you approve. You can edit scenes, dialogue, props and characters.
 3. **Images**: one ComfyUI session generates all backgrounds (one per location), characters and props; ComfyUI is then
    freed, stopped and verified stopped. Cut-outs are keyed to transparency and quality-checked, with automatic retry.

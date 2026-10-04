@@ -13,6 +13,7 @@ import {
 import { generateStructured } from "../llm/structured";
 import type { LLMProvider } from "../llm/types";
 import { normalizeForCompare, normalizeOutline, normalizeScenes } from "./normalize";
+import { groupLines, parseScript, scriptCast, type ScriptLine } from "./script";
 import { expectedSceneCount, outlinePrompt, scenesPrompt, systemPrompt, type PlanInput } from "./prompts";
 
 export interface PlanResult {
@@ -52,17 +53,28 @@ export class ScenePlanner {
     const sys = { role: "system" as const, content: systemPrompt(profile) };
     const common = { llm: this.llm, maxRepairs: this.opts.maxRepairs, temperature: this.opts.temperature, signal: hooks.signal, onRepair: hooks.onRepair };
 
+    const script = input.mode === "script" && !input.allowRewrite ? parseScript(input.text) : undefined;
+    const groups = script ? groupLines(script, expectedSceneCount(profile, input.targetDurationSeconds)) : undefined;
     hooks.onStep?.("outline");
     const outline = await generateStructured({
       ...common,
       label: "story outline",
       schema: PlannedOutlineSchema,
-      messages: [sys, { role: "user", content: outlinePrompt(input, profile) }],
+      messages: [sys, { role: "user", content: outlinePrompt(input, profile, script) }],
       normalize: normalizeOutline,
       refine: (value) => {
         const issues: string[] = [];
         if (value.characters.length > profile.planning.maxCharacters) {
           issues.push(`Too many characters (${value.characters.length}); use at most ${profile.planning.maxCharacters}.`);
+        }
+        if (script) {
+          const want = scriptCast(script);
+          const have = new Set(value.characters.map((c) => c.id));
+          const missing = want.filter((w) => !have.has(w.id));
+          const extra = value.characters.filter((c) => !want.some((w) => w.id === c.id));
+          if (missing.length || extra.length) {
+            issues.push(`The cast must be exactly the script's speakers. Missing ids: ${missing.map((m) => `"${m.id}"`).join(", ") || "none"}. Not allowed: ${extra.map((e) => `"${e.id}"`).join(", ") || "none"}.`);
+          }
         }
         return { value, issues };
       },
@@ -75,12 +87,13 @@ export class ScenePlanner {
       ...common,
       label: "scene plan",
       schema: PlannedScenesSchema,
-      messages: [sys, { role: "user", content: scenesPrompt(input, profile, outline) }],
+      messages: [sys, { role: "user", content: scenesPrompt(input, profile, outline, groups) }],
       normalize: (raw) => normalizeScenes(raw, outline.characters),
-      refine: (value) => ({ value, issues: this.checkScenes(value.scenes, outline, profile, input, expected, scriptNorm) }),
+      refine: (value) => ({ value, issues: this.checkScenes(value.scenes, outline, profile, input, expected, scriptNorm, groups) }),
     });
 
-    return { title: outline.title, characters: outline.characters.map((c) => ({ ...c })), scenes: this.assemble(planned.scenes, profile) };
+    const scenes = groups ? this.applyGroups(planned.scenes, groups) : planned.scenes;
+    return { title: outline.title, characters: outline.characters.map((c) => ({ ...c })), scenes: this.assemble(scenes, profile) };
   }
 
   private checkScenes(
@@ -90,9 +103,12 @@ export class ScenePlanner {
     input: PlanInput,
     expected: number,
     scriptNorm: string,
+    groups?: ScriptLine[][],
   ): string[] {
     const issues: string[] = [];
-    if (input.mode === "idea" && Math.abs(scenes.length - expected) > 1) {
+    if (groups && scenes.length !== groups.length) {
+      issues.push(`Write exactly ${groups.length} scenes (one for each group of script lines) but got ${scenes.length}.`);
+    } else if (input.mode === "idea" && Math.abs(scenes.length - expected) > 1) {
       issues.push(`Expected exactly ${expected} scenes but got ${scenes.length}.`);
     }
     if (scenes.length > profile.timing.maxScenes) issues.push(`Too many scenes (${scenes.length}); use at most ${profile.timing.maxScenes}.`);
@@ -107,10 +123,11 @@ export class ScenePlanner {
       id: sceneId(i + 1),
       characters: s.characters,
       props: s.props,
-      dialogue: s.dialogue.map((d, n) => ({ id: dialogueId(sceneId(i + 1), n + 1), characterId: d.characterId, text: d.text })),
+      // for NAME: line scripts the model's own dialogue is discarded, so it must not be validated either
+      dialogue: groups ? [] : s.dialogue.map((d, n) => ({ id: dialogueId(sceneId(i + 1), n + 1), characterId: d.characterId, text: d.text })),
     }));
     issues.push(...validatePlanIntegrity({ characters: outline.characters, scenes: provisional }));
-    if (input.mode === "script" && !input.allowRewrite) {
+    if (!groups && input.mode === "script" && !input.allowRewrite) {
       const offenders = scenes.flatMap((s) => s.dialogue).filter((d) => !scriptNorm.includes(normalizeForCompare(d.text)));
       if (offenders.length > 0) {
         issues.push(
@@ -119,6 +136,18 @@ export class ScenePlanner {
       }
     }
     return issues;
+  }
+
+  /**
+   * For `NAME: line` scripts the dialogue comes from the script itself, never from the model: each scene gets exactly
+   * its group of lines (original text, order and speaker), and each speaker is made visible in its scene.
+   */
+  private applyGroups(planned: ReturnType<typeof PlannedScenesSchema.parse>["scenes"], groups: ScriptLine[][]): ReturnType<typeof PlannedScenesSchema.parse>["scenes"] {
+    return planned.map((s, i) => {
+      const dialogue = (groups[i] ?? []).map((l) => ({ characterId: l.speakerId, text: l.text }));
+      const characters = [...new Set([...s.characters, ...dialogue.map((d) => d.characterId).filter((c) => c !== "narrator")])];
+      return { ...s, dialogue, characters };
+    });
   }
 
   private assemble(planned: ReturnType<typeof PlannedScenesSchema.parse>["scenes"], profile: FormatProfile): Scene[] {
