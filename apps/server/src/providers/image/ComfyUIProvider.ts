@@ -55,7 +55,7 @@ export class ComfyUIProvider implements ImageProvider {
         if (hooks.signal?.aborted) throw new CancelledError();
         hooks.onProgress?.(i, requests.length, `Generating ${req.id}`);
         hooks.onImageStart?.(req.id);
-        const result = await this.generateOne(req, hooks.signal); // 3
+        const result = await this.generateWithQc(req, hooks); // 3
         results.push(result);
         await hooks.onImage?.(result);
         hooks.onProgress?.(i + 1, requests.length, `Generated ${req.id}`);
@@ -67,6 +67,21 @@ export class ComfyUIProvider implements ImageProvider {
       await this.releaseAndVerify(primaryError !== undefined); // 4-6
     }
     return results;
+  }
+
+  /** Generate, then ask the caller's quality gate; on rejection retry with a new seed (same session, no restart). */
+  private async generateWithQc(req: ImageRequest, hooks: BatchHooks): Promise<ImageResult> {
+    const max = Math.max(1, req.maxAttempts ?? 3);
+    let total = 0;
+    for (let attempt = 0; ; attempt++) {
+      const seed = req.seed + attempt * 7919;
+      const r = await this.generateOne({ ...req, seed }, hooks.signal);
+      total += r.durationMs;
+      const reason = hooks.validate ? await hooks.validate(r) : null;
+      if (!reason) return { ...r, durationMs: total, attempts: attempt + 1 };
+      log.warn(`image ${req.id} rejected: ${reason}`, { attempt: attempt + 1, of: max, seed });
+      if (attempt + 1 >= max) return { ...r, durationMs: total, attempts: attempt + 1, qualityWarning: reason };
+    }
   }
 
   private async releaseAndVerify(alreadyFailing: boolean): Promise<void> {

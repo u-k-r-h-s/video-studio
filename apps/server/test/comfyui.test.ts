@@ -152,6 +152,26 @@ describe("ComfyUIProvider lifecycle", () => {
   });
 });
 
+describe("image quality gate", () => {
+  it("regenerates a rejected image with a NEW seed in the same session, then accepts it", async () => {
+    const { provider, events } = await setup();
+    const seeds: number[] = [];
+    let calls = 0;
+    const out = await provider.generateBatch(reqs(1), { validate: (r) => { seeds.push(r.seed); return ++calls < 2 ? "a poster survived" : null; } });
+    expect(events.filter((e) => e === "http:prompt")).toHaveLength(2);
+    expect(events.filter((e) => e === "proc:start")).toHaveLength(1);
+    expect(new Set(seeds).size).toBe(2);
+    expect(out[0]).toMatchObject({ attempts: 2, seed: seeds[1] });
+    expect(out[0]!.qualityWarning).toBeUndefined();
+  });
+  it("keeps the last attempt (with a warning) when every attempt is rejected, never looping forever", async () => {
+    const { provider, events } = await setup();
+    const out = await provider.generateBatch(reqs(1), { validate: () => "still bad" });
+    expect(events.filter((e) => e === "http:prompt")).toHaveLength(3);
+    expect(out[0]).toMatchObject({ attempts: 3, qualityWarning: "still bad" });
+  });
+});
+
 describe("workflow builder", () => {
   it("is a pure function of its parameters", () => {
     const a = buildLcmWorkflow({ checkpoint: "c", lora: "l", prompt: "p", negativePrompt: "n", width: 512, height: 512, seed: 1 });

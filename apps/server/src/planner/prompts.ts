@@ -62,7 +62,7 @@ Scene rules:
 - "location" is a short name of the place. Use at most ${profile.planning.maxLocations} different locations in total and reuse the same name when scenes share a place.
 - "visualDescription" is one or two sentences about what we SEE (it becomes an illustration).
 - "characters" lists the cast ids visible in the scene. "props": 0 to ${profile.planning.maxPropsPerScene} important physical objects (short names like "wooden mousetrap").
-- "dialogue": 0 to 4 lines per scene. A speaker is a cast id or "${NARRATOR_ID}" for narration (use narration sparingly). "emotion" is how the line is delivered.
+- "dialogue": 2 to 4 short lines per scene (a scene with one short line feels rushed). A speaker is a cast id or "${NARRATOR_ID}" for narration (use narration sparingly). "emotion" is how the line is delivered.
 - "camera.movement" is one of: static, zoom_in, zoom_out, pan_left, pan_right. "camera.shot" is wide, medium or close_up.
 - "motion.entrance" (left, right, none) is where the characters enter from; "motion.emphasis" is none, impact or surprise (use impact/surprise for the big moment).
 - "duration" is the scene length in seconds.`;

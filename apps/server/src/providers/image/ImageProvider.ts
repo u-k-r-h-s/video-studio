@@ -10,13 +10,20 @@ export interface ImageRequest {
   seed: number;
   /** Absolute destination path (inside the project). */
   outPath: string;
+  /** Total generations allowed when `validate` rejects (default 3). */
+  maxAttempts?: number;
 }
 
 export interface ImageResult {
   id: string;
   path: string;
+  /** The seed that produced the kept image (differs from the requested one after a quality retry). */
   seed: number;
   durationMs: number;
+  /** How many generations it took (1 = accepted first time). */
+  attempts?: number;
+  /** Set when the kept image still failed validation. */
+  qualityWarning?: string;
 }
 
 export interface BatchHooks {
@@ -25,6 +32,11 @@ export interface BatchHooks {
   logFile?: string;
   /** Called right before each image starts generating (for per-image timing logs). */
   onImageStart?: (id: string) => void;
+  /**
+   * Quality gate run after each image is saved. Return a reason string to reject it: the provider regenerates it with a
+   * new seed (up to `maxAttempts` per request, default 3 in total). The last attempt is kept even if it still fails.
+   */
+  validate?: (result: ImageResult) => Promise<string | null> | string | null;
   /** Called as soon as EACH image is saved, so the caller can persist progress (resumability). */
   onImage?: (result: ImageResult) => Promise<void> | void;
   onProgress?: (done: number, total: number, message: string) => void;

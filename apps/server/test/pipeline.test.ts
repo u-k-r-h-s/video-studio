@@ -100,7 +100,8 @@ describe("full pipeline: stage ordering and memory gates", () => {
     const s3 = p.scenes[2]!;
     expect(s3.dialogue[0]!.startTime).toBeCloseTo(0.4, 3);
     expect(s3.dialogue[1]!.startTime!).toBeGreaterThan(s3.dialogue[0]!.endTime!); // gap between lines
-    expect(s3.duration).toBeCloseTo(s3.dialogue[1]!.endTime! + 0.7, 2);
+    expect(s3.duration).toBeGreaterThanOrEqual(s3.dialogue[1]!.endTime! + 0.7 - 1e-6);
+    expect(s3.duration).toBeGreaterThanOrEqual(5); // profile minimum
     expect(p.scenes.every((s) => s.status === "rendered")).toBe(true);
     expect(p.audio).toHaveLength(4);
     expect(p.assets.filter((a) => a.kind === "subtitle")).toHaveLength(4);
@@ -300,6 +301,14 @@ describe("plan editing and approval", () => {
     expect(after.title).toBe("Night Watch");
     expect(after.scenes[0]!.dialogue.map((d) => d.id)).toEqual(["scene-01-d01", "scene-01-d02"]);
     expect(after.scenes[0]!.status).toBe("planned");
+  });
+  it("clamps out-of-range scene durations to the profile instead of rejecting the save", async () => {
+    const { h, id } = await planned();
+    const p = await h.store.require(id);
+    await h.studio.editPlan(id, { title: p.title, characters: p.characters, scenes: p.scenes.map((s, i) => ({ ...s, duration: i === 0 ? 1 : i === 1 ? 59 : s.duration })) });
+    const after = await h.store.require(id);
+    expect(after.scenes[0]!.duration).toBe(5);   // profile minimum
+    expect(after.scenes[1]!.duration).toBe(14);  // profile maximum
   });
   it("rejects invalid edits with readable messages", async () => {
     const { h, id } = await planned();

@@ -9,7 +9,7 @@ import { EncoderUnavailableError, RenderError } from "../src/errors";
 import { ExecFileRunner, type CommandRunner } from "../src/lib/command";
 import { findExecutable } from "../src/lib/exe";
 import { setLogQuiet } from "../src/lib/logger";
-import { cropToContent, decodePng, encodePng, keyOutBackground, sampleBorderColor, type Rgba } from "../src/lib/png";
+import { assessCutout, cropToContent, decodePng, encodePng, keyOutBackground, sampleBorderColor, type Rgba } from "../src/lib/png";
 import { encodeWav } from "../src/lib/wav";
 import { motionComic } from "../src/profiles/motionComic";
 import { FFmpegMotionRenderer } from "../src/render/FFmpegMotionRenderer";
@@ -105,7 +105,7 @@ describe("timeline + motion planner", () => {
   it("builds the timeline from real audio durations (lead-in, gaps, tail)", () => {
     const tl = buildTimeline(baseScene({ dialogue: baseScene().dialogue.map(({ startTime, endTime, ...d }) => d) }), new Map([["scene-01-d01", 2.1], ["scene-01-d02", 1.15]]), motionComic);
     expect(tl.lines).toEqual([{ dialogueId: "scene-01-d01", start: 0.4, end: 2.5 }, { dialogueId: "scene-01-d02", start: 2.85, end: 4 }]);
-    expect(tl.duration).toBeCloseTo(4.7, 3); // last end + tail
+    expect(tl.duration).toBe(5); // last end + tail = 4.7 s, raised to the profile minimum (5 s)
   });
   it("uses the planned duration for silent scenes and rejects missing audio", () => {
     expect(buildTimeline(baseScene({ dialogue: [], duration: 5 }), new Map(), motionComic).duration).toBe(5);
@@ -181,19 +181,57 @@ describe("png toolkit", () => {
     expect(back.width).toBe(7); expect(back.height).toBe(5);
     expect(Array.from(back.data)).toEqual(Array.from(img.data));
   });
-  it("keys out a flat background (including enclosed gaps) and crops to the figure", () => {
-    const bg: [number, number, number, number] = [225, 154, 84, 255];
-    // figure: a dark ring (enclosed bg hole in the middle) in a 60x80 image
-    const img = make(60, 80, (x, y) => { const d = Math.hypot(x - 30, y - 40); return d > 8 && d < 18 ? [60, 30, 20, 255] : bg; });
-    expect(sampleBorderColor(img)).toEqual([225, 154, 84]);
+  it("keys out the connected background, keeps background-coloured parts INSIDE the figure, and crops", () => {
+    const bg: [number, number, number, number] = [245, 245, 245, 255];
+    // a dark outlined figure on near-white with a WHITE face enclosed by the outline
+    const img = make(60, 80, (x, y) => {
+      const d = Math.hypot(x - 30, y - 40);
+      if (d > 18 && d < 20) return [20, 20, 20, 255];        // outline ring
+      return bg;                                              // outer background AND the enclosed white interior
+    });
+    expect(sampleBorderColor(img)).toEqual([245, 245, 245]);
     const keyed = keyOutBackground(img);
-    const px = (x: number, y: number) => keyed.data[(y * 60 + x) * 4 + 3]!;
-    expect(px(2, 2)).toBe(0);      // background
-    expect(px(30, 40)).toBe(0);    // enclosed hole
-    expect(px(30, 40 - 13)).toBe(255); // ring body
+    const a = (x: number, y: number) => keyed.data[(y * 60 + x) * 4 + 3]!;
+    expect(a(2, 2)).toBe(0);          // outer background removed
+    expect(a(30, 40)).toBe(255);      // enclosed white (a face) preserved: a global colour key would delete it
+    expect(a(30, 40 - 19)).toBeGreaterThan(100); // thin outline kept (softened by the edge blur)
     const cropped = cropToContent(keyed, 20, 2);
-    expect(cropped.width).toBeLessThan(60); expect(cropped.height).toBeLessThan(80);
-    expect(cropped.width).toBeGreaterThanOrEqual(36); expect(cropped.width).toBeLessThanOrEqual(42);
+    expect(cropped.width).toBeLessThan(60); expect(cropped.width).toBeGreaterThanOrEqual(36);
+  });
+  it("follows a smooth gradient background but does not leak into a differently coloured interior", () => {
+    const img = make(80, 100, (x, y) => {
+      const inside = x > 25 && x < 55 && y > 20 && y < 90;
+      return inside ? [15, 15, 25, 255] : [200 + (y >> 3), 120 + (x >> 3), 110, 255]; // pink gradient vs near-black coat
+    });
+    const keyed = keyOutBackground(img);
+    expect(keyed.data[(5 * 80 + 5) * 4 + 3]).toBe(0);
+    expect(keyed.data[(95 * 80 + 70) * 4 + 3]).toBe(0);
+    expect(keyed.data[(50 * 80 + 40) * 4 + 3]).toBe(255);
+  });
+  it("peels a poster/frame around the subject (white margin + black line + brown panel)", () => {
+    const W = 100, H = 140;
+    const img = make(W, H, (x, y) => {
+      const edge = Math.min(x, y, W - 1 - x, H - 1 - y);
+      if (edge < 8) return [250, 250, 250, 255];
+      if (edge < 11) return [15, 15, 15, 255];
+      const inFigure = x > 35 && x < 65 && y > 40 && y < 120;
+      return inFigure ? [40, 90, 200, 255] : [100, 70, 50, 255];
+    });
+    const keyed = keyOutBackground(img);
+    const a = (x: number, y: number) => keyed.data[(y * W + x) * 4 + 3]!;
+    expect(a(3, 3)).toBe(0);
+    expect(a(15, 70)).toBe(0);
+    expect(a(50, 80)).toBe(255);
+  });
+  it("does not treat a real full-height figure as a panel", () => {
+    const img = make(60, 100, (x) => (x > 15 && x < 45 ? [30, 120, 60, 255] : [240, 240, 240, 255]));
+    expect(keyOutBackground(img).data[(50 * 60 + 30) * 4 + 3]).toBe(255);
+  });
+  it("assesses cut-outs: accepts a figure, rejects a surviving panel or an empty result", () => {
+    const figure = keyOutBackground(make(100, 140, (x, y) => (x > 35 && x < 65 && y > 20 && y < 130 ? [200, 40, 40, 255] : [245, 245, 245, 255])));
+    expect(assessCutout(figure, "character").ok).toBe(true);
+    expect(assessCutout(make(100, 140, () => [100, 70, 50, 255]), "character")).toMatchObject({ ok: false });
+    expect(assessCutout(make(100, 140, () => [0, 0, 0, 0]), "prop").reason).toContain("almost nothing");
   });
   it("rejects unsupported/corrupt PNGs", () => {
     expect(() => decodePng(Buffer.from("nope"))).toThrow(/not a PNG/);

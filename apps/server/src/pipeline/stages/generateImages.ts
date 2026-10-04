@@ -11,7 +11,7 @@ import {
   type Scene,
 } from "@studio/shared";
 import { StageOrderError } from "../../errors";
-import { cropToContent, decodePng, encodePng, keyOutBackground } from "../../lib/png";
+import { assessCutout, cropToContent, decodePng, encodePng, keyOutBackground } from "../../lib/png";
 import type { ImageRequest } from "../../providers/image/ImageProvider";
 import { findAsset, isFresh, upsertAsset } from "../assets";
 import { stableHash, seedFor } from "../hash";
@@ -51,12 +51,12 @@ export function collectNeeds(p: Project, profile: FormatProfile, scope: Scope, r
     const overrideId = sceneBackgroundAssetId(scene.id);
     const useOverride = !!(scope.includeBackground && scope.sceneIds) || findAsset(p, overrideId)?.status === "ready";
     if (useOverride) {
-      const pr = backgroundPrompt(profile, scene);
+      const pr = backgroundPrompt(profile, scene, p.characters, true);
       needs.set(overrideId, mk({ assetId: overrideId, kind: "background", sceneId: scene.id, prompt: pr.prompt, negative: pr.negative, ...size.background }));
     } else {
       const id = backgroundAssetId(scene.location);
       if (!needs.has(id)) {
-        const pr = backgroundPrompt(profile, firstSceneAt(p, scene.location) ?? scene);
+        const pr = backgroundPrompt(profile, firstSceneAt(p, scene.location) ?? scene, p.characters, false);
         needs.set(id, mk({ assetId: id, kind: "background", prompt: pr.prompt, negative: pr.negative, ...size.background }));
       }
     }
@@ -112,7 +112,7 @@ export const generateImages: StageFn = async (svc, ctx) => {
   const todo = needs.filter((n) => isForced(n, ctx.scope) || !isFresh(svc.store, project, n.assetId, n.hash));
   ctx.log.event({ stage }, "planned", { needed: needs.length, toGenerate: todo.length, cached: needs.length - todo.length });
 
-  const persist = async (need: ImageNeed, rawRel: string, genMeta: { seed: number; durationMs: number; attempt: number }): Promise<void> => {
+  const persist = async (need: ImageNeed, rawRel: string, genMeta: { seed: number; durationMs: number; attempt: number; tries?: number; qualityWarning?: string }): Promise<void> => {
     let finalRel = rawRel;
     let width = need.width;
     let height = need.height;
@@ -128,11 +128,11 @@ export const generateImages: StageFn = async (svc, ctx) => {
     await svc.store.update(project.id, (p) => {
       upsertAsset(p, {
         id: need.assetId, kind: need.kind, sceneId: need.sceneId, characterId: need.characterId, path: finalRel, status: "ready", inputHash: need.hash,
-        meta: { width, height, seed: genMeta.seed, attempt: genMeta.attempt, durationMs: genMeta.durationMs, prompt: need.prompt, ...(need.kind !== "background" ? { rawPath: rawRel } : {}), ...(need.reference ? { reference: need.reference } : {}) },
+        meta: { width, height, seed: genMeta.seed, attempt: genMeta.attempt, durationMs: genMeta.durationMs, tries: genMeta.tries ?? 1, ...(genMeta.qualityWarning ? { qualityWarning: genMeta.qualityWarning } : {}), prompt: need.prompt, ...(need.kind !== "background" ? { rawPath: rawRel } : {}), ...(need.reference ? { reference: need.reference } : {}) },
         createdAt: new Date().toISOString(),
       });
     });
-    ctx.log.event({ stage, scene: need.sceneId, asset: need.assetId }, "completed", { durationMs: genMeta.durationMs, seed: genMeta.seed });
+    ctx.log.event({ stage, scene: need.sceneId, asset: need.assetId }, genMeta.qualityWarning ? "warning" : "completed", { durationMs: genMeta.durationMs, seed: genMeta.seed, tries: genMeta.tries ?? 1, ...(genMeta.qualityWarning ? { quality: genMeta.qualityWarning } : {}) });
   };
 
   await ctx.log.time({ stage }, async () => {
@@ -171,7 +171,14 @@ export const generateImages: StageFn = async (svc, ctx) => {
         logFile: svc.store.resolve(project.id, "logs", "comfyui.log"),
         onImageStart: (id) => ctx.log.event({ stage, scene: byId.get(id)!.sceneId, asset: id }, "started"),
         onProgress: (done, total, msg) => ctx.progress(10 + (80 * done) / total, msg),
-        onImage: async (r) => persist(byId.get(r.id)!, path.relative(svc.store.dir(project.id), r.path), { seed: r.seed, durationMs: r.durationMs, attempt: attempts.get(r.id) ?? 0 }),
+        // quality gate: cut-outs that still contain a poster/background are regenerated with a new seed
+        validate: async (r) => {
+          const need = byId.get(r.id)!;
+          if (need.kind === "background") return null;
+          const qc = assessCutout(keyOutBackground(decodePng(await fs.readFile(r.path))), need.kind);
+          return qc.ok ? null : qc.reason!;
+        },
+        onImage: async (r) => persist(byId.get(r.id)!, path.relative(svc.store.dir(project.id), r.path), { seed: r.seed, durationMs: r.durationMs, attempt: attempts.get(r.id) ?? 0, tries: r.attempts, qualityWarning: r.qualityWarning }),
       });
     }
   });

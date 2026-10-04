@@ -91,30 +91,85 @@ export function sampleBorderColor(img: Rgba, border = 8): [number, number, numbe
   return [med(rs), med(gs), med(bs)];
 }
 
+function opaqueBox(alpha: Uint8Array, w: number, h: number): { x0: number; y0: number; x1: number; y1: number } | undefined {
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (alpha[y * w + x]! > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? undefined : { x0, y0, x1, y1 };
+}
+
 /**
- * Turns a flat-background image into a transparent cut-out: every pixel within `tolerance` (RGB distance) of the
- * border colour becomes transparent (also enclosed gaps, e.g. between arm and torso), then the alpha edge is softened.
+ * Turns an image drawn on a plain/gradient background (or inside a poster frame) into a transparent cut-out.
+ *
+ * Background = the region CONNECTED to the image border that changes smoothly: starting from border pixels that
+ * look like the background, a pixel joins the region when its colour differs from its already-accepted neighbour
+ * by less than `delta`. That follows gradients and vignettes but stops at the figure's outline. Unlike a global
+ * colour key it never deletes background-coloured parts INSIDE the figure (a white face, a hand).
+ * If an opaque panel still spans most of the image (poster frame; >= 75% in both dimensions, which a standing
+ * figure never does), the grow is repeated from that panel's edge, up to 8 times. Finally the alpha edge is softened.
  */
-export function keyOutBackground(img: Rgba, tolerance = 34): Rgba {
-  const [r0, g0, b0] = sampleBorderColor(img);
-  const out = new Uint8Array(img.data);
-  const alpha = new Uint8Array(img.width * img.height);
-  for (let i = 0; i < alpha.length; i++) {
-    const o = i * 4;
-    const d = Math.hypot(img.data[o]! - r0, img.data[o + 1]! - g0, img.data[o + 2]! - b0);
-    alpha[i] = d < tolerance ? 0 : 255;
+export function keyOutBackground(img: Rgba, delta = 22, maxDrift = 70): Rgba {
+  const { width: w, height: h } = img;
+  const alpha = new Uint8Array(w * h).fill(255);
+  const px = (i: number, k: number) => img.data[i * 4 + k]!;
+  const dist = (i: number, j: number) => Math.hypot(px(i, 0) - px(j, 0), px(i, 1) - px(j, 1), px(i, 2) - px(j, 2));
+
+  /**
+   * Region-grow transparency from seeds that resemble the median colour of the seed set. A pixel joins when it is
+   * within `delta` of its accepted neighbour (follows gradients) AND within `drift` of the seed colour (cannot leak
+   * through a blurry outline into a differently coloured interior).
+   */
+  const grow = (seedIdx: number[], drift: number): number => {
+    if (seedIdx.length === 0) return 0;
+    const med = (k: number) => seedIdx.map((i) => px(i, k)).sort((a, b) => a - b)[seedIdx.length >> 1]!;
+    const [mr, mg, mb] = [med(0), med(1), med(2)];
+    const close = (i: number) => Math.hypot(px(i, 0) - mr, px(i, 1) - mg, px(i, 2) - mb) < delta * 3;
+    const nearSeed = (i: number) => Math.hypot(px(i, 0) - mr, px(i, 1) - mg, px(i, 2) - mb) < drift;
+    const stack: number[] = [];
+    for (const i of seedIdx) if (alpha[i] !== 0 && close(i)) { alpha[i] = 0; stack.push(i); }
+    let n = stack.length;
+    while (stack.length) {
+      const i = stack.pop()!;
+      const x = i % w, y = (i / w) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
+        if (j >= 0 && alpha[j] !== 0 && dist(i, j) < delta && nearSeed(j)) { alpha[j] = 0; stack.push(j); n++; }
+      }
+    }
+    return n;
+  };
+
+  const ring: number[] = [];
+  for (let x = 0; x < w; x++) ring.push(x, (h - 1) * w + x);
+  for (let y = 1; y < h - 1; y++) ring.push(y * w, y * w + w - 1);
+  grow(ring, maxDrift);
+
+  for (let pass = 0; pass < 8; pass++) {
+    const box = opaqueBox(alpha, w, h);
+    if (!box || box.x1 - box.x0 + 1 < 0.75 * w || box.y1 - box.y0 + 1 < 0.75 * h) break;
+    const seeds: number[] = [];
+    for (let x = box.x0; x <= box.x1; x++) seeds.push(box.y0 * w + x, box.y1 * w + x);
+    for (let y = box.y0; y <= box.y1; y++) seeds.push(y * w + box.x0, y * w + box.x1);
+    const live = seeds.filter((i) => alpha[i] !== 0);
+    if (live.length === 0) break;
+    // A real frame/panel has a homogeneous edge. If the edge is mixed, it runs through the figure itself: stop.
+    const med = (k: number) => live.map((i) => px(i, k)).sort((a, b) => a - b)[live.length >> 1]!;
+    const [mr, mg, mb] = [med(0), med(1), med(2)];
+    const homogeneous = live.filter((i) => Math.hypot(px(i, 0) - mr, px(i, 1) - mg, px(i, 2) - mb) < delta * 2).length / live.length;
+    if (homogeneous < 0.85) break;
+    if (grow(live, maxDrift * 0.6) === 0) break;
   }
+
+  const out = new Uint8Array(img.data);
   const soft = new Uint8Array(alpha.length); // 3x3 box blur: soft edge without a halo of hard pixels
-  for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) {
-    let s = 0, n = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let sum = 0, n = 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
       const xx = x + dx, yy = y + dy;
-      if (xx >= 0 && yy >= 0 && xx < img.width && yy < img.height) { s += alpha[yy * img.width + xx]!; n++; }
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h) { sum += alpha[yy * w + xx]!; n++; }
     }
-    soft[y * img.width + x] = Math.round(s / n);
+    soft[y * w + x] = Math.round(sum / n);
   }
   for (let i = 0; i < soft.length; i++) out[i * 4 + 3] = soft[i]!;
-  return { width: img.width, height: img.height, data: out };
+  return { width: w, height: h, data: out };
 }
 
 /** Crops to the bounding box of non-transparent pixels (plus a margin) so layout anchors the visible figure. */
@@ -129,4 +184,36 @@ export function cropToContent(img: Rgba, alphaThreshold = 20, margin = 4): Rgba 
   const data = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) data.set(img.data.subarray(((y0 + y) * img.width + x0) * 4, ((y0 + y) * img.width + x0 + w) * 4), y * w * 4);
   return { width: w, height: h, data };
+}
+
+export interface CutoutAssessment {
+  ok: boolean;
+  /** Human-readable reason when not ok. */
+  reason?: string;
+  opaqueFraction: number;
+  /** Width of the visible content as a fraction of the image width. */
+  widthFraction: number;
+}
+
+/**
+ * Quality check of a keyed cut-out (before cropping). Catches the typical failures of small image models:
+ * a poster/panel that still fills the image (character too wide), nothing left, or (almost) nothing removed.
+ */
+export function assessCutout(keyed: Rgba, kind: "character" | "prop"): CutoutAssessment {
+  const n = keyed.width * keyed.height;
+  let opaque = 0, x0 = keyed.width, x1 = -1;
+  for (let y = 0; y < keyed.height; y++) for (let x = 0; x < keyed.width; x++) {
+    if (keyed.data[(y * keyed.width + x) * 4 + 3]! > 20) { opaque++; if (x < x0) x0 = x; if (x > x1) x1 = x; }
+  }
+  const opaqueFraction = opaque / n;
+  const widthFraction = x1 < 0 ? 0 : (x1 - x0 + 1) / keyed.width;
+  const base = { opaqueFraction, widthFraction };
+  if (opaqueFraction < 0.04) return { ok: false, reason: "almost nothing is left after removing the background", ...base };
+  if (kind === "character") {
+    if (widthFraction > 0.8) return { ok: false, reason: "the background/frame could not be separated (the figure spans the whole width)", ...base };
+    if (opaqueFraction > 0.6) return { ok: false, reason: "too much of the image is still opaque", ...base };
+  } else if (opaqueFraction > 0.9) {
+    return { ok: false, reason: "the background could not be separated", ...base };
+  }
+  return { ok: true, ...base };
 }

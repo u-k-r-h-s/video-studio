@@ -21,7 +21,11 @@ export function applyPlanEdit(project: Project, rawEdit: unknown, profile: Forma
     if (ids.has(s.id)) throw new HttpError(400, "plan_invalid", `Duplicate scene id ${s.id}`);
     ids.add(s.id);
     const dialogue = s.dialogue.map((d, n) => ({ id: dialogueId(s.id, n + 1), characterId: d.characterId, text: d.text, ...(d.emotion ? { emotion: d.emotion } : {}) }));
-    const next: Scene = { ...s, order: i + 1, dialogue, generatedAssets: old.get(s.id)?.generatedAssets ?? [] };
+    // Durations outside the profile's range are clamped, never rejected: for scenes with dialogue the duration is
+    // derived from the voice timeline anyway, and older projects may predate a profile change.
+    const { minSceneSeconds: lo, maxSceneSeconds: hi } = profile.timing;
+    const duration = Math.round(Math.min(hi, Math.max(lo, s.duration)) * 10) / 10;
+    const next: Scene = { ...s, duration, order: i + 1, dialogue, generatedAssets: old.get(s.id)?.generatedAssets ?? [] };
     const before = old.get(s.id);
     if (!before || editable(before) !== editable(next)) next.status = "planned";
     else next.status = before.status;
@@ -31,7 +35,6 @@ export function applyPlanEdit(project: Project, rawEdit: unknown, profile: Forma
   if (edit.characters.length > profile.planning.maxCharacters) issues.push(`At most ${profile.planning.maxCharacters} characters are allowed.`);
   for (const s of scenes) {
     if (s.props.length > profile.planning.maxPropsPerScene) issues.push(`${s.id}: at most ${profile.planning.maxPropsPerScene} props per scene.`);
-    if (s.duration < profile.timing.minSceneSeconds || s.duration > profile.timing.maxSceneSeconds) issues.push(`${s.id}: duration must be ${profile.timing.minSceneSeconds}-${profile.timing.maxSceneSeconds} s.`);
   }
   if (issues.length) throw new HttpError(400, "plan_invalid", issues.join(" "), issues);
   return { title: edit.title, characters: edit.characters, scenes };

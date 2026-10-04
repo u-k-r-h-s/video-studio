@@ -19,7 +19,7 @@ export const motionComic: FormatProfile = {
     negativePrompt: "photo, photorealistic, blurry, text, watermark, signature, deformed, extra limbs, ugly",
   },
   images: { background: { width: 512, height: 896 }, character: { width: 512, height: 896 }, prop: { width: 512, height: 512 } },
-  timing: { minSceneSeconds: 3, maxSceneSeconds: 14, defaultSceneSeconds: 6, secondsPerScene: 7, minScenes: 2, maxScenes: 8, leadInSeconds: 0.4, gapSeconds: 0.35, tailSeconds: 0.7, wordsPerSecond: 2.6 },
+  timing: { minSceneSeconds: 5, maxSceneSeconds: 14, defaultSceneSeconds: 6, secondsPerScene: 7, minScenes: 2, maxScenes: 8, leadInSeconds: 0.4, gapSeconds: 0.35, tailSeconds: 0.7, wordsPerSecond: 2.6 },
   planning: {
     maxCharacters: 3,
     maxLocations: 2,

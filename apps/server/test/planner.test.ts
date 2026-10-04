@@ -167,3 +167,10 @@ describe("normalizeScenes", () => {
     expect(prettifyTitle("The Night Thief")).toBe("The Night Thief");
   });
 });
+
+describe("planner: prompts and clean-up for image generation", () => {
+  it("turns kebab-cased props into plain words and trims the cast text", () => {
+    const out = normalizeScenes({ scenes: [{ props: ["wooden-mousetrap", "Empty_Food Containers", "wooden mousetrap"], characters: [] }] }, []) as { scenes: any[] };
+    expect(out.scenes[0].props).toEqual(["wooden mousetrap", "empty food containers"]);
+  });
+});

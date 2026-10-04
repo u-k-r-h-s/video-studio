@@ -18,7 +18,7 @@ export function normalizeOutline(raw: unknown): unknown {
     out.characters = raw.characters.map((c) => {
       if (!isRecord(c)) return c;
       const source = typeof c.id === "string" && c.id.trim() ? c.id : typeof c.name === "string" ? c.name : "";
-      return { ...c, id: slugify(source) };
+      return { ...c, id: slugify(source), ...(typeof c.description === "string" ? { description: c.description.trim() } : {}), ...(typeof c.appearance === "string" ? { appearance: c.appearance.trim() } : {}) };
     });
   }
   return out;
@@ -77,7 +77,7 @@ export function normalizeScenes(raw: unknown, cast: { id: string; name: string }
         out.characters = characters;
       }
       if (Array.isArray(s.props)) {
-        out.props = [...new Set(s.props.filter((p): p is string => typeof p === "string").map((p) => p.trim()).filter((p) => p.length >= 2))];
+        out.props = [...new Set(s.props.filter((p): p is string => typeof p === "string").map((p) => p.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase()).filter((p) => p.length >= 2))];
       }
       if (isRecord(s.camera)) {
         let movement = norm(s.camera.movement);
