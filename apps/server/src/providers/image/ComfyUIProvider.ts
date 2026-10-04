@@ -1,0 +1,170 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import type { ServiceDetail } from "@studio/shared";
+import { CancelledError, ComfyGenerationError, ComfyTimeoutError, describeError } from "../../errors";
+import { createLogger } from "../../lib/logger";
+import type { MemoryGate } from "../../services/MemoryGate";
+import type { ComfySession } from "./ComfyProcess";
+import { buildLcmWorkflow, OUTPUT_NODE_ID, type ComfyGraph } from "./comfyWorkflow";
+import type { BatchHooks, ImageProvider, ImageRequest, ImageResult } from "./ImageProvider";
+
+const log = createLogger("comfyui");
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export interface ComfyUIOptions {
+  baseUrl: string;
+  checkpoint: string;
+  lora: string;
+  imageTimeoutMs: number;
+  /** Where to append ComfyUI's own stdout/stderr (diagnostics only). */
+  logFile?: string;
+  pollMs?: number;
+  /** Replaceable workflow builder: swapping the workflow never touches the rest of the app. */
+  buildWorkflow?: typeof buildLcmWorkflow;
+}
+
+export interface BatchLogHooks extends BatchHooks {
+  logFile?: string;
+}
+
+/**
+ * ImageProvider backed by a local ComfyUI (SD 1.5 + LCM-LoRA, as measured in the feasibility test).
+ *
+ * generateBatch lifecycle (one session per call, never one per image):
+ *   1. ensure Ollama is unloaded and verified (MemoryGate)
+ *   2. start ComfyUI
+ *   3. generate ALL requested images, saving each as it completes
+ *   4. free ComfyUI model memory (/free)
+ *   5. stop ComfyUI
+ *   6. verify the process is gone and the port closed (MemoryGate)
+ * Steps 4-6 run in `finally`, so cancellation and failures also release the memory.
+ */
+export class ComfyUIProvider implements ImageProvider {
+  readonly name = "comfyui";
+
+  constructor(
+    private readonly session: ComfySession,
+    private readonly gate: MemoryGate,
+    private readonly opts: ComfyUIOptions,
+  ) {}
+
+  async generateBatch(requests: ImageRequest[], hooks: BatchLogHooks = {}): Promise<ImageResult[]> {
+    if (requests.length === 0) return [];
+    await this.gate.ensureOllamaUnloaded(); // 1
+    const results: ImageResult[] = [];
+    let primaryError: unknown;
+    try {
+      await this.session.start({ logFile: hooks.logFile ?? this.opts.logFile }); // 2
+      for (const [i, req] of requests.entries()) {
+        if (hooks.signal?.aborted) throw new CancelledError();
+        hooks.onProgress?.(i, requests.length, `Generating ${req.id}`);
+        const result = await this.generateOne(req, hooks.signal); // 3
+        results.push(result);
+        await hooks.onImage?.(result);
+        hooks.onProgress?.(i + 1, requests.length, `Generated ${req.id}`);
+      }
+    } catch (err) {
+      primaryError = err;
+      throw err;
+    } finally {
+      await this.releaseAndVerify(primaryError !== undefined); // 4-6
+    }
+    return results;
+  }
+
+  private async releaseAndVerify(alreadyFailing: boolean): Promise<void> {
+    try {
+      if (this.session.isProcessAlive()) await this.freeMemory(); // 4
+    } catch (err) {
+      log.warn("freeing ComfyUI memory failed (stopping the process anyway)", { error: (err as Error).message });
+    }
+    try {
+      await this.session.stop(); // 5
+      await this.gate.assertComfyUIStopped(); // 6
+    } catch (err) {
+      if (alreadyFailing) log.error(`could not verify ComfyUI shutdown: ${describeError(err)}`);
+      else throw err;
+    }
+  }
+
+  private async freeMemory(): Promise<void> {
+    await fetch(`${this.opts.baseUrl}/free`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unload_models: true, free_memory: true }),
+      signal: AbortSignal.timeout(15_000),
+    }).then((r) => r.arrayBuffer());
+  }
+
+  private async generateOne(req: ImageRequest, signal?: AbortSignal): Promise<ImageResult> {
+    const t0 = Date.now();
+    const graph = (this.opts.buildWorkflow ?? buildLcmWorkflow)({
+      checkpoint: this.opts.checkpoint, lora: this.opts.lora, prompt: req.prompt, negativePrompt: req.negativePrompt,
+      width: req.width, height: req.height, seed: req.seed,
+    });
+    const promptId = await this.submit(graph);
+    const file = await this.waitForImage(promptId, req.id, signal);
+    const bytes = await this.download(file);
+    await fs.mkdir(path.dirname(req.outPath), { recursive: true });
+    const tmp = `${req.outPath}.tmp`;
+    await fs.writeFile(tmp, bytes);
+    await fs.rename(tmp, req.outPath);
+    return { id: req.id, path: req.outPath, seed: req.seed, durationMs: Date.now() - t0 };
+  }
+
+  private async submit(graph: ComfyGraph): Promise<string> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.opts.baseUrl}/prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: graph }),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err) {
+      throw new ComfyGenerationError("could not submit the job", err);
+    }
+    const body = (await res.json().catch(() => ({}))) as { prompt_id?: string; error?: unknown; node_errors?: unknown };
+    if (!res.ok || !body.prompt_id) throw new ComfyGenerationError(`ComfyUI rejected the workflow: ${JSON.stringify(body.node_errors ?? body.error ?? res.status).slice(0, 400)}`);
+    return body.prompt_id;
+  }
+
+  private async waitForImage(promptId: string, label: string, signal?: AbortSignal): Promise<{ filename: string; subfolder: string; type: string }> {
+    const deadline = Date.now() + this.opts.imageTimeoutMs;
+    for (;;) {
+      if (signal?.aborted) {
+        await this.interrupt();
+        throw new CancelledError();
+      }
+      if (Date.now() > deadline) {
+        await this.interrupt();
+        throw new ComfyTimeoutError(`${label} did not finish within ${Math.round(this.opts.imageTimeoutMs / 1000)} s`);
+      }
+      const res = await fetch(`${this.opts.baseUrl}/history/${promptId}`, { signal: AbortSignal.timeout(15_000) }).catch(() => undefined);
+      const entry = res?.ok ? ((await res.json()) as Record<string, { status?: { status_str?: string; completed?: boolean; messages?: unknown[] }; outputs?: Record<string, { images?: { filename: string; subfolder: string; type: string }[] }> }>)[promptId] : undefined;
+      if (entry?.status?.status_str === "error") throw new ComfyGenerationError(`ComfyUI reported an error for ${label}: ${JSON.stringify(entry.status.messages ?? []).slice(0, 400)}`);
+      if (entry?.status?.completed) {
+        const image = entry.outputs?.[OUTPUT_NODE_ID]?.images?.[0] ?? Object.values(entry.outputs ?? {}).flatMap((o) => o.images ?? [])[0];
+        if (!image) throw new ComfyGenerationError(`ComfyUI finished ${label} without an image`);
+        return image;
+      }
+      await sleep(this.opts.pollMs ?? 500);
+    }
+  }
+
+  private async download(file: { filename: string; subfolder: string; type: string }): Promise<Buffer> {
+    const q = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder, type: file.type });
+    const res = await fetch(`${this.opts.baseUrl}/view?${q}`, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new ComfyGenerationError(`could not download the generated image (HTTP ${res.status})`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  private async interrupt(): Promise<void> {
+    await fetch(`${this.opts.baseUrl}/interrupt`, { method: "POST", signal: AbortSignal.timeout(5000) }).catch(() => {});
+  }
+
+  /** Static check only: starting ComfyUI just to probe it would load memory. */
+  async health(): Promise<ServiceDetail> {
+    return { status: "ready", message: "ComfyUI is started on demand for each image batch" };
+  }
+}
