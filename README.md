@@ -1,14 +1,25 @@
 # Video Studio
 
-A **local-first, profile-driven AI video studio**. Give it an idea or an existing script; it plans scenes with a local
-LLM, lets you review and edit them, then generates images, voices and subtitles and renders a vertical 1080x1920 MP4,
-all on your own machine with no paid API. The first format profile is `motion-comic` (still illustrations with camera
-moves, sliding cut-out characters, narration and subtitles for YouTube Shorts). The pipeline itself is generic: a
-format is a data object (`FormatProfile`), not hard-coded behaviour.
+A **local-first, profile-driven AI video studio**. Give it an idea; a local LLM directs it as a shot list, ComfyUI
+paints a handful of key images, Piper speaks the lines, a small synthesizer makes the sound, and FFmpeg renders a
+vertical 1080x1920 MP4 with 2.5D camera moves, depth of field, grade, grain and word-timed captions, all on your own
+machine with no paid API. A format is a data object (`FormatProfile`), not hard-coded behaviour. Two formats exist:
 
-**Status: Phase 2A**, the smallest real end-to-end vertical slice. It works end to end on the target machine, but the
-generated art is crude (see [Current limitations](#current-limitations)). This repository also contains the earlier
-hardware feasibility harness (`REPORT.md`, `results/`, `test-project/`, most of `scripts/`), preserved unchanged.
+* **`cinematic-animated-short`** (default, Phase 2B): story -> beats -> shots -> ~6-8 key images -> parallax camera ->
+  SFX/music -> edit. See [docs/shots.md](docs/shots.md).
+* **`motion-comic`** (Phase 2A): still illustrations with sliding cut-out characters. Kept working; visibly cruder.
+
+```bash
+npm run short -- "Create a 25 second animated mystery short about a delivery rider."
+```
+
+That one command starts the local API if needed, plans with Ollama, approves, generates and writes the MP4 to your
+Desktop (`--out`, `--seconds`, `--review` to stop after planning, `--resume <project-id>` to continue a failed run).
+
+**Status: Phase 2B-Replacement.** The visual system is a large step up from the comic MVP and the pipeline is real end
+to end, but the *story writing* is limited by the 3B local model: see [Current limitations](#current-limitations) for an
+honest account. This repository also contains the earlier hardware feasibility harness (`REPORT.md`, `results/`,
+`test-project/`, most of `scripts/`), preserved unchanged.
 
 ## Hardware target
 
@@ -20,8 +31,9 @@ VideoToolbox encoder (a software x264 fallback exists for video, none for subtit
 ## Architecture in one picture
 
 ```
-idea / script -> Ollama -> validated scene plan -> HUMAN REVIEW/EDIT -> approve
-   -> ComfyUI (one session) images -> Piper voices -> timeline + CoreText subtitles -> FFmpeg motion render -> final MP4
+idea -> Ollama director -> validated Story (shots) -> HUMAN REVIEW -> approve
+   -> ComfyUI (one session) key images -> Piper voices -> timeline + captions + soundtrack -> FFmpeg 2.5D render -> final MP4
+(motion-comic: idea/script -> scene plan -> backgrounds + cut-outs -> ... -> scene clips; same gates, store and API)
 ```
 
 React UI -> Express API (loopback only) -> `Studio` -> one allow-listed `ToolDispatcher` -> pipeline stages ->
@@ -74,7 +86,19 @@ Optional: copy `.env.example` to `.env` to change paths/models. Every variable h
 
 Model files are **not** in this repository. Download them into the folders the defaults expect.
 
-**Image model (ComfyUI)**, ~2.3 GB total:
+**Image models (ComfyUI)**. The cinematic format uses **DreamShaper 8** (about 2.1 GB, below); the motion comic uses SD 1.5 (about 2.3 GB, further below).
+
+```bash
+# DreamShaper 8 (Lykon, CreativeML OpenRAIL-M), split components, fp16. Needed for `cinematic-animated-short`.
+mkdir -p comfyui/models/diffusion_models comfyui/models/text_encoders comfyui/models/vae comfyui/models/loras
+H=https://huggingface.co/Lykon/dreamshaper-8/resolve/main
+curl -L -o comfyui/models/diffusion_models/dreamshaper8_unet_fp16.safetensors $H/unet/diffusion_pytorch_model.fp16.safetensors   # 1.72 GB, sha256 ac0a7f11...28f3
+curl -L -o comfyui/models/text_encoders/dreamshaper8_clip_fp16.safetensors     $H/text_encoder/model.fp16.safetensors             # 246 MB,  sha256 fda1f312...d0a7
+curl -L -o comfyui/models/vae/dreamshaper8_vae_fp16.safetensors               $H/vae/diffusion_pytorch_model.fp16.safetensors    # 167 MB,  sha256 ff38c7ec...a33d
+# the same LCM-LoRA as below (comfyui/models/loras/lcm-lora-sdv1-5.safetensors) is required too
+```
+
+SD 1.5 + LCM-LoRA (motion comic, and the LoRA is shared), ~2.3 GB:
 
 ```bash
 mkdir -p comfyui/models/checkpoints comfyui/models/loras
@@ -102,6 +126,7 @@ Voice ids map to these files in `config/voices.json`; add voices there (and to a
 ## How to run
 
 ```bash
+npm run short -- "<idea>"   # idea -> finished MP4 in one command (see above)
 npm run dev            # API on http://127.0.0.1:8787, UI on http://localhost:5173
 npm test               # all tests (no real AI models needed; some tests use the real ffmpeg if present)
 npm run typecheck
@@ -113,6 +138,8 @@ In the UI: **New project** (Idea or Script) -> scenes are generated -> **review/
 **Voice** or **Animation** without touching the other scenes. Close memory-hungry apps (browsers) before generating.
 
 ## How the pipeline works
+
+The cinematic pipeline is described in [docs/shots.md](docs/shots.md). The scene pipeline of the motion comic works like this:
 
 1. **Plan**: Ollama returns a structured plan (cast + scenes + dialogue + camera/motion hints). Output is validated,
    normalised and repaired. In Script mode with `NAME: line` scripts the dialogue, order and cast come from your
@@ -129,21 +156,32 @@ resumes and an edit regenerates only what changed. Full detail: [docs/pipeline.m
 
 ## Current limitations
 
-- **Art quality is the weak point.** SD 1.5 + LCM at 512x896 (upscaled to 1080x1920) gives soft, inconsistent,
-  sometimes strange images. There is **no image-level character consistency** (only the same appearance text in each
-  prompt, optionally user-supplied art). Props are often unrecognisable. Cut-out keying depends on the model drawing a
-  plain background; failing images are retried (max 3 attempts) and the last one is kept with a warning.
-- **Memory pressure.** Image generation drives an 8 GB machine into heavy swapping; measured numbers are in
-  `docs/pipeline.md` / the demo notes. Close other apps first. Ollama and ComfyUI never overlap by design.
-- **Speed.** About 25-60 s per image; a 3-scene short takes roughly 3-5 minutes to generate.
-- **Motion is puppet-style**: whole cut-outs slide, scale, bob and shake; no limb animation, lip-sync or parallax.
-- **llama3.2 (3B)** returns valid structure but modest writing (odd names/lines); the planner is constrained, not
-  autonomous. No LLM tool-calling loop exists; the tool registry is a deterministic internal surface.
-- Prop images are scene-scoped, so the same prop in two scenes is generated twice.
-- Scene length is derived from the voice (minimum 5 s); the `Length` field only matters for scenes without dialogue.
-- English voice speaker ids are arbitrary and un-auditioned; Hindi voice pronunciation is imperfect and unverified by ear.
-- Jobs are in memory; project state (what is done) is persistent. The API has no authentication (loopback only).
-- macOS only (CoreText subtitles, VideoToolbox). No production build/deployment setup. No SQLite, cloud, MCP, Blender.
+Measured on the target machine (MacBook Air M1, 8 GB). Details and numbers: [docs/shots.md](docs/shots.md).
+
+* **The story writing is only as good as the 3B model.** `llama3.2` returns valid structure, but its mysteries are
+  generic, its dialogue repeats ("What's going on?") and it drifts from the idea (a "delivery rider" story may forget the
+  bike). The director therefore works beat by beat, repairs ids deterministically, drops junk/repeated lines and
+  varies the framing, but it cannot make a 3B model a screenwriter. A larger model helps most (`OLLAMA_MODEL`, e.g. a 7-8B
+  model; Ollama runs alone, so it fits in 8 GB). The hand-authored prototype in `scripts/lab/prototype-story.ts` shows what
+  the renderer does with a good script.
+* **Images are 512x896 upscaled to 1080x1920**, so close-ups are soft; grain, sharpening and depth of field hide this but
+  do not fix it. There is no IP-Adapter/LoRA, so character identity relies on a costume-coded prompt plus img2img from the
+  character's first portrait: faces stay recognisable in close-ups, less so across very different framings.
+* **Not real animation.** The camera (zoom/pan/tilt/roll/shake), parallax between a defocused background and a sharp
+  subject layer, and small character motions (breathing, a pop, a tremble) make still images feel alive; limbs, mouths
+  and eyes do not move. Parallax is a soft elliptical mask, not segmentation, so busy edges can ghost slightly.
+* **Sound is synthesized**: functional (whoosh, hit, ping, ding, door, footsteps, heartbeat, riser, glitch, ambience, a
+  tension bed that follows the story) but not rich. Nobody has *listened* to the Piper voices or the mix during
+  development (only measured: pitch, loudness, timing); judge them by ear before publishing.
+* **Caption word timing is estimated** (Piper has no word timestamps). Captions are English only (Impact font).
+* **Memory pressure.** Image generation drives an 8 GB machine into heavy swapping (see the measurements in
+  `docs/pipeline.md`); close other apps first. Ollama and ComfyUI never overlap by design.
+* **Speed**: about 40 s per key image; a 25 s short takes roughly 8-12 minutes end to end (planning about 2 minutes
+  because the director makes ~8 small LLM calls, images 4-6 minutes, render about 40 s).
+* **Shot projects are not editable in the review screen yet** (read-only shot list; use a re-plan note instead).
+* Jobs are in memory; project state (what is done) is persistent. The API has no authentication (loopback only).
+* macOS only (CoreText captions, VideoToolbox). No production build/deployment setup. No SQLite, cloud, MCP, Blender.
+* Motion comic limitations (crude art, puppet-style motion, no image-level consistency, voice un-auditioned) are as in Phase 2A.
 
 ## Licensing caveats
 
@@ -155,8 +193,9 @@ This is engineering notes, not legal advice. Check every licence before publishi
   `libritts_r`'s dataset is CC BY 4.0 (attribution needed); `rohan` uses the IIT Madras IndicTTS licence (permissive text,
   retain their notice if you redistribute). Other Piper Hindi voices (`pratham`, `priyamvada`) are CC BY-NC-SA: not for
   commercial use. No voice weights are committed here.
-- **Image models.** SD 1.5 is CreativeML OpenRAIL-M and the LCM-LoRA OpenRAIL++: commercial use is permitted with
-  use-based restrictions that must be passed on. Not committed here.
+- **Image models.** SD 1.5 and DreamShaper 8 are CreativeML OpenRAIL-M and the LCM-LoRA OpenRAIL++: commercial use is
+  permitted with use-based restrictions that must be passed on. Not committed here. Check the DreamShaper 8 model card
+  (`Lykon/dreamshaper-8`) yourself before publishing monetised content.
 - **GPL tools.** ComfyUI and Piper are GPL-3.0; this project only *runs* them as separate processes and uses their
   output files. Do not bundle them into a closed-source redistribution without checking.
 - **Content.** Stories and characters must be original; the planner is instructed not to imitate existing franchises,
@@ -165,6 +204,6 @@ This is engineering notes, not legal advice. Check every licence before publishi
 
 ## Repository map
 
-`apps/server` (API, pipeline, providers) · `apps/web` (UI) · `packages/shared` (zod schemas) · `config/voices.json` ·
+`apps/server` (API, pipeline, providers, `src/shots` director/camera/renderer, `src/audio` synth/mixer) · `apps/web` (UI) · `packages/shared` (zod schemas) · `config/voices.json` ·
 `docs/` · `scripts/` (demo, native build, doctor, plus the feasibility scripts `comfy_run.py`, `memmon.py`, ...) ·
 `REPORT.md` + `results/` + `test-project/` (feasibility measurements, preserved).

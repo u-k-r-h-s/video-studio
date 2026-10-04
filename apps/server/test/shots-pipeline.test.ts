@@ -10,7 +10,7 @@ import { cinematicAnimatedShort } from "../src/profiles/cinematicAnimatedShort";
 import { FFmpegMotionRenderer } from "../src/render/FFmpegMotionRenderer";
 import { FakeLLM } from "./helpers";
 import { makeHarness, type Harness } from "./harness";
-import { DIRECTOR_OUTLINE, DIRECTOR_SHOTS } from "./fixtures-director";
+import { directorResponder } from "./fixtures-director";
 
 beforeAll(() => setLogQuiet(true));
 const FFMPEG = findExecutable("ffmpeg"), FFPROBE = findExecutable("ffprobe");
@@ -23,7 +23,7 @@ const small: FormatProfile = {
   video: { ...cinematicAnimatedShort.video, width: 270, height: 480, fps: 15, videoEncoder: "libx264", videoBitrateKbps: 2000 },
   cinematic: { ...cinematicAnimatedShort.cinematic!, bitrateKbps: 2000, captions: { ...cinematicAnimatedShort.cinematic!.captions, size: 34, maxWidth: 250, stroke: 3 } },
 };
-const llm = () => new FakeLLM((req) => (req.messages.some((m) => m.content.includes("story bible")) ? DIRECTOR_OUTLINE : DIRECTOR_SHOTS));
+const llm = () => new FakeLLM((req) => directorResponder(req));
 
 describe.skipIf(!ready)("shot pipeline end to end (fake Ollama/ComfyUI/Piper, REAL FFmpeg + CoreText)", () => {
   let h: Harness;

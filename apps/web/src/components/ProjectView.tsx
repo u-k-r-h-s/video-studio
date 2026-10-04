@@ -6,6 +6,7 @@ import { useJobs, useServerEvents } from "../lib/events";
 import { homeHref } from "../lib/route";
 import { SceneCard } from "./SceneCard";
 import { SceneEditor } from "./SceneEditor";
+import { ShotList } from "./ShotList";
 import { StageList } from "./StageList";
 import { btnGhost, btnPrimary, field, Panel } from "./ui";
 
@@ -61,10 +62,10 @@ export function ProjectView({ id }: { id: string }) {
 
       {hasPlan && (
         <Panel
-          title={project.reviewApproved ? "Scene plan (approved: edits only regenerate what changed)" : "Review the scene plan"}
+          title={project.story ? (project.reviewApproved ? "Shot list (approved)" : "Review the shot list") : project.reviewApproved ? "Scene plan (approved: edits only regenerate what changed)" : "Review the scene plan"}
           right={!project.reviewApproved ? <button className={btnPrimary} disabled={busy} onClick={() => void run(() => api.approve(id))}>Approve plan</button> : undefined}
         >
-          {!project.reviewApproved && <p className="text-sm text-zinc-400">Check and edit the scenes below. Nothing heavy (images, voices, rendering) starts until you approve.</p>}
+          {!project.reviewApproved && <p className="text-sm text-zinc-400">{project.story ? "Read the director's shots below (use Re-plan with a note to change them). " : "Check and edit the scenes below. "}Nothing heavy (images, voices, rendering) starts until you approve.</p>}
           <details className="text-sm text-zinc-400">
             <summary className="cursor-pointer">Characters ({project.characters.length}): reused in every image of the character</summary>
             <ul className="mt-2 grid gap-3 md:grid-cols-2">
@@ -72,19 +73,23 @@ export function ProjectView({ id }: { id: string }) {
                 <li key={c.id} className="space-y-1 rounded-lg border border-zinc-800 p-3">
                   <div className="font-medium text-zinc-200">{c.name} <span className="text-xs text-zinc-500">({c.id})</span></div>
                   <label className="block text-xs text-zinc-500">Appearance (the image prompt fragment)
-                    <textarea className={`${field} mt-1`} defaultValue={c.appearance} disabled={busy} onBlur={(e) => { if (e.target.value.trim() !== c.appearance) void run(() => savePlan(project.characters.map((x, n) => (n === i ? { ...x, appearance: e.target.value.trim() } : x)), project.scenes)); }} />
+                    <textarea className={`${field} mt-1`} defaultValue={c.appearance} disabled={busy || !!project.story} onBlur={(e) => { if (e.target.value.trim() !== c.appearance) void run(() => savePlan(project.characters.map((x, n) => (n === i ? { ...x, appearance: e.target.value.trim() } : x)), project.scenes)); }} />
                   </label>
                   {(() => { const a = project.assets.find((x) => x.id === `char-${c.id}` && x.status === "ready"); return a ? <img alt={c.name} className="h-40 rounded bg-zinc-800 object-contain" src={mediaUrl(id, a.path, `${a.meta.attempt}`)} /> : null; })()}
                 </li>
               ))}
             </ul>
           </details>
+          {project.story ? (
+            <ShotList project={project} busy={busy} onRegenerate={(sceneId, parts) => { if (parts.includes("assets") && !window.confirm("Regenerate this scene's images? This unloads Ollama and runs ComfyUI (about 40 s per image); every shot that shares those images is re-rendered.")) return; void run(() => api.regenerateScene(id, sceneId, { parts })); }} />
+          ) : (
           <div className="space-y-3">
             {project.scenes.map((s, i) => (
               <SceneCard key={s.id} project={project} scene={s} busy={busy} onEdit={() => setEditing(i)}
                 onRegenerate={(parts: RegenPart[], includeBackground) => { if (parts.includes("assets") && !window.confirm("Regenerate this scene's images? This unloads Ollama, runs ComfyUI for roughly 40 s per image, and re-renders only this scene.")) return; void run(() => api.regenerateScene(id, s.id, { parts, includeBackground })); }} />
             ))}
           </div>
+          )}
         </Panel>
       )}
 
@@ -106,10 +111,10 @@ export function ProjectView({ id }: { id: string }) {
         </Panel>
       )}
 
-      {project.assets.some((a) => ["background", "character", "prop"].includes(a.kind)) && (
+      {project.assets.some((a) => ["background", "character", "prop", "key_visual"].includes(a.kind)) && (
         <Panel title="Generated images">
           <ul className="flex flex-wrap gap-3">
-            {project.assets.filter((a) => ["background", "character", "prop"].includes(a.kind) && a.status === "ready").map((a) => (
+            {project.assets.filter((a) => ["background", "character", "prop", "key_visual"].includes(a.kind) && a.status === "ready").map((a) => (
               <li key={a.id} className="w-28 text-center text-xs text-zinc-500"><img alt={a.id} className="h-40 w-28 rounded bg-zinc-800 object-contain" src={mediaUrl(id, a.path, `${a.meta.attempt}`)} />{a.id}</li>
             ))}
           </ul>

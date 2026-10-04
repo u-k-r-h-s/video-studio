@@ -49,7 +49,7 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
     const subject = known.has(d.character) ? [d.character] : [];
     // the model's beat is trusted only if it does not contradict the order (first = hook, last = payoff)
     const beat: Beat = i === 0 ? "hook" : i === n - 1 ? "payoff" : d.beat === "hook" || d.beat === "payoff" ? beatAt(i, n) : d.beat;
-    const dialogue = d.line && d.line.text.trim()
+    const dialogue = d.line && (d.line.text.match(/\p{L}/gu)?.length ?? 0) >= 2
       ? [{ id: dialogueId(`shot-${String(order).padStart(2, "0")}`, 1), characterId: d.line.speaker === "narrator" || known.has(d.line.speaker) ? d.line.speaker : subject[0] ?? "narrator", text: d.line.text.trim() }]
       : [];
     const words = dialogue.reduce((s, x) => s + wordCount(x.text), 0);

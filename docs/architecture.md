@@ -6,7 +6,8 @@ providers to use, visual style, timing rules, layout) lives in a data object cal
 and only profile is `motion-comic`. Adding another (documentary, whiteboard, ...) means adding a profile and, if it
 needs different rendering, a new `SceneRenderer`; the stages, store and API do not change.
 
-Status: **Phase 2A**, a thin end-to-end vertical slice. See [pipeline.md](pipeline.md) for the stages and
+Status: **Phase 2B-Replacement**. Two formats share the same layers: `motion-comic` (scene pipeline) and
+`cinematic-animated-short` (shot pipeline, see [shots.md](shots.md)). See [pipeline.md](pipeline.md) for the stages and
 [providers.md](providers.md) for the replaceable components.
 
 ## Layers
@@ -37,7 +38,9 @@ program is started through one `CommandRunner` with an explicit allow-list (see 
 ```
 packages/shared/        zod schemas + types used by server and web (the contract between stages)
 apps/server/src/
-  profiles/             FormatProfile registry (motion-comic)
+  profiles/             FormatProfile registry (motion-comic, cinematic-animated-short)
+  shots/                shot pipeline: director, story builder, key-visual planner, camera language, 2.5D shot renderer, timeline, captions
+  audio/                deterministic SFX/ambience/music synthesis, ducking mixer, soundtrack planner
   planner/              Ollama scene planner (idea + script modes), prompts, normalisation
   llm/                  LLMProvider interface, OllamaProvider, structured-output + repair helper
   providers/{image,tts,subtitle}/   ImageProvider/ComfyUI, TTSProvider/Piper, SubtitleRenderer/CoreText
@@ -57,8 +60,9 @@ REPORT.md results/      hardware feasibility measurements (Phase 1.5), preserved
 
 ## Key decisions
 
-**Data-driven FormatProfile.** `packages/shared/src/profile.ts` defines the schema; `profiles/motionComic.ts` is the
-only instance. A profile selects components by registry key (`imageProvider: "comfyui"`, `ttsProvider: "piper"`,
+**Data-driven FormatProfile.** `packages/shared/src/profile.ts` defines the schema; `profiles/motionComic.ts` and
+`profiles/cinematicAnimatedShort.ts` are the instances. `pipeline: "scenes" | "shots"` selects the stage implementations
+(the six allow-listed tools and the stage ids are the same; `PipelineRunner.pipelineOf` routes them). A profile selects components by registry key (`imageProvider: "comfyui"`, `ttsProvider: "piper"`,
 `subtitleRenderer: "coretext"`, `sceneRenderer: "ffmpeg-motion"`) and carries video settings, style prompts, image
 sizes, timing rules, planning limits, layout fractions and the voice pool.
 

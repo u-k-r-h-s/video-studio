@@ -23,6 +23,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export interface ProfileInfo {
   id: string;
+  pipeline?: "scenes" | "shots";
   name: string;
   description: string;
   video: { width: number; height: number; fps: number };

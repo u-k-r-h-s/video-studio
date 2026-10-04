@@ -4,6 +4,15 @@ import { slugify } from "@studio/shared";
 /** Bump when prompt construction changes so cached key images are regenerated. */
 export const KEY_RECIPE_VERSION = "cinematic-key-v1";
 
+/** How many shots may reuse one generated picture before another take is generated. */
+export const MAX_SHOTS_PER_IMAGE = 3;
+/** img2img strength for a character in a different framing (medium/wide): high enough that the composition can change, low enough to keep the palette and face. Measured: 0.5 kept the close-up composition. */
+export const FIGURE_DENOISE = 0.72;
+/** img2img strength for another expression of the same portrait: the prototype's 0.55-0.6 changed the expression and kept the face; 0.5 stuck to the anchor's expression. */
+export const PORTRAIT_DENOISE = 0.6;
+export const PORTRAIT_DENOISE_STRONG = 0.66;
+/** Gaze/pose variations for further takes of the same portrait, so a character is not always photographed the same way. */
+const VIEWS = ["", "looking away to the side", "head slightly lowered, looking up", "turned three quarters, glancing over the shoulder"];
 const PORTRAIT_TYPES = new Set<Shot["shotType"]>(["extreme-close-up", "close-up", "medium-close", "over-shoulder"]);
 
 const FRAMING: Record<Shot["shotType"], string> = {
@@ -62,11 +71,17 @@ function classify(shot: Shot): { kind: KeyVisual["kind"]; ident: string } {
 export function planKeyVisuals(shots: Shot[], ctx: PromptCtx, maxKeys: number): { keyVisuals: KeyVisual[]; shotKey: Record<string, string> } {
   const drafts = new Map<string, Draft>();
   const order: string[] = [];
+  const seen = new Map<string, number>();
   for (const shot of shots) {
-    const { kind, ident } = classify(shot);
+    const base = classify(shot);
+    // at most MAX_SHOTS_PER_IMAGE shots share one picture; the next ones get their own sample (same prompt, new seed), so a
+    // film never shows the same frame five times (the budget below still caps the total)
+    const n = seen.get(base.ident) ?? 0;
+    seen.set(base.ident, n + 1);
+    const kind = base.kind, ident = n >= MAX_SHOTS_PER_IMAGE ? `${base.ident}|take${Math.floor(n / MAX_SHOTS_PER_IMAGE) + 1}` : base.ident;
     let d = drafts.get(ident);
     if (!d) {
-      d = { id: "", kind, locationId: shot.locationId, subjectIds: shot.subjectIds.slice(0, 1), shots: [], group: ident.split("|").pop() };
+      d = { id: "", kind, locationId: shot.locationId, subjectIds: shot.subjectIds.slice(0, 1), shots: [], group: base.ident.split("|").pop() };
       drafts.set(ident, d);
       order.push(ident);
     }
@@ -97,19 +112,29 @@ export function planKeyVisuals(shots: Shot[], ctx: PromptCtx, maxKeys: number): 
     while (used.has(id)) id = `${base}-${n++}`;
     used.add(id);
     d.id = id;
+  }
+  // the identity anchor of a character is its calmest portrait (a neutral face is the best thing to vary from), else the first
+  const rank = (g?: string): number => ["base", "uneasy", "eerie", "intense"].indexOf(g ?? "") + 1 || 9;
+  for (const d of finalDrafts) {
     const s = d.subjectIds[0];
-    if (s && d.kind === "portrait" && !anchorOf.has(s)) anchorOf.set(s, d);
+    if (!s || d.kind !== "portrait") continue;
+    const cur = anchorOf.get(s);
+    if (!cur || rank(d.group) < rank(cur.group)) anchorOf.set(s, d);
   }
   const keyVisuals: KeyVisual[] = [];
+  const views = new Map<string, number>();
   const shotKey: Record<string, string> = {};
   // anchors first so the init image exists when a variant is generated
   const sorted = [...finalDrafts].sort((a, b) => Number(isVariant(a, anchorOf)) - Number(isVariant(b, anchorOf)));
   for (const d of sorted) {
     const rep = d.shots[0]!;
     const anchor = d.subjectIds[0] ? anchorOf.get(d.subjectIds[0]) : undefined;
-    const initFrom = anchor && anchor !== d && d.kind !== "insert" && d.kind !== "environment" ? { keyId: anchor.id, denoise: d.group === "eerie" || d.group === "intense" ? 0.58 : 0.5 } : undefined;
+    const initFrom = anchor && anchor !== d && d.kind !== "insert" && d.kind !== "environment" ? { keyId: anchor.id, denoise: d.kind !== "portrait" ? FIGURE_DENOISE : d.group === "eerie" || d.group === "intense" ? PORTRAIT_DENOISE_STRONG : PORTRAIT_DENOISE } : undefined;
+    const ordinal = d.subjectIds[0] ? (views.get(d.subjectIds[0]) ?? 0) : 0;
+    if (d.subjectIds[0] && d.kind !== "insert") views.set(d.subjectIds[0], ordinal + 1);
+    const view = d.kind === "portrait" || d.kind === "action" ? VIEWS[ordinal % VIEWS.length]! : "";
     keyVisuals.push({
-      id: d.id, kind: d.kind, locationId: d.locationId, subjectIds: d.subjectIds, prompt: keyPrompt(rep, ctx, d.kind), shotIds: d.shots.map((s) => s.id), ...(initFrom ? { initFrom } : {}),
+      id: d.id, kind: d.kind, locationId: d.locationId, subjectIds: d.subjectIds, prompt: keyPrompt(rep, ctx, d.kind) + (view ? `, ${view}` : ""), shotIds: d.shots.map((s) => s.id), ...(initFrom ? { initFrom } : {}),
     });
     for (const s of d.shots) shotKey[s.id] = d.id;
   }

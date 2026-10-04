@@ -48,7 +48,7 @@ export function createApiRouter(deps: ApiDeps): Router {
   const projectId = (raw: string | string[] | undefined) => assertSafeId(Array.isArray(raw) ? raw[0] : raw, "project id");
 
   router.get("/health", async (_req, res) => res.json(await health.check()));
-  router.get("/profiles", (_req, res) => res.json({ profiles: profiles.list().map((p) => ({ id: p.id, name: p.name, description: p.description, video: p.video, visualStyle: p.visualStyle.name, planning: p.planning, timing: { minSceneSeconds: p.timing.minSceneSeconds, maxSceneSeconds: p.timing.maxSceneSeconds } })) }));
+  router.get("/profiles", (_req, res) => res.json({ profiles: profiles.list().map((p) => ({ id: p.id, pipeline: p.pipeline ?? "scenes", name: p.name, description: p.description, video: p.video, visualStyle: p.visualStyle.name, planning: p.planning, timing: { minSceneSeconds: p.timing.minSceneSeconds, maxSceneSeconds: p.timing.maxSceneSeconds } })) }));
   router.get("/tools", (_req, res) => res.json({ tools: tools.describe() }));
 
   router.get("/projects", async (_req, res) => res.json({ projects: await store.list() }));

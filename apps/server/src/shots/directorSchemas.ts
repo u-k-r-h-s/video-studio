@@ -37,10 +37,18 @@ export const DirectedShotSchema = z.object({
   line: z.object({ speaker: Id.describe("a character id or 'narrator'"), text: z.string().min(1).max(140) }).optional().describe("at most one short spoken line; omit for silent shots"),
   onScreenText: z.string().max(40).optional().describe("only for a phone/message/screen close-up: the text shown"),
 });
+export const DirectedBeatsSchema = z.object({
+  beats: z.array(z.object({ beat: z.enum(BEATS), what: z.string().min(5).max(220).describe("one or two sentences: what happens in this part of the story") })).length(6),
+});
+export type DirectedBeats = z.infer<typeof DirectedBeatsSchema>;
+
+/** The shots of ONE beat (1-3). The director asks for them beat by beat so a small model keeps the story coherent. */
+export const BeatShotsSchema = z.object({ shots: z.array(DirectedShotSchema).min(1).max(3) });
 export const DirectedShotsSchema = z.object({ shots: z.array(DirectedShotSchema).min(3).max(24) });
 export type DirectedShot = z.infer<typeof DirectedShotSchema>;
 export type DirectedShots = z.infer<typeof DirectedShotsSchema>;
 
+const NAME_STOPWORDS = new Set(["the", "and", "old", "young", "man", "woman", "boy", "girl", "mr", "mrs", "dr", "his", "her"]);
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const key = (v: unknown): string => (typeof v === "string" ? v.trim().toLowerCase().replace(/[\s_]+/g, "-") : "");
 
@@ -70,30 +78,62 @@ export function normalizeShots(raw: unknown, outline: DirectorOutline): unknown 
   if (!arr) return raw;
   const charIds = new Set(outline.characters.map((c) => c.id));
   const locIds = outline.locations.map((l) => l.id);
+  let lastLoc = locIds[0] ?? "";
   const matchLoc = (v: unknown): string => {
     const k = slugify(String(v ?? ""));
     if (locIds.includes(k)) return k;
-    const byName = outline.locations.find((l) => slugify(l.name) === k || k.includes(l.id) || l.id.includes(k));
-    return byName?.id ?? (typeof v === "string" ? v : "");
+    const byName = outline.locations.find((l) => slugify(l.name) === k || (k.length > 2 && (k.includes(l.id) || l.id.includes(k))));
+    // an invented place is not worth failing the project for: stay where the previous shot was
+    return byName?.id ?? lastLoc;
   };
   const matchChar = (v: unknown): string => {
     const k = slugify(String(v ?? ""));
     if (!k || ["none", "nobody", "null", "n-a", "empty"].includes(k)) return "";
     if (k === "narrator") return "narrator";
     if (charIds.has(k)) return k;
-    return outline.characters.find((c) => slugify(c.name) === k || k.includes(c.id))?.id ?? k;
+    return outline.characters.find((c) => slugify(c.name) === k || k.includes(c.id))?.id ?? "";
+  };
+  /** Who is on screen when the model left "character" empty: the person the action names, else the speaker (people usually speak on screen). */
+  const inferSubject = (action: string, speaker: string, hasText: boolean): string => {
+    const named = outline.characters.find((c) => [c.name, c.id].some((n) => n.split(/[\s-]+/).filter((t) => t.length >= 3 && !NAME_STOPWORDS.has(t.toLowerCase())).some((t) => new RegExp(`(^|[^\\p{L}])${t}($|[^\\p{L}])`, "iu").test(action))));
+    if (named) return named.id;
+    return !hasText && charIds.has(speaker) ? speaker : "";
   };
   return {
     shots: arr.map((s) => {
       if (!isRecord(s)) return s;
       const st = key(s.shotType ?? s.shot_type ?? s.shot), em = key(s.emotion), be = key(s.beat);
-      const line = isRecord(s.line) ? { speaker: matchChar(s.line.speaker ?? s.line.character), text: typeof s.line.text === "string" ? s.line.text.trim() : s.line.text } : undefined;
       const text = typeof s.onScreenText === "string" ? s.onScreenText.trim() : "";
+      const action = typeof s.action === "string" ? s.action.trim() : "";
+      const rawSpeaker = isRecord(s.line) ? matchChar(s.line.speaker ?? s.line.character) : "";
+      let character = matchChar(s.character);
+      if (!character) character = inferSubject(action, rawSpeaker, !!text);
+      // an unknown speaker is the person on screen, else the narrator
+      const line = isRecord(s.line) ? { speaker: rawSpeaker || (character && character !== "narrator" ? character : "narrator"), text: typeof s.line.text === "string" ? s.line.text.trim() : s.line.text } : undefined;
+      const location = matchLoc(s.location);
+      lastLoc = location;
       return {
-        beat: BEAT_SYNONYMS[be] ?? be, shotType: SHOT_SYNONYMS[st] ?? st, location: matchLoc(s.location), character: matchChar(s.character), emotion: EMOTION_SYNONYMS[em] ?? em,
+        beat: BEAT_SYNONYMS[be] ?? be, shotType: SHOT_SYNONYMS[st] ?? st, location, character, emotion: EMOTION_SYNONYMS[em] ?? em,
         action: typeof s.action === "string" ? s.action.trim() : s.action,
-        ...(line && line.text ? { line } : {}), ...(text ? { onScreenText: text.slice(0, 40) } : {}),
+        // junk lines ("-", "...") are dropped: a caption must be words
+        ...(line && typeof line.text === "string" && (line.text.match(/\p{L}/gu)?.length ?? 0) >= 2 ? { line } : {}), ...(text ? { onScreenText: text.slice(0, 40) } : {}),
       };
+    }),
+  };
+}
+
+export function normalizeBeats(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const arr = Array.isArray(raw.beats) ? raw.beats : Array.isArray(raw.story) ? raw.story : undefined;
+  if (!arr) return raw;
+  const order = BEATS as readonly string[];
+  return {
+    beats: arr.slice(0, 6).map((b, i) => {
+      if (typeof b === "string") return { beat: order[i], what: b.trim() };
+      if (!isRecord(b)) return b;
+      const k = key(b.beat ?? b.name ?? b.kind);
+      const what = typeof b.what === "string" ? b.what : typeof b.summary === "string" ? b.summary : typeof b.description === "string" ? b.description : b.action;
+      return { beat: order.includes(BEAT_SYNONYMS[k] ?? k) ? (BEAT_SYNONYMS[k] ?? k) : order[i], what: typeof what === "string" ? what.trim() : what };
     }),
   };
 }

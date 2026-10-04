@@ -30,6 +30,10 @@ everything before returning, also on failure or cancellation.
 `ComfyUIProvider` sequence: ensure Ollama unloaded (gate) -> start ComfyUI -> generate every request through the
 proven workflow -> `/free` -> stop -> verify stopped (gate). Details:
 
+- **Models** are registered by id (`container.ts`): `sd15` (single checkpoint + LCM-LoRA, the default) and `ds8` (DreamShaper 8 as
+  split UNET/CLIP/VAE files + the same LCM-LoRA, used by the cinematic profile; measured 37-44 s per 512x896 image at 6 steps,
+  cfg 1.8, and far more cinematic than SD 1.5). A request names its model; img2img (`initImage` + `denoise`) uploads the
+  init image through ComfyUI's `/upload/image`. A missing model file fails with a readable "not installed" message.
 - Workflow (`comfyWorkflow.ts`, the only file that knows node ids): SD 1.5 fp16 + LCM-LoRA, 5 steps, cfg 1.5, `lcm`
   sampler, `sgm_uniform` scheduler, `ModelSamplingDiscrete(lcm)`, 512x896 (props 512x512), ending in `PreviewImage` so
   results are fetched via `/view` from ComfyUI's temp folder and never accumulate in its output directory.

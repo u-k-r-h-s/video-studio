@@ -12,7 +12,8 @@ export const DIRECTOR_OUTLINE = {
   ],
 };
 
-const shot = (o: Record<string, unknown>) => ({ emotion: "neutral", character: "", ...o });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const shot = (o: Record<string, any>): Record<string, any> => ({ emotion: "neutral", character: "", ...o });
 export const DIRECTOR_SHOTS = {
   shots: [
     shot({ beat: "hook", shotType: "extreme-close-up", location: "alley", character: "", emotion: "curious", action: "A phone buzzes in the dark with a new order for Kai.", line: { speaker: "kai", text: "The last order of the night. The name on it was mine." }, onScreenText: "DELIVER TO: KAI" }),
@@ -27,3 +28,24 @@ export const DIRECTOR_SHOTS = {
     shot({ beat: "payoff", shotType: "wide", location: "alley", character: "", emotion: "calm", action: "The building goes dark and the title appears." }),
   ],
 };
+
+export const DIRECTOR_BEATS = {
+  beats: [
+    { beat: "hook", what: "A phone buzzes in the dark with a last order addressed to Kai himself." },
+    { beat: "setup", what: "Kai rides to the address, a building nobody has lived in for years." },
+    { beat: "curiosity", what: "The tower looms; Kai calls out, and an old elevator opens by itself." },
+    { beat: "conflict", what: "A stranger in a yellow coat waits inside and says Kai is late, again." },
+    { beat: "escalation", what: "Kai freezes; the phone glitches to show he has delivered here every night." },
+    { beat: "payoff", what: "Kai's double smiles: he never left. The building goes dark." },
+  ],
+};
+
+/** Answers the director's calls like a good model: bible, beats, and the shots of whichever beat is asked for. */
+export function directorResponder(req: { messages: { content: string }[] }, opts: { shotsFor?: (beat: string) => unknown[] } = {}): object {
+  const last = req.messages.at(-1)!.content;
+  if (last.includes("story bible") || req.messages.some((m) => m.content.includes("Create the story bible"))) return DIRECTOR_OUTLINE;
+  if (req.messages.some((m) => m.content.includes("exactly 6 beats"))) return DIRECTOR_BEATS;
+  const m = /Direct the "(\w+)" part/.exec(req.messages.find((x) => x.content.includes('Direct the "'))?.content ?? "");
+  const beat = m?.[1] ?? "hook";
+  return { shots: opts.shotsFor ? opts.shotsFor(beat) : DIRECTOR_SHOTS.shots.filter((s) => s.beat === beat) };
+}

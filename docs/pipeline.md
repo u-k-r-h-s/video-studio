@@ -1,5 +1,8 @@
 # Pipeline
 
+> This page describes the scene pipeline (`motion-comic`). The shot pipeline (`cinematic-animated-short`) uses the same
+> stage ids, gates, caching and regeneration; its stages are listed in [shots.md](shots.md).
+
 ```
 User idea / script
       │

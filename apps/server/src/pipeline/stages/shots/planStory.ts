@@ -23,7 +23,7 @@ export const planStory = (feedback?: string): StageFn => async (svc, ctx) => {
     const { value } = await ctx.log.time({ stage: "scene_planning" }, () =>
       svc.director!.direct({ idea: project.inputText, targetDurationSeconds: project.targetDurationSeconds, feedback }, profile, {
         signal: ctx.signal,
-        onStep: (s) => ctx.progress(s === "outline" ? 10 : 50, s === "outline" ? "Writing the cast and places..." : "Directing the shots..."),
+        onStep: (s, detail) => ctx.progress(s === "outline" ? 8 : s === "beats" ? 20 : 30 + (["hook", "setup", "curiosity", "conflict", "escalation", "payoff"].indexOf(detail ?? "") * 10), s === "outline" ? "Writing the cast and places..." : s === "beats" ? "Writing the story beats..." : `Directing the ${detail} shots...`),
         onRepair: (n) => ctx.progress(50, `Fixing invalid model output (attempt ${n})...`),
       }),
     );

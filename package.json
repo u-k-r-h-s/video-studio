@@ -4,8 +4,13 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Local-first, profile-driven AI video studio (Ollama + ComfyUI + Piper + FFmpeg) for Apple Silicon",
-  "workspaces": ["apps/*", "packages/*"],
-  "engines": { "node": ">=20.12" },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"npm run dev -w @studio/server\" \"npm run dev -w @studio/web\"",
     "dev:server": "npm run dev -w @studio/server",
@@ -13,7 +18,11 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build:native": "bash scripts/build-native.sh",
-    "doctor": "bash scripts/check-env.sh"
+    "doctor": "bash scripts/check-env.sh",
+    "short": "node scripts/create-short.mjs"
   },
-  "devDependencies": { "concurrently": "^9.0.0", "typescript": "^5.6.0" }
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "typescript": "^5.6.0"
+  }
 }
