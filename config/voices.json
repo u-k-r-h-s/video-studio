@@ -1,9 +1,34 @@
 {
-  "_comment": "Voice catalog. NO model weights live in this repository; `model` is a file name inside PIPER_VOICES_DIR. Both voices below are fine-tuned from the Lessac voice, so their commercial status is unresolved: see README 'Licensing caveats'. Speaker ids on the multi-speaker English model are arbitrary and un-auditioned.",
+  "_comment": "Voice catalog. NO model weights live in this repository; `model` is a file name inside PIPER_VOICES_DIR. Both voices below are fine-tuned from the Lessac voice, so their commercial status is unresolved: see README 'Licensing caveats'. Speaker ids on the multi-speaker English model were chosen by MEASURED median pitch (scripts/lab/voice-audition.ts: 300=115 Hz, 25=149 Hz, 400=92 Hz, 60=227 Hz) so the voices are distinct; nobody has listened to them yet.",
   "voices": {
-    "en-narrator": { "language": "en", "model": "en_US-libritts_r-medium.onnx", "speaker": 0, "license": "CC BY 4.0 dataset (LibriTTS-R); fine-tuned from Lessac: unresolved" },
-    "en-a": { "language": "en", "model": "en_US-libritts_r-medium.onnx", "speaker": 0, "license": "see en-narrator" },
-    "en-b": { "language": "en", "model": "en_US-libritts_r-medium.onnx", "speaker": 0, "license": "see en-narrator" },
-    "hi-rohan": { "language": "hi", "model": "hi_IN-rohan-medium.onnx", "license": "IITM IndicTTS EULA; fine-tuned from Lessac: unresolved" }
+    "en-narrator": {
+      "language": "en",
+      "model": "en_US-libritts_r-medium.onnx",
+      "speaker": 300,
+      "license": "CC BY 4.0 dataset (LibriTTS-R); fine-tuned from Lessac: unresolved"
+    },
+    "en-a": {
+      "language": "en",
+      "model": "en_US-libritts_r-medium.onnx",
+      "speaker": 25,
+      "license": "see en-narrator"
+    },
+    "en-b": {
+      "language": "en",
+      "model": "en_US-libritts_r-medium.onnx",
+      "speaker": 400,
+      "license": "see en-narrator"
+    },
+    "hi-rohan": {
+      "language": "hi",
+      "model": "hi_IN-rohan-medium.onnx",
+      "license": "IITM IndicTTS EULA; fine-tuned from Lessac: unresolved"
+    },
+    "en-c": {
+      "language": "en",
+      "model": "en_US-libritts_r-medium.onnx",
+      "speaker": 60,
+      "license": "see en-narrator"
+    }
   }
 }

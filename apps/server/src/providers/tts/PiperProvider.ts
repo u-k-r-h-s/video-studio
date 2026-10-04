@@ -57,7 +57,7 @@ export class PiperProvider implements TTSProvider {
     if (!text) throw new PiperError("there is no text to speak");
     await fs.mkdir(path.dirname(req.outPath), { recursive: true });
 
-    const args = ["-m", "piper", "-m", model, "-f", req.outPath, ...(voice.speaker !== undefined ? ["-s", String(voice.speaker)] : []), "--", text];
+    const args = ["-m", "piper", "-m", model, "-f", req.outPath, ...(voice.speaker !== undefined ? ["-s", String(voice.speaker)] : []), ...(req.lengthScale && req.lengthScale !== 1 ? ["--length-scale", String(req.lengthScale)] : []), "--", text];
     const t0 = Date.now();
     let result;
     try {

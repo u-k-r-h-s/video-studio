@@ -14,6 +14,8 @@ export interface SpeechRequest {
   voiceId: string;
   /** Absolute destination of the raw (untrimmed) WAV. */
   outPath: string;
+  /** Piper --length-scale: >1 speaks slower (1 = the voice's natural pace). */
+  lengthScale?: number;
   signal?: AbortSignal;
 }
 

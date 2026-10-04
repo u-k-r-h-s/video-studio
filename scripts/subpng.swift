@@ -1,5 +1,5 @@
 // Renders one subtitle cue to a transparent PNG with macOS CoreText (proper complex-script shaping, e.g. Devanagari).
-// usage: subpng "<text>" "<font family>" <size> <width> <out.png> [stroke percent] [box alpha 0..1]
+// usage: subpng "<text>" "<font family>" <size> <width> <out.png> [stroke percent] [box alpha 0..1] [highlight word index, -1 none] [highlight colour RRGGBB]
 import AppKit
 let a = CommandLine.arguments
 let text = a[1], family = a[2], size = CGFloat(Double(a[3])!), maxW = CGFloat(Double(a[4])!), out = a[5]
@@ -7,7 +7,19 @@ let fm = NSFontManager.shared
 let font = fm.font(withFamily: family, traits: .boldFontMask, weight: 9, size: size) ?? NSFont.boldSystemFont(ofSize: size)
 let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineBreakMode = .byWordWrapping; para.lineSpacing = 6
 let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white, .strokeColor: NSColor.black, .strokeWidth: (CommandLine.arguments.count > 6 ? -Double(CommandLine.arguments[6])! : -3.0), .paragraphStyle: para]
-let s = NSAttributedString(string: text, attributes: attrs)
+let s = NSMutableAttributedString(string: text, attributes: attrs)
+// optional karaoke-style highlight of one word (index into the space-separated words)
+if CommandLine.arguments.count > 8, let hi = Int(CommandLine.arguments[8]), hi >= 0 {
+  let hex = CommandLine.arguments.count > 9 ? CommandLine.arguments[9] : "FFD23F"
+  let v = UInt32(hex, radix: 16) ?? 0xFFD23F
+  let col = NSColor(red: CGFloat((v >> 16) & 255) / 255, green: CGFloat((v >> 8) & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
+  var idx = 0, loc = 0
+  for w in text.components(separatedBy: " ") {
+    let len = (w as NSString).length
+    if idx == hi && len > 0 { s.addAttribute(.foregroundColor, value: col, range: NSRange(location: loc, length: len)) }
+    loc += len + 1; idx += 1
+  }
+}
 let pad: CGFloat = 20
 let b = s.boundingRect(with: NSSize(width: maxW - 2 * pad, height: 10000), options: [.usesLineFragmentOrigin, .usesFontLeading])
 let w = Int(ceil(maxW)), h = Int(ceil(b.height + 2 * pad))

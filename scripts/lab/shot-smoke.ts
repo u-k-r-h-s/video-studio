@@ -1,0 +1,16 @@
+import { loadConfig } from "../../apps/server/src/config";
+import { createContainer } from "../../apps/server/src/container";
+import { setLogQuiet } from "../../apps/server/src/lib/logger";
+import { planCamera } from "../../apps/server/src/shots/cameraLanguage";
+import { renderShot, type ShotRenderSpec } from "../../apps/server/src/shots/shotRenderer";
+setLogQuiet(true);
+const cfg = loadConfig({}, "/Users/apple/Desktop/ai-studio-feasibility");
+const c = createContainer(cfg);
+const IM = "/Users/apple/Desktop/ai-studio-feasibility/projects/proto-last-delivery/images";
+const [img, type, emotion, beat] = [process.argv[2] ?? "k4-rider-uneasy", process.argv[3] ?? "close-up", process.argv[4] ?? "uneasy", process.argv[5] ?? "setup"];
+const cam = planCamera({ shotType: type as any, beat: beat as any, emotion: emotion as any, duration: 3, order: 2 });
+const shot: any = { id: "shot-01", sceneId: "s1", order: 2, beat, duration: 3, shotType: type, subjectIds: ["kai"], locationId: "alley", emotion, action: "x", visualPrompt: "x", visualKey: "k", camera: cam.camera, motion: cam.motion, transition: { type: "cut" }, characterMotion: [], dialogue: [], sfx: [] };
+const spec: ShotRenderSpec = { shot, imagePath: `${IM}/${img}.png`, duration: 3, width: 1080, height: 1920, fps: 30, transitionIn: "cut", isFirst: false, isLast: false, captions: [], captionCenterY: 0.66 };
+const t0 = Date.now();
+const r = await renderShot(c.runner, spec, `/tmp/lab2/smoke-${img}.mp4`, { ffmpeg: cfg.ffmpeg.ffmpeg, ffprobe: cfg.ffmpeg.ffprobe, encoder: "h264_videotoolbox", bitrateKbps: 12000, timeoutMs: 300000 });
+console.log(JSON.stringify(cam), "rendered in", Date.now() - t0, "ms");
