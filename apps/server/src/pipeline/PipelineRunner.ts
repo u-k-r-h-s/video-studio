@@ -17,6 +17,12 @@ export interface RunHooks {
 export class PipelineRunner {
   constructor(private readonly svc: PipelineServices) {}
 
+  /** Which pipeline a project's profile uses ("scenes" = motion comic, "shots" = cinematic short). */
+  async pipelineOf(projectId: string): Promise<"scenes" | "shots"> {
+    const p = await this.svc.store.require(projectId);
+    return this.svc.profiles.get(p.formatProfile).pipeline ?? "scenes";
+  }
+
   async runStage(projectId: string, stage: StageId, fn: StageFn, scope: Scope = {}, hooks: RunHooks = {}): Promise<void> {
     const { store } = this.svc;
     const log = new StageLog(projectId, store.logSink(projectId));

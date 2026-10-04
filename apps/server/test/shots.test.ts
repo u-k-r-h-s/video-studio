@@ -139,7 +139,7 @@ describe("captions", () => {
   it("renders one state per word and never lets two states overlap in time", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "caps-"));
     const calls: string[][] = [];
-    const fake: CommandRunner = { run: async (_exe, args) => {
+    const fake = { run: async (_exe: string, args: string[]) => {
       calls.push(args);
       const png = Buffer.alloc(24); png.writeUInt32BE(900, 16); png.writeUInt32BE(120, 20);
       await fs.writeFile(args[4]!, png);

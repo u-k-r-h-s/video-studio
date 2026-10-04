@@ -8,6 +8,8 @@ import { ProjectStore } from "../src/storage/ProjectStore";
 import { ProfileRegistry } from "../src/profiles";
 import { motionComic } from "../src/profiles/motionComic";
 import { ScenePlanner } from "../src/planner/ScenePlanner";
+import { ShotDirector } from "../src/shots/director";
+import type { MediaTools } from "../src/pipeline/types";
 import { MemoryGate, type ComfyProbe, type OllamaControl } from "../src/services/MemoryGate";
 import { ComfyUIProvider } from "../src/providers/image/ComfyUIProvider";
 import type { ComfySession } from "../src/providers/image/ComfyProcess";
@@ -71,7 +73,7 @@ export interface Harness {
   close(): Promise<void>;
 }
 
-export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: FormatProfile; llm?: FakeLLM } = {}): Promise<Harness> {
+export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: FormatProfile; llm?: FakeLLM; media?: MediaTools } = {}): Promise<Harness> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "studio-pipe-"));
   const events: string[] = [];
   const state: Harness["state"] = { ollamaLoaded: false, comfyAlive: false, ollamaUnloadWorks: true, comfyStopVerifyFails: false, ttsFails: false, prompts: 0 };
@@ -88,6 +90,7 @@ export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: Fo
     }); }
     else if (url.pathname.startsWith("/history/")) { const id = url.pathname.split("/")[2]!; json({ [id]: { status: { status_str: "success", completed: true, messages: [] }, outputs: { "9": { images: [{ filename: `${id}.png`, subfolder: "", type: "temp" }] } } } }); }
     else if (url.pathname === "/view") { res.writeHead(200, { "Content-Type": "image/png" }); res.end(figurePng()); }
+    else if (url.pathname === "/upload/image") { events.push("comfy:upload"); req.resume(); req.on("end", () => json({ name: "uploaded.png" })); }
     else if (url.pathname === "/free") { events.push("comfy:free"); json({}); }
     else json({}, 404);
   });
@@ -110,10 +113,10 @@ export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: Fo
     start: async () => { events.push("comfy:start"); if (state.ollamaLoaded) throw new Error("GATE BYPASSED: ComfyUI started while Ollama was resident"); state.comfyAlive = true; },
     stop: async () => { events.push("comfy:stop"); state.comfyAlive = false; },
   };
-  const image = new ComfyUIProvider(session, gate, { baseUrl: base, checkpoint: "ck", lora: "lora", imageTimeoutMs: 5000, pollMs: 2 });
+  const image = new ComfyUIProvider(session, gate, { baseUrl: base, checkpoint: "ck", lora: "lora", imageTimeoutMs: 5000, pollMs: 2, models: { sd15: { id: "sd15", checkpoint: "ck", lora: "lora" }, ds8: { id: "ds8", unet: "u", clip: "c", vae: "v", lora: "lora" } }, defaultModel: "sd15" });
 
   // --- fake TTS / subtitles / renderer
-  const voices: VoiceInfo[] = [{ id: "en-a", language: "en", model: "m.onnx" }, { id: "en-b", language: "en", model: "m.onnx" }, { id: "en-narrator", language: "en", model: "m.onnx" }, { id: "hi-rohan", language: "hi", model: "h.onnx" }];
+  const voices: VoiceInfo[] = [{ id: "en-a", language: "en", model: "m.onnx" }, { id: "en-b", language: "en", model: "m.onnx" }, { id: "en-narrator", language: "en", model: "m.onnx" }, { id: "en-c", language: "en", model: "m.onnx" }, { id: "hi-rohan", language: "hi", model: "h.onnx" }];
   const tts: TTSProvider = {
     name: "fake-piper", listVoices: () => voices,
     getVoice: (id) => voices.find((v) => v.id === id)!,
@@ -153,6 +156,7 @@ export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: Fo
   const svc: PipelineServices = {
     store, profiles: new ProfileRegistry([profile]), planner: new ScenePlanner(llm, { maxRepairs: 1, temperature: 0.5 }), gate,
     advisor: { snapshot: async () => ({ freePercent: 60, swapUsedMb: 1000 }) }, memoryWarnFreePercent: 30,
+    director: new ShotDirector(llm, { maxRepairs: 1, temperature: 0.5 }), media: opts.media,
     providers: { image: { comfyui: image }, tts: { piper: tts }, subtitle: { coretext: subtitle }, renderer: { "ffmpeg-motion": opts.renderer ?? fakeRenderer } },
   };
   const runner = new PipelineRunner(svc);

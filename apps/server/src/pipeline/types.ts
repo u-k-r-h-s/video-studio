@@ -1,11 +1,14 @@
 import type { FormatProfile, Project, StageId } from "@studio/shared";
+import type { CommandRunner } from "../lib/command";
 import type { StageLog } from "../lib/stagelog";
 import type { ScenePlanner } from "../planner/ScenePlanner";
 import type { ProfileRegistry } from "../profiles";
 import type { ImageProvider } from "../providers/image/ImageProvider";
 import type { SubtitleRenderer } from "../providers/subtitle/SubtitleRenderer";
 import type { TTSProvider } from "../providers/tts/TTSProvider";
+import type { FFmpegMotionRenderer } from "../render/FFmpegMotionRenderer";
 import type { SceneRenderer } from "../render/SceneRenderer";
+import type { ShotDirector } from "../shots/director";
 import type { MemoryAdvisor } from "../services/MemoryAdvisor";
 import type { MemoryGate } from "../services/MemoryGate";
 import type { ProjectStore } from "../storage/ProjectStore";
@@ -18,6 +21,16 @@ export interface PipelineProviders {
   renderer: Record<string, SceneRenderer>;
 }
 
+/** Command-line media tools used by the shot pipeline (all invoked through the allow-listed CommandRunner). */
+export interface MediaTools {
+  runner: CommandRunner;
+  ffmpeg: string;
+  ffprobe: string;
+  /** Native CoreText caption helper (bin/subpng). */
+  captionHelper: string;
+  renderer: FFmpegMotionRenderer;
+}
+
 export interface PipelineServices {
   store: ProjectStore;
   profiles: ProfileRegistry;
@@ -26,6 +39,11 @@ export interface PipelineServices {
   advisor: Pick<MemoryAdvisor, "snapshot">;
   providers: PipelineProviders;
   memoryWarnFreePercent: number;
+  /** Shot pipeline (profiles with `pipeline: "shots"`). Optional so scene-only setups and tests keep working. */
+  director?: ShotDirector;
+  media?: MediaTools;
+  /** Files an image model needs, by model id: checked before generation for a readable error. */
+  modelFiles?: Record<string, string[]>;
 }
 
 /** Which part of a project a stage should work on. Empty scope = the whole project. */

@@ -1,12 +1,13 @@
 import { FormatProfileSchema, type FormatProfile } from "@studio/shared";
 import { HttpError } from "../errors";
+import { cinematicAnimatedShort } from "./cinematicAnimatedShort";
 import { motionComic } from "./motionComic";
 
 /** Registry of available format profiles. Adding a video type = adding an entry here (data), not new pipeline code. */
 export class ProfileRegistry {
   private readonly profiles = new Map<string, FormatProfile>();
 
-  constructor(profiles: FormatProfile[] = [motionComic]) {
+  constructor(profiles: FormatProfile[] = [motionComic, cinematicAnimatedShort]) {
     for (const p of profiles) this.register(p);
   }
 

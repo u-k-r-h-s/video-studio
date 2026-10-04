@@ -4,6 +4,12 @@ import { generateImages } from "../pipeline/stages/generateImages";
 import { generateVoices } from "../pipeline/stages/generateVoices";
 import { buildSceneTimelines } from "../pipeline/stages/buildTimeline";
 import { planScenes } from "../pipeline/stages/planScenes";
+import { assembleShots } from "../pipeline/stages/shots/assembleShots";
+import { buildShotTimeline } from "../pipeline/stages/shots/buildShotTimeline";
+import { generateKeyVisuals } from "../pipeline/stages/shots/generateKeyVisuals";
+import { generateShotVoices } from "../pipeline/stages/shots/generateShotVoices";
+import { planStory } from "../pipeline/stages/shots/planStory";
+import { renderShots } from "../pipeline/stages/shots/renderShots";
 import { renderScenes } from "../pipeline/stages/renderScenes";
 import type { PipelineRunner } from "../pipeline/PipelineRunner";
 import type { Job } from "@studio/shared";
@@ -25,7 +31,8 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Ask Ollama to turn the project's idea or script into a validated scene plan (then unloads Ollama and verifies it).",
     inputSchema: ProjectInput.extend({ feedback: z.string().max(500).optional() }),
     async execute(i, ctx) {
-      await runner.runStage(i.projectId, "scene_planning", planScenes(i.feedback), {}, ctx);
+      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
+      await runner.runStage(i.projectId, "scene_planning", shots ? planStory(i.feedback) : planScenes(i.feedback), {}, ctx);
       return { ok: true };
     },
   };
@@ -34,7 +41,8 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Generate all missing/stale background, character and prop images for the project in ONE ComfyUI session (Ollama is unloaded first; ComfyUI is stopped and verified afterwards).",
     inputSchema: ScopeInput.extend({ includeBackground: z.boolean().optional(), includeCharacters: z.boolean().optional() }),
     async execute(i, ctx) {
-      await runner.runStage(i.projectId, "image_generation", generateImages, { sceneIds: i.sceneIds, force: i.force, includeBackground: i.includeBackground, includeCharacters: i.includeCharacters }, ctx);
+      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
+      await runner.runStage(i.projectId, "image_generation", shots ? generateKeyVisuals : generateImages, { sceneIds: i.sceneIds, force: i.force, includeBackground: i.includeBackground, includeCharacters: i.includeCharacters }, ctx);
       return { ok: true };
     },
   };
@@ -43,7 +51,8 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Generate Piper voice audio for the dialogue (trimmed of silence). Requires ComfyUI to be stopped.",
     inputSchema: ScopeInput,
     async execute(i, ctx) {
-      await runner.runStage(i.projectId, "voice_generation", generateVoices, { sceneIds: i.sceneIds, force: i.force }, ctx);
+      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
+      await runner.runStage(i.projectId, "voice_generation", shots ? generateShotVoices : generateVoices, { sceneIds: i.sceneIds, force: i.force }, ctx);
       return { ok: true };
     },
   };
@@ -53,8 +62,9 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     inputSchema: ScopeInput,
     async execute(i, ctx) {
       const scope = { sceneIds: i.sceneIds, force: i.force };
-      await runner.runStage(i.projectId, "subtitles", buildSceneTimelines, scope, { ...ctx, progress: (p, m) => ctx.progress?.(p / 2, m) });
-      await runner.runStage(i.projectId, "scene_render", renderScenes, scope, { ...ctx, progress: (p, m) => ctx.progress?.(50 + p / 2, m) });
+      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
+      await runner.runStage(i.projectId, "subtitles", shots ? buildShotTimeline : buildSceneTimelines, scope, { ...ctx, progress: (p, m) => ctx.progress?.(p / 2, m) });
+      await runner.runStage(i.projectId, "scene_render", shots ? renderShots : renderScenes, scope, { ...ctx, progress: (p, m) => ctx.progress?.(50 + p / 2, m) });
       return { ok: true };
     },
   };
@@ -63,7 +73,8 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Join the rendered scene clips into the final 1080x1920 MP4 and write the SRT.",
     inputSchema: ProjectInput.extend({ force: z.boolean().optional() }),
     async execute(i, ctx) {
-      await runner.runStage(i.projectId, "assembly", assembleFinal, { force: i.force }, ctx);
+      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
+      await runner.runStage(i.projectId, "assembly", shots ? assembleShots : assembleFinal, { force: i.force }, ctx);
       return { ok: true };
     },
   };

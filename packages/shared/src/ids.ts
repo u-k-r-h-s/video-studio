@@ -29,3 +29,9 @@ export const subtitleAssetId = (dialogue: string, part: number): string => `sub-
 export const sceneAudioAssetId = (scene: string): string => `scene-audio-${scene}`;
 export const sceneVideoAssetId = (scene: string): string => `scene-video-${scene}`;
 export const FINAL_VIDEO_ASSET_ID = "final-video";
+
+/** Shot pipeline ids. */
+export const shotId = (order: number): string => `shot-${String(order).padStart(2, "0")}`;
+export const keyVisualAssetId = (keyId: string): string => `kv-${keyId}`;
+export const shotVideoAssetId = (shot: string): string => `shot-video-${shot}`;
+export const SOUNDTRACK_ASSET_ID = "soundtrack-mix";

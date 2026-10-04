@@ -32,6 +32,10 @@ const EnvSchema = z.object({
   COMFYUI_PORT: z.coerce.number().int().min(1024).max(65535).default(8188),
   COMFYUI_CHECKPOINT: z.string().default("v1-5-pruned-emaonly-fp16.safetensors"),
   COMFYUI_LORA: z.string().default("lcm-lora-sdv1-5.safetensors"),
+  /** DreamShaper 8 split components (Lykon/dreamshaper-8, CreativeML OpenRAIL-M): used by the cinematic profile. */
+  COMFYUI_DS8_UNET: z.string().default("dreamshaper8_unet_fp16.safetensors"),
+  COMFYUI_DS8_CLIP: z.string().default("dreamshaper8_clip_fp16.safetensors"),
+  COMFYUI_DS8_VAE: z.string().default("dreamshaper8_vae_fp16.safetensors"),
   COMFYUI_START_TIMEOUT_MS: z.coerce.number().int().min(5000).default(180_000),
   COMFYUI_IMAGE_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(600_000),
   COMFYUI_STOP_TIMEOUT_MS: z.coerce.number().int().min(2000).default(20_000),
@@ -62,6 +66,7 @@ export interface AppConfig {
     port: number;
     checkpoint: string;
     lora: string;
+    ds8: { unet: string; clip: string; vae: string };
     startTimeoutMs: number;
     imageTimeoutMs: number;
     stopTimeoutMs: number;
@@ -131,6 +136,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, root: string = 
       port: e.COMFYUI_PORT,
       checkpoint: e.COMFYUI_CHECKPOINT,
       lora: e.COMFYUI_LORA,
+      ds8: { unet: e.COMFYUI_DS8_UNET, clip: e.COMFYUI_DS8_CLIP, vae: e.COMFYUI_DS8_VAE },
       startTimeoutMs: e.COMFYUI_START_TIMEOUT_MS,
       imageTimeoutMs: e.COMFYUI_IMAGE_TIMEOUT_MS,
       stopTimeoutMs: e.COMFYUI_STOP_TIMEOUT_MS,
