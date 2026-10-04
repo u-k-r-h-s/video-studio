@@ -28,8 +28,13 @@ export const FormatProfileSchema = z.object({
   subtitleRenderer: z.string(),
   visualStyle: z.object({
     name: z.string(),
-    /** Prepended to every image prompt. */
+    /** Prepended to background image prompts. */
     promptPrefix: z.string(),
+    /**
+     * Style words for characters and props (cut-outs). Kept separate from `promptPrefix` on purpose: measured on the
+     * target model, "comic illustration / character design" wording makes SD 1.5 draw framed posters that cannot be cut out.
+     */
+    cutoutStyle: z.string(),
     negativePrompt: z.string(),
   }),
   /** Generated image sizes per asset kind (provider-agnostic). */

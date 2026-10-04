@@ -22,9 +22,11 @@ describe("image prompts", () => {
   it("strips named characters and person words", () => {
     expect(stripPeople("Kaito sneaks in. A candle burns, he looks around, the door creaks.", chars)).toBe("A candle burns, the door creaks");
   });
-  it("cut-out prompts ask for isolation on a plain background and trim the appearance", () => {
-    expect(characterPrompt(motionComic, chars[0]!).prompt).toContain("full body character design of slender, grey cloak,");
-    expect(characterPrompt(motionComic, chars[0]!).prompt).toContain("isolated on a plain white background");
-    expect(propPrompt(motionComic, "wooden mousetrap").prompt).toContain("simple icon of a wooden mousetrap");
+  it("cut-out prompts are simple (measured: poster-style wording breaks cut-outs) and trim the appearance", () => {
+    const c = characterPrompt(motionComic, chars[0]!).prompt;
+    expect(c).toBe("full body cartoon character with slender, grey cloak, standing, simple flat colours, clean outlines, white background");
+    expect(c).not.toMatch(/character design|sticker|illustration|poster/i); // wording measured to produce framed posters
+    expect(propPrompt(motionComic, "wooden mousetrap").prompt).toContain("a single wooden mousetrap");
+    expect(propPrompt(motionComic, "wooden mousetrap").prompt).toContain("white background");
   });
 });

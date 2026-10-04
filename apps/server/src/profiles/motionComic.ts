@@ -16,6 +16,7 @@ export const motionComic: FormatProfile = {
   visualStyle: {
     name: "Original comic",
     promptPrefix: "flat colour comic book illustration, bold black ink outlines, simple clean shapes, vibrant but controlled palette",
+    cutoutStyle: "simple flat colours, clean outlines",
     negativePrompt: "photo, photorealistic, blurry, text, watermark, signature, deformed, extra limbs, ugly",
   },
   images: { background: { width: 512, height: 896 }, character: { width: 512, height: 896 }, prop: { width: 512, height: 512 } },
