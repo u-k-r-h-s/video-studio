@@ -66,7 +66,7 @@ export const FormatProfileSchema = z.object({
     subtitleY: z.number().min(0).max(1),
     subtitleWidthPx: z.number().int().min(100),
     subtitleFontPx: z.number().int().min(10),
-    subtitleStrokePx: z.number().min(0),
+    subtitleStrokePercent: z.number().min(0).max(30),
     subtitleFonts: z.record(z.enum(LANGUAGE_IDS), z.string()),
   }),
   /** Candidate voice ids per language (resolved against config/voices.json). Characters are assigned round-robin. */

@@ -6,7 +6,8 @@ export interface SubtitleImageRequest {
   fontFamily: string;
   fontSizePx: number;
   widthPx: number;
-  strokePx: number;
+  /** Outline width as a percentage of the font size (CoreText semantics). */
+  strokePercent: number;
   /** Absolute destination PNG path. */
   outPath: string;
 }

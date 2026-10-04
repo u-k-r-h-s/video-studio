@@ -35,7 +35,7 @@ export const motionComic: FormatProfile = {
     subtitleY: 0.7,
     subtitleWidthPx: 980,
     subtitleFontPx: 68,
-    subtitleStrokePx: 5,
+    subtitleStrokePercent: 5,
     subtitleFonts: { en: "Helvetica Neue", hi: "Kohinoor Devanagari" },
   },
   voices: { narrator: { en: "en-narrator", hi: "hi-rohan" }, characters: { en: ["en-a", "en-b"], hi: ["hi-rohan"] } },
