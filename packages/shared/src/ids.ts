@@ -22,8 +22,10 @@ export const backgroundAssetId = (location: string): string => `bg-${locationKey
 /** Scene-specific background override (used when a single scene's background is regenerated on its own). */
 export const sceneBackgroundAssetId = (scene: string): string => `bg-${scene}`;
 export const characterAssetId = (characterId: string): string => `char-${characterId}`;
-export const propAssetId = (name: string): string => `prop-${slugify(name) || "item"}`;
+/** Scene-scoped so regenerating one scene never touches another scene's props. */
+export const propAssetId = (scene: string, name: string): string => `prop-${scene}-${slugify(name) || "item"}`;
 export const voiceAudioId = (dialogue: string): string => `voice-${dialogue}`;
 export const subtitleAssetId = (dialogue: string, part: number): string => `sub-${dialogue}-${part}`;
+export const sceneAudioAssetId = (scene: string): string => `scene-audio-${scene}`;
 export const sceneVideoAssetId = (scene: string): string => `scene-video-${scene}`;
 export const FINAL_VIDEO_ASSET_ID = "final-video";

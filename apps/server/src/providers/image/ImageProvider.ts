@@ -21,6 +21,10 @@ export interface ImageResult {
 
 export interface BatchHooks {
   signal?: AbortSignal;
+  /** Where the provider should append its own diagnostic output (e.g. ComfyUI stdout), if it has any. */
+  logFile?: string;
+  /** Called right before each image starts generating (for per-image timing logs). */
+  onImageStart?: (id: string) => void;
   /** Called as soon as EACH image is saved, so the caller can persist progress (resumability). */
   onImage?: (result: ImageResult) => Promise<void> | void;
   onProgress?: (done: number, total: number, message: string) => void;

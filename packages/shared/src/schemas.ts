@@ -82,7 +82,7 @@ export type Scene = z.infer<typeof SceneSchema>;
 // Assets
 // ---------------------------------------------------------------------------------------------------------------
 
-export const ASSET_KINDS = ["background", "character", "prop", "subtitle", "scene_video", "final_video"] as const;
+export const ASSET_KINDS = ["background", "character", "prop", "subtitle", "scene_audio", "scene_video", "final_video"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 export const AssetSchema = z.object({

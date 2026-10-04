@@ -23,10 +23,6 @@ export interface ComfyUIOptions {
   buildWorkflow?: typeof buildLcmWorkflow;
 }
 
-export interface BatchLogHooks extends BatchHooks {
-  logFile?: string;
-}
-
 /**
  * ImageProvider backed by a local ComfyUI (SD 1.5 + LCM-LoRA, as measured in the feasibility test).
  *
@@ -48,7 +44,7 @@ export class ComfyUIProvider implements ImageProvider {
     private readonly opts: ComfyUIOptions,
   ) {}
 
-  async generateBatch(requests: ImageRequest[], hooks: BatchLogHooks = {}): Promise<ImageResult[]> {
+  async generateBatch(requests: ImageRequest[], hooks: BatchHooks = {}): Promise<ImageResult[]> {
     if (requests.length === 0) return [];
     await this.gate.ensureOllamaUnloaded(); // 1
     const results: ImageResult[] = [];
@@ -58,6 +54,7 @@ export class ComfyUIProvider implements ImageProvider {
       for (const [i, req] of requests.entries()) {
         if (hooks.signal?.aborted) throw new CancelledError();
         hooks.onProgress?.(i, requests.length, `Generating ${req.id}`);
+        hooks.onImageStart?.(req.id);
         const result = await this.generateOne(req, hooks.signal); // 3
         results.push(result);
         await hooks.onImage?.(result);

@@ -131,7 +131,7 @@ describe("project + ids", () => {
     expect(sceneId(3)).toBe("scene-03");
     expect(dialogueId("scene-03", 2)).toBe("scene-03-d02");
     expect(backgroundAssetId("Village Shop!")).toBe("bg-village-shop");
-    expect(propAssetId("Wooden Mouse-trap")).toBe("prop-wooden-mouse-trap");
+    expect(propAssetId("scene-02", "Wooden Mouse-trap")).toBe("prop-scene-02-wooden-mouse-trap");
     expect(slugify("Café Âmbar")).toBe("cafe-ambar");
   });
   it("validates a full project and a plan edit", () => {
