@@ -12,6 +12,7 @@ import {
   STAGE_STATUSES,
 } from "./constants";
 import { ID_PATTERN, SCENE_ID_PATTERN } from "./ids";
+import { StorySchema } from "./story";
 
 const IdSchema = z.string().regex(ID_PATTERN, "must be lowercase kebab-case").max(64);
 
@@ -30,6 +31,12 @@ export const CharacterSchema = z.object({
   voiceId: z.string().optional(),
   /** Optional user-supplied art (project-relative path). NOT used as model conditioning in this version. */
   referenceImage: z.string().optional(),
+  // --- character bible (shot-based stories). All optional so older projects stay valid.
+  clothing: z.string().max(300).optional(),
+  colors: z.array(z.string().max(30)).max(6).optional(),
+  personality: z.string().max(300).optional(),
+  /** The canonical visual prompt fragment reused in EVERY image of this character. Falls back to appearance + clothing. */
+  visualIdentity: z.string().max(500).optional(),
 });
 export type Character = z.infer<typeof CharacterSchema>;
 
@@ -82,7 +89,7 @@ export type Scene = z.infer<typeof SceneSchema>;
 // Assets
 // ---------------------------------------------------------------------------------------------------------------
 
-export const ASSET_KINDS = ["background", "character", "prop", "subtitle", "scene_audio", "scene_video", "final_video"] as const;
+export const ASSET_KINDS = ["background", "character", "prop", "subtitle", "scene_audio", "scene_video", "final_video", "key_visual", "shot_video", "audio_track", "caption"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 export const AssetSchema = z.object({
@@ -140,6 +147,8 @@ export const ProjectSchema = z.object({
   targetDurationSeconds: z.number().min(5).max(180),
   scenes: z.array(SceneSchema),
   characters: z.array(CharacterSchema),
+  /** Shot-based story (profiles whose pipeline is "shots"). Absent for scene-based projects. */
+  story: StorySchema.optional(),
   assets: z.array(AssetSchema),
   audio: z.array(AudioAssetSchema),
   status: z.enum(PROJECT_STATUSES),
