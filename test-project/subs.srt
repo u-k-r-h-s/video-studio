@@ -1,0 +1,12 @@
+1
+00:00:00,400 --> 00:00:02,501
+Someone has been sneaking into the shop every night.
+
+2
+00:00:02,851 --> 00:00:05,173
+Tonight, the old detective will finally catch the thief.
+
+3
+00:00:05,523 --> 00:00:09,006
+कोई हर रात चुपके से दुकान में घुस रहा है।
+

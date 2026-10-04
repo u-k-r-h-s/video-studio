@@ -1,0 +1,6 @@
+{"label": "t1b-lcm-unloaded-1", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 36.884, "wall_s": 37.75, "outputs": ["bg_shop_lcm_u1_00001_.png"]}
+{"label": "t1b-lcm-unloaded-2", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 37.108, "wall_s": 38.39, "outputs": ["bg_shop_lcm_u2_00001_.png"]}
+{"label": "t1b-char-lcm", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 37.454, "wall_s": 37.48, "outputs": ["char_detective_00001_.png"]}
+{"label": "t1b-lcm-ollamaLOADED-1", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 186.783, "wall_s": 188.52, "outputs": ["bg_shop_lcm_l1_00001_.png"]}
+{"label": "t1b-lcm-ollamaLOADED-2", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 127.555, "wall_s": 128.98, "outputs": ["bg_shop_lcm_l2_00001_.png"]}
+{"label": "t1b-std-unloaded", "mode": "std", "size": "512x896", "steps": 20, "status": "success", "server_exec_s": 108.835, "wall_s": 109.8, "outputs": ["bg_shop_std_u_00001_.png"]}

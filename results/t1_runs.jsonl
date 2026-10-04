@@ -1,0 +1,4 @@
+{"label": "t1-A1-std-cold", "mode": "std", "size": "512x896", "steps": 20, "status": "success", "server_exec_s": 101.749, "wall_s": 102.7, "outputs": ["bg_shop_std_00001_.png"]}
+{"label": "t1-A2-std-warm", "mode": "std", "size": "512x896", "steps": 20, "status": "success", "server_exec_s": 104.061, "wall_s": 104.85, "outputs": ["bg_shop_std_00002_.png"]}
+{"label": "t1-B1-lcm-first", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 35.771, "wall_s": 36.63, "outputs": ["bg_shop_lcm_00001_.png"]}
+{"label": "t1-B2-lcm-warm", "mode": "lcm", "size": "512x896", "steps": 5, "status": "success", "server_exec_s": 35.475, "wall_s": 36.31, "outputs": ["bg_shop_lcm_00002_.png"]}

@@ -1,0 +1,48 @@
+[
+ {
+  "stage": "1 ollama scene-plan call",
+  "wall_s": 6.2,
+  "scenes": 1,
+  "eval_tokens": 82,
+  "load_s": 2.3,
+  "gen_s": 3.4,
+  "loaded_after": [
+   "llama3.2:latest"
+  ]
+ },
+ {
+  "stage": "2 ollama unload",
+  "wall_s": 3.1,
+  "models_loaded": [],
+  "llama_server_processes": 0
+ },
+ {
+  "stage": "3a comfyui start",
+  "wall_s": 12.6
+ },
+ {
+  "stage": "3b comfyui generate (LCM 5 steps, 512x896, cold model load included)",
+  "wall_s": 35.7,
+  "server_exec_s": 34.552,
+  "status": "success"
+ },
+ {
+  "stage": "3c comfyui free + stop",
+  "wall_s": 2.1,
+  "process_still_running": false
+ },
+ {
+  "stage": "4 piper (3 clips, separate CLI process each)",
+  "wall_s": 3.2,
+  "per_clip_s": [
+   1.24,
+   1.05,
+   0.92
+  ]
+ },
+ {
+  "stage": "5 ffmpeg 1080x1920 render (h264_videotoolbox)",
+  "wall_s": 3.9,
+  "ok": true
+ }
+]

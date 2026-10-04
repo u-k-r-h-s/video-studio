@@ -1,0 +1,4 @@
+http=200 bytes=2132696762 avg=31193298 B/s
+real 68.38
+user 19.43
+sys 5.31

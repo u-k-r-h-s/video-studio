@@ -1,0 +1,279 @@
+[32m[INFO][0m setup plugin alembic.autogenerate.schemas
+[32m[INFO][0m setup plugin alembic.autogenerate.tables
+[32m[INFO][0m setup plugin alembic.autogenerate.types
+[32m[INFO][0m setup plugin alembic.autogenerate.constraints
+[32m[INFO][0m setup plugin alembic.autogenerate.defaults
+[32m[INFO][0m setup plugin alembic.autogenerate.comments
+[32m[INFO][0m setup plugin alembic.ext.checkconstraint_byname
+[1m[33m[WARNING][0m Could not autodetect AIMDO implementation, assuming Nvidia
+[32m[INFO][0m comfy-aimdo unsupported operating system: Darwin
+[32m[INFO][0m NOTE: comfy-aimdo currently only supports Windows and Linux
+[32m[INFO][0m Found comfy_kitchen backend cuda: {'available': False, 'disabled': True, 'unavailable_reason': 'Extension file not found: /Users/apple/Desktop/ai-studio-feasibility/venv-comfy/lib/python3.12/site-packages/comfy_kitchen/backends/cuda/_C.abi3.so', 'capabilities': []}
+[32m[INFO][0m Found comfy_kitchen backend ascend: {'available': False, 'disabled': False, 'unavailable_reason': "torch-npu is not installed: No module named 'torch_npu'", 'capabilities': []}
+[32m[INFO][0m Found comfy_kitchen backend triton: {'available': False, 'disabled': True, 'unavailable_reason': "ImportError: No module named 'triton'", 'capabilities': []}
+[32m[INFO][0m Found comfy_kitchen backend hip: {'available': False, 'disabled': False, 'unavailable_reason': 'PyTorch ROCm/HIP runtime not available', 'capabilities': []}
+[32m[INFO][0m Found comfy_kitchen backend eager: {'available': True, 'disabled': False, 'unavailable_reason': None, 'capabilities': ['adaln', 'apply_rope', 'apply_rope1', 'apply_rope1_', 'apply_rope_', 'apply_rope_split_half', 'apply_rope_split_half1', 'apply_rope_split_half1_', 'apply_rope_split_half_', 'convrot_w4a4_linear', 'dequantize_convrot_w4a4_weight', 'dequantize_int8_convrot_weight', 'dequantize_int8_convrot_weight_dtype', 'dequantize_int8_embedding', 'dequantize_int8_simple', 'dequantize_int8_simple_dtype', 'dequantize_mxfp8', 'dequantize_nvfp4', 'dequantize_per_tensor_fp8', 'dequantize_w4a8_int8_weight', 'fp16_conv3d', 'fp16_conv3d_out', 'fp16_linear', 'gemv_awq_w4a16', 'group_norm_silu_pad3d', 'group_norm_silu_pad3d_out', 'int8_linear', 'na3d', 'prepare_int4_weight_for_int8_linear', 'quantize_and_rotate_rowwise', 'quantize_convrot_w4a4_weight', 'quantize_int8_convrot_weight', 'quantize_int8_rowwise', 'quantize_int8_tensorwise', 'quantize_mxfp8', 'quantize_nvfp4', 'quantize_per_tensor_fp8', 'quantize_svdquant_w4a4', 'quantize_w4a8_int8_weight', 'rms_adaln', 'rms_rope', 'rms_rope1', 'rms_rope1_', 'rms_rope_', 'rms_rope_split_half', 'rms_rope_split_half1', 'rms_rope_split_half1_', 'rms_rope_split_half_', 'rotate_int8_convrot_weight', 'scaled_mm_mxfp8', 'scaled_mm_nvfp4', 'scaled_mm_svdquant_w4a4', 'sol_attn', 'stochastic_rounding_fp8', 'w4a8_int8_linear']}
+[32m[INFO][0m Checkpoint files will always be loaded safely.
+[32m[INFO][0m Total VRAM 8192 MB, total RAM 8192 MB
+[32m[INFO][0m pytorch version: 2.14.1
+[32m[INFO][0m Mac Version (26, 3, 1)
+[32m[INFO][0m Set vram state to: SHARED
+[32m[INFO][0m Device: mps
+[32m[INFO][0m Using sub quadratic optimization for attention, if you have memory or speed issues try using: --use-split-cross-attention
+[32m[INFO][0m Python version: 3.12.13 (main, Jun 23 2026, 15:44:24) [Clang 22.1.3 ]
+[32m[INFO][0m ComfyUI version: 0.38.0
+[32m[INFO][0m comfy-aimdo version: 0.5.5
+[32m[INFO][0m comfy-kitchen version: 0.2.37
+[1m[33m[WARNING][0m ****** User settings have been changed to be stored on the server instead of browser storage. ******
+[1m[33m[WARNING][0m ****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******
+[32m[INFO][0m comfyui-frontend-package version: 1.53.10
+[32m[INFO][0m comfyui-workflow-templates version: 0.11.76
+[32m[INFO][0m comfyui-embedded-docs version: 0.5.13
+[32m[INFO][0m comfy-kitchen version: 0.2.37
+[32m[INFO][0m comfy-aimdo version: 0.5.5
+[32m[INFO][0m [Prompt Server] web root: /Users/apple/Desktop/ai-studio-feasibility/venv-comfy/lib/python3.12/site-packages/comfyui_frontend_package/static
+[32m[INFO][0m Asset seeder disabled
+/Users/apple/Desktop/ai-studio-feasibility/venv-comfy/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+[32m[INFO][0m No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+[32m[INFO][0m 
+Import times for custom nodes:
+[32m[INFO][0m    0.0 seconds: /Users/apple/Desktop/ai-studio-feasibility/comfyui/custom_nodes/websocket_image_save.py
+[32m[INFO][0m 
+[32m[INFO][0m Using RAM pressure cache.
+[32m[INFO][0m Starting server
+
+[32m[INFO][0m To see the GUI go to: http://127.0.0.1:8188
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:04<01:34,  4.96s/it] 10%|█         | 2/20 [00:09<01:21,  4.55s/it] 15%|█▌        | 3/20 [00:13<01:15,  4.44s/it] 20%|██        | 4/20 [00:17<01:10,  4.41s/it] 25%|██▌       | 5/20 [00:22<01:06,  4.40s/it] 30%|███       | 6/20 [00:26<01:02,  4.43s/it] 35%|███▌      | 7/20 [00:31<00:57,  4.42s/it] 40%|████      | 8/20 [00:35<00:52,  4.38s/it] 45%|████▌     | 9/20 [00:39<00:48,  4.39s/it] 50%|█████     | 10/20 [00:44<00:44,  4.42s/it] 55%|█████▌    | 11/20 [00:48<00:40,  4.46s/it] 60%|██████    | 12/20 [00:53<00:35,  4.48s/it] 65%|██████▌   | 13/20 [00:57<00:31,  4.44s/it] 70%|███████   | 14/20 [01:02<00:26,  4.44s/it] 75%|███████▌  | 15/20 [01:06<00:21,  4.40s/it] 80%|████████  | 16/20 [01:10<00:17,  4.39s/it] 85%|████████▌ | 17/20 [01:15<00:13,  4.42s/it] 90%|█████████ | 18/20 [01:19<00:08,  4.42s/it] 95%|█████████▌| 19/20 [01:24<00:04,  4.41s/it]100%|██████████| 20/20 [01:28<00:00,  4.40s/it]100%|██████████| 20/20 [01:28<00:00,  4.43s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 101.77 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:03<01:13,  3.88s/it] 10%|█         | 2/20 [00:08<01:18,  4.34s/it] 15%|█▌        | 3/20 [00:13<01:17,  4.56s/it] 20%|██        | 4/20 [00:17<01:13,  4.58s/it] 25%|██▌       | 5/20 [00:22<01:08,  4.58s/it] 30%|███       | 6/20 [00:27<01:04,  4.61s/it] 35%|███▌      | 7/20 [00:31<01:00,  4.63s/it] 40%|████      | 8/20 [00:36<00:56,  4.70s/it] 45%|████▌     | 9/20 [00:41<00:51,  4.69s/it] 50%|█████     | 10/20 [00:45<00:46,  4.62s/it] 55%|█████▌    | 11/20 [00:51<00:43,  4.78s/it] 60%|██████    | 12/20 [00:55<00:38,  4.76s/it] 65%|██████▌   | 13/20 [01:00<00:32,  4.69s/it] 70%|███████   | 14/20 [01:04<00:27,  4.65s/it] 75%|███████▌  | 15/20 [01:09<00:22,  4.60s/it] 80%|████████  | 16/20 [01:13<00:18,  4.54s/it] 85%|████████▌ | 17/20 [01:18<00:13,  4.54s/it] 90%|█████████ | 18/20 [01:22<00:09,  4.56s/it] 95%|█████████▌| 19/20 [01:27<00:04,  4.62s/it]100%|██████████| 20/20 [01:32<00:00,  4.62s/it]100%|██████████| 20/20 [01:32<00:00,  4.61s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m Unloaded partially: 1583.15 MB freed, 56.26 MB remains loaded, 56.25 MB buffer reserved, lowvram patches: 0
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 104.07 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:04<00:18,  4.73s/it] 40%|████      | 2/5 [00:09<00:14,  4.68s/it] 60%|██████    | 3/5 [00:13<00:09,  4.62s/it] 80%|████████  | 4/5 [00:18<00:04,  4.63s/it]100%|██████████| 5/5 [00:23<00:00,  4.60s/it]100%|██████████| 5/5 [00:23<00:00,  4.63s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 35.78 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:05<00:20,  5.01s/it] 40%|████      | 2/5 [00:09<00:14,  4.75s/it] 60%|██████    | 3/5 [00:14<00:09,  4.65s/it] 80%|████████  | 4/5 [00:18<00:04,  4.61s/it]100%|██████████| 5/5 [00:23<00:00,  4.58s/it]100%|██████████| 5/5 [00:23<00:00,  4.64s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 35.48 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:05<00:20,  5.01s/it] 40%|████      | 2/5 [00:09<00:14,  4.74s/it] 60%|██████    | 3/5 [00:14<00:09,  4.67s/it] 80%|████████  | 4/5 [00:18<00:04,  4.63s/it]100%|██████████| 5/5 [00:23<00:00,  4.61s/it]100%|██████████| 5/5 [00:23<00:00,  4.66s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 36.89 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:05<00:20,  5.10s/it] 40%|████      | 2/5 [00:09<00:14,  4.93s/it] 60%|██████    | 3/5 [00:14<00:09,  4.79s/it] 80%|████████  | 4/5 [00:19<00:04,  4.71s/it]100%|██████████| 5/5 [00:24<00:00,  4.79s/it]100%|██████████| 5/5 [00:24<00:00,  4.81s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 37.11 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:04<00:19,  4.81s/it] 40%|████      | 2/5 [00:09<00:14,  4.78s/it] 60%|██████    | 3/5 [00:14<00:09,  4.80s/it] 80%|████████  | 4/5 [00:19<00:04,  4.78s/it]100%|██████████| 5/5 [00:23<00:00,  4.80s/it]100%|██████████| 5/5 [00:23<00:00,  4.80s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 37.46 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:28<01:53, 28.49s/it] 40%|████      | 2/5 [00:49<01:11, 23.91s/it] 60%|██████    | 3/5 [01:16<00:50, 25.37s/it] 80%|████████  | 4/5 [01:47<00:27, 27.81s/it]100%|██████████| 5/5 [02:01<00:00, 22.63s/it]100%|██████████| 5/5 [02:01<00:00, 24.27s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 186.80 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m 0 models unloaded.
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/5 [00:00<?, ?it/s] 20%|██        | 1/5 [00:16<01:05, 16.40s/it] 40%|████      | 2/5 [00:38<00:58, 19.55s/it] 60%|██████    | 3/5 [00:58<00:39, 19.87s/it] 80%|████████  | 4/5 [01:03<00:13, 13.89s/it]100%|██████████| 5/5 [01:07<00:00, 10.60s/it]100%|██████████| 5/5 [01:07<00:00, 13.58s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m Unloaded partially: 1470.65 MB freed, 168.76 MB remains loaded, 56.25 MB buffer reserved, lowvram patches: 0
+[32m[INFO][0m 1 models unloaded.
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 127.57 seconds[0m
+[32m[INFO][0m got prompt
+[32m[INFO][0m model weight dtype torch.float16, manual cast: None
+[32m[INFO][0m model_type EPS
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m Using split attention in VAE
+[32m[INFO][0m VAE load device: mps, offload device: cpu, dtype: torch.bfloat16
+[32m[INFO][0m Model storage policy: fast_disk=False paths=['/Users/apple/Desktop/ai-studio-feasibility/comfyui/models/checkpoints/v1-5-pruned-emaonly-fp16.safetensors']
+[32m[INFO][0m Requested to load SD1ClipModel
+[32m[INFO][0m loaded completely;  235.84 MB loaded, full load: True
+[32m[INFO][0m CLIP/text encoder model load device: cpu, offload device: cpu, current: cpu, dtype: torch.float16
+[32m[INFO][0m loaded diffusion model directly to GPU
+[32m[INFO][0m Requested to load BaseModel
+[32m[INFO][0m loaded completely;  1639.41 MB loaded, full load: True
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:04<01:21,  4.29s/it] 10%|█         | 2/20 [00:09<01:22,  4.57s/it] 15%|█▌        | 3/20 [00:13<01:19,  4.66s/it] 20%|██        | 4/20 [00:18<01:13,  4.62s/it] 25%|██▌       | 5/20 [00:23<01:10,  4.72s/it] 30%|███       | 6/20 [00:27<01:05,  4.71s/it] 35%|███▌      | 7/20 [00:32<01:01,  4.74s/it] 40%|████      | 8/20 [00:37<00:56,  4.74s/it] 45%|████▌     | 9/20 [00:42<00:53,  4.84s/it] 50%|█████     | 10/20 [00:47<00:49,  4.92s/it] 55%|█████▌    | 11/20 [00:52<00:43,  4.85s/it] 60%|██████    | 12/20 [00:57<00:38,  4.81s/it] 65%|██████▌   | 13/20 [01:01<00:33,  4.75s/it] 70%|███████   | 14/20 [01:06<00:28,  4.72s/it] 75%|███████▌  | 15/20 [01:11<00:23,  4.72s/it] 80%|████████  | 16/20 [01:15<00:18,  4.71s/it] 85%|████████▌ | 17/20 [01:20<00:14,  4.71s/it] 90%|█████████ | 18/20 [01:25<00:09,  4.75s/it] 95%|█████████▌| 19/20 [01:30<00:04,  4.77s/it]100%|██████████| 20/20 [01:34<00:00,  4.71s/it]100%|██████████| 20/20 [01:34<00:00,  4.74s/it]
+[32m[INFO][0m Requested to load AutoencoderKL
+[32m[INFO][0m Unloaded partially: 1583.15 MB freed, 56.26 MB remains loaded, 56.25 MB buffer reserved, lowvram patches: 0
+[32m[INFO][0m loaded completely;  159.56 MB loaded, full load: True
+[32m[INFO][0m [32mPrompt executed in 108.84 seconds[0m
+/Users/apple/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
