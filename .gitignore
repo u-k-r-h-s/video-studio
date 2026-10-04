@@ -1,0 +1,34 @@
+# --- Python environments (recreate with: uv venv --python 3.12 <name>) ---
+venv-*/
+.venv/
+__pycache__/
+*.pyc
+
+# --- Third-party projects and model weights: download, don't commit ---
+# ComfyUI is a separate GPL-3.0 clone (git clone https://github.com/comfyanonymous/ComfyUI)
+# and holds the 2 GB SD 1.5 checkpoint + LoRA + generated outputs.
+comfyui/
+# Whisper model cache (test-only intelligibility check)
+models-asr-testonly/
+# Piper voice weights (third-party; licensing of the derived voices is unresolved).
+# Model cards (*.MODEL_CARD) and configs (*.onnx.json) stay tracked for provenance.
+piper-voices/*.onnx
+
+# --- Compiled binaries (rebuild from the .swift sources with swiftc -O) ---
+scripts/subpng
+test-project/fonts
+
+# --- Large / superseded / transient experiment output ---
+# 225 MB lossless PSNR/SSIM reference: exceeds GitHub's 100 MB file limit, regenerable
+results/video/ref_lossless.mp4
+# superseded or duplicate renders (kept: test_vt_v2.mp4, test_x264_v2.mp4, t4_final.mp4)
+results/video/test_vt.mp4
+results/video/test_vt_rep1.mp4
+results/video/test_vt_rep2.mp4
+results/video/test_x264.mp4
+# live state file written by the sampler
+results/stage.txt
+
+# --- OS / editor noise ---
+.DS_Store
+*.tmp
