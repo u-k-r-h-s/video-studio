@@ -5,7 +5,8 @@ import { CancelledError, ComfyGenerationError, ComfyTimeoutError, describeError 
 import { createLogger } from "../../lib/logger";
 import type { MemoryGate } from "../../services/MemoryGate";
 import type { ComfySession } from "./ComfyProcess";
-import { buildLcmWorkflow, OUTPUT_NODE_ID, type ComfyGraph } from "./comfyWorkflow";
+import { createHash } from "node:crypto";
+import { buildWorkflow, OUTPUT_NODE_ID, type ComfyGraph, type ModelSpec, type WorkflowParams } from "./comfyWorkflow";
 import type { BatchHooks, ImageProvider, ImageRequest, ImageResult } from "./ImageProvider";
 
 const log = createLogger("comfyui");
@@ -13,14 +14,18 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface ComfyUIOptions {
   baseUrl: string;
-  checkpoint: string;
-  lora: string;
+  /** Default model (back-compat: a one-file checkpoint + LCM-LoRA). Ignored for ids present in `models`. */
+  checkpoint?: string;
+  lora?: string;
+  /** Registered models by id. The first one (or `defaultModel`) is used when a request names none. */
+  models?: Record<string, ModelSpec>;
+  defaultModel?: string;
   imageTimeoutMs: number;
   /** Where to append ComfyUI's own stdout/stderr (diagnostics only). */
   logFile?: string;
   pollMs?: number;
   /** Replaceable workflow builder: swapping the workflow never touches the rest of the app. */
-  buildWorkflow?: typeof buildLcmWorkflow;
+  buildWorkflow?: (params: WorkflowParams) => ComfyGraph;
 }
 
 /**
@@ -108,11 +113,32 @@ export class ComfyUIProvider implements ImageProvider {
     }).then((r) => r.arrayBuffer());
   }
 
+  private modelFor(req: ImageRequest): ModelSpec {
+    const models = this.opts.models ?? { sd15: { id: "sd15", checkpoint: this.opts.checkpoint, lora: this.opts.lora } };
+    const id = req.model ?? this.opts.defaultModel ?? Object.keys(models)[0]!;
+    const m = models[id];
+    if (!m) throw new ComfyGenerationError(`unknown image model "${id}" (registered: ${Object.keys(models).join(", ")})`);
+    return m;
+  }
+
+  /** Uploads an init image to ComfyUI's input folder (content-addressed name, so repeats are free). */
+  private async upload(file: string): Promise<string> {
+    const bytes = await fs.readFile(file);
+    const name = `studio-${createHash("sha1").update(bytes).digest("hex").slice(0, 12)}${path.extname(file) || ".png"}`;
+    const form = new FormData();
+    form.append("image", new Blob([new Uint8Array(bytes)]), name);
+    form.append("overwrite", "true");
+    const res = await fetch(`${this.opts.baseUrl}/upload/image`, { method: "POST", body: form, signal: AbortSignal.timeout(30_000) }).catch((e) => { throw new ComfyGenerationError("could not upload the init image", e); });
+    if (!res.ok) throw new ComfyGenerationError(`ComfyUI rejected the init image (HTTP ${res.status})`);
+    return ((await res.json()) as { name?: string }).name ?? name;
+  }
+
   private async generateOne(req: ImageRequest, signal?: AbortSignal): Promise<ImageResult> {
     const t0 = Date.now();
-    const graph = (this.opts.buildWorkflow ?? buildLcmWorkflow)({
-      checkpoint: this.opts.checkpoint, lora: this.opts.lora, prompt: req.prompt, negativePrompt: req.negativePrompt,
-      width: req.width, height: req.height, seed: req.seed,
+    const init = req.initImage ? { imageName: await this.upload(req.initImage.path), denoise: req.initImage.denoise } : undefined;
+    const graph = (this.opts.buildWorkflow ?? buildWorkflow)({
+      model: this.modelFor(req), prompt: req.prompt, negativePrompt: req.negativePrompt, width: req.width, height: req.height, seed: req.seed,
+      steps: req.steps, cfg: req.cfg, sampler: req.sampler, scheduler: req.scheduler, init,
     });
     const promptId = await this.submit(graph);
     const file = await this.waitForImage(promptId, req.id, signal);

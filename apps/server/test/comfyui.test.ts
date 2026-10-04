@@ -7,7 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CancelledError, ComfyGenerationError, ComfyStopError, ComfyTimeoutError, OllamaUnloadError } from "../src/errors";
 import { setLogQuiet } from "../src/lib/logger";
 import { ComfyUIProvider } from "../src/providers/image/ComfyUIProvider";
-import { buildLcmWorkflow } from "../src/providers/image/comfyWorkflow";
+import { buildLcmWorkflow, buildWorkflow } from "../src/providers/image/comfyWorkflow";
 import type { ComfySession } from "../src/providers/image/ComfyProcess";
 import type { ImageRequest } from "../src/providers/image/ImageProvider";
 import type { MemoryGate } from "../src/services/MemoryGate";
@@ -37,6 +37,7 @@ function fakeComfy(opts: { pollsBeforeDone?: number; failWith?: string; neverFin
       json({ [id]: { status: { status_str: "success", completed: true, messages: [] }, outputs: { "9": { images: [{ filename: `${id}.png`, subfolder: "", type: "temp" }] } } } });
     } else if (url.pathname === "/view") { res.writeHead(200, { "Content-Type": "image/png" }); res.end(PNG); }
     else if (url.pathname === "/free") { events.push("http:free"); json({}); }
+    else if (url.pathname === "/upload/image" && req.method === "POST") { req.resume(); req.on("end", () => { events.push("http:upload"); json({ name: "uploaded.png", subfolder: "", type: "input" }); }); }
     else if (url.pathname === "/interrupt") { events.push("http:interrupt"); json({}); }
     else json({ error: "nope" }, 404);
   });
@@ -169,6 +170,44 @@ describe("image quality gate", () => {
     const out = await provider.generateBatch(reqs(1), { validate: () => "still bad" });
     expect(events.filter((e) => e === "http:prompt")).toHaveLength(3);
     expect(out[0]).toMatchObject({ attempts: 3, qualityWarning: "still bad" });
+  });
+});
+
+describe("models, split components and img2img", () => {
+  const split = { id: "ds8", unet: "u.safetensors", clip: "c.safetensors", vae: "v.safetensors", lora: "lcm.safetensors" };
+  it("builds a split-component LCM graph (UNet/CLIP/VAE loaders, model-only LoRA)", () => {
+    const g = buildWorkflow({ model: split, prompt: "p", negativePrompt: "n", width: 512, height: 896, seed: 1, steps: 6 });
+    expect(g["1"]!.class_type).toBe("UNETLoader");
+    expect(g["12"]!.class_type).toBe("CLIPLoader");
+    expect(g["2"]!.class_type).toBe("LoraLoaderModelOnly");
+    expect(g["4"]!.inputs.clip).toEqual(["12", 0]);
+    expect(g["8"]!.inputs.vae).toEqual(["13", 0]);
+    expect(g["7"]!.inputs).toMatchObject({ steps: 6, sampler_name: "lcm", cfg: 1.5 });
+  });
+  it("uses classic sampler defaults without a LoRA and honours explicit settings", () => {
+    const g = buildWorkflow({ model: { id: "x", checkpoint: "c.safetensors" }, prompt: "p", negativePrompt: "n", width: 512, height: 512, seed: 1, steps: 25, cfg: 6, sampler: "dpmpp_2m", scheduler: "karras" });
+    expect(g["3"]).toBeUndefined();
+    expect(g["7"]!.inputs).toMatchObject({ steps: 25, cfg: 6, sampler_name: "dpmpp_2m", scheduler: "karras", denoise: 1 });
+  });
+  it("img2img replaces the empty latent with a loaded + VAE-encoded image and sets the denoise", () => {
+    const g = buildWorkflow({ model: { id: "x", checkpoint: "c.safetensors", lora: "l" }, prompt: "p", negativePrompt: "n", width: 512, height: 896, seed: 1, init: { imageName: "a.png", denoise: 0.55 } });
+    expect(g["6"]).toBeUndefined();
+    expect(g["10"]!.inputs.image).toBe("a.png");
+    expect(g["7"]!.inputs).toMatchObject({ latent_image: ["11", 0], denoise: 0.55 });
+  });
+  it("the provider uploads the init image once per request and sends the img2img graph", async () => {
+    const { provider, events } = await setup();
+    const init = path.join(dir, "init.png");
+    await fs.writeFile(init, PNG);
+    await provider.generateBatch([{ ...reqs(1)[0]!, initImage: { path: init, denoise: 0.6 } }]);
+    expect(events).toContain("http:upload");
+    expect(comfy.graphs[0]["7"].inputs.denoise).toBe(0.6);
+    expect(comfy.graphs[0]["10"].inputs.image).toBe("uploaded.png");
+  });
+  it("rejects an unregistered model id with a readable error", async () => {
+    const { provider } = await setup();
+    const err = await provider.generateBatch([{ ...reqs(1)[0]!, model: "nope" }]).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ComfyGenerationError);
   });
 });
 

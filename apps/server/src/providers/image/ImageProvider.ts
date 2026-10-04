@@ -12,6 +12,14 @@ export interface ImageRequest {
   outPath: string;
   /** Total generations allowed when `validate` rejects (default 3). */
   maxAttempts?: number;
+  /** Model id registered with the provider (default: the provider's default model). */
+  model?: string;
+  steps?: number;
+  cfg?: number;
+  sampler?: string;
+  scheduler?: string;
+  /** img2img: start from this image (absolute path) with the given denoise strength (0..1). Output has the init image's size. */
+  initImage?: { path: string; denoise: number };
 }
 
 export interface ImageResult {
