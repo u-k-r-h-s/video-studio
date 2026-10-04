@@ -8,7 +8,7 @@ import { findAsset, findAudio, upsertAsset } from "../assets";
 import { stableHash } from "../hash";
 import { inScope, type StageFn } from "../types";
 
-const SUBTITLE_RECIPE_VERSION = "coretext-v1";
+const SUBTITLE_RECIPE_VERSION = "coretext-v2";
 
 /**
  * Stage 4: "Subtitle Timing -> Scene Timeline". Real audio durations -> dialogue start/end -> subtitle cues ->
@@ -40,13 +40,13 @@ export const buildSceneTimelines: StageFn = async (svc, ctx) => {
         // 2. subtitle PNGs (re-rendered only when text/style changed)
         const cueAssets: { id: string; hash: string }[] = [];
         for (const cue of cues) {
-          const hash = stableHash({ text: cue.text, font, size: L.subtitleFontPx, width: L.subtitleWidthPx, stroke: L.subtitleStrokePercent, lang: project.language, recipe: SUBTITLE_RECIPE_VERSION });
+          const hash = stableHash({ text: cue.text, font, size: L.subtitleFontPx, width: L.subtitleWidthPx, stroke: L.subtitleStrokePercent, box: L.subtitleBoxAlpha, lang: project.language, recipe: SUBTITLE_RECIPE_VERSION });
           const fresh = findAsset(project, cue.id);
           let width = Number(fresh?.meta.width);
           let height = Number(fresh?.meta.height);
           const rel = `subtitles/${cue.id}.png`;
           if (!(fresh && fresh.inputHash === hash && fresh.status === "ready" && svc.store.exists(project.id, rel))) {
-            const img = await subtitles.render({ text: cue.text, language: project.language, fontFamily: font, fontSizePx: L.subtitleFontPx, widthPx: L.subtitleWidthPx, strokePercent: L.subtitleStrokePercent, outPath: svc.store.resolve(project.id, rel) });
+            const img = await subtitles.render({ text: cue.text, language: project.language, fontFamily: font, fontSizePx: L.subtitleFontPx, widthPx: L.subtitleWidthPx, strokePercent: L.subtitleStrokePercent, boxAlpha: L.subtitleBoxAlpha, outPath: svc.store.resolve(project.id, rel) });
             width = img.width;
             height = img.height;
           }

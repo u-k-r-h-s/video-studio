@@ -1,5 +1,5 @@
 // Renders one subtitle cue to a transparent PNG with macOS CoreText (proper complex-script shaping, e.g. Devanagari).
-// usage: subpng "<text>" "<font family>" <size> <width> <out.png>
+// usage: subpng "<text>" "<font family>" <size> <width> <out.png> [stroke percent] [box alpha 0..1]
 import AppKit
 let a = CommandLine.arguments
 let text = a[1], family = a[2], size = CGFloat(Double(a[3])!), maxW = CGFloat(Double(a[4])!), out = a[5]
@@ -11,11 +11,17 @@ let s = NSAttributedString(string: text, attributes: attrs)
 let pad: CGFloat = 20
 let b = s.boundingRect(with: NSSize(width: maxW - 2 * pad, height: 10000), options: [.usesLineFragmentOrigin, .usesFontLeading])
 let w = Int(ceil(maxW)), h = Int(ceil(b.height + 2 * pad))
+let boxAlpha = CommandLine.arguments.count > 7 ? CGFloat(Double(CommandLine.arguments[7]) ?? 0) : 0
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
 NSGraphicsContext.saveGraphicsState()
 let ctx = NSGraphicsContext(bitmapImageRep: rep)!
 NSGraphicsContext.current = ctx
 ctx.cgContext.clear(CGRect(x: 0, y: 0, width: w, height: h))
+if boxAlpha > 0 {
+  // translucent dark rounded box: keeps white text readable on any background
+  NSColor(white: 0, alpha: boxAlpha).setFill()
+  NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: w, height: h), xRadius: 26, yRadius: 26).fill()
+}
 s.draw(with: NSRect(x: pad, y: pad, width: CGFloat(w) - 2 * pad, height: b.height), options: [.usesLineFragmentOrigin, .usesFontLeading])
 NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: out))

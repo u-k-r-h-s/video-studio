@@ -8,6 +8,8 @@ export interface SubtitleImageRequest {
   widthPx: number;
   /** Outline width as a percentage of the font size (CoreText semantics). */
   strokePercent: number;
+  /** Opacity of a dark rounded box behind the text (0 = none). */
+  boxAlpha: number;
   /** Absolute destination PNG path. */
   outPath: string;
 }

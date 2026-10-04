@@ -58,7 +58,7 @@ describe("CoreTextSubtitleRenderer", () => {
   let dir: string;
   beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), "studio-sub-")); });
   afterEach(async () => fs.rm(dir, { recursive: true, force: true }));
-  const req = (out: string) => ({ text: "कोई हर रात", language: "hi" as const, fontFamily: "Kohinoor Devanagari", fontSizePx: 68, widthPx: 980, strokePercent: 5, outPath: out });
+  const req = (out: string) => ({ text: "कोई हर रात", language: "hi" as const, fontFamily: "Kohinoor Devanagari", fontSizePx: 68, widthPx: 980, strokePercent: 5, boxAlpha: 0.6, outPath: out });
 
   it("passes text/font/size as literal arguments and parses the helper's output", async () => {
     const helper = path.join(dir, "helper"); await fs.writeFile(helper, "");
@@ -69,7 +69,7 @@ describe("CoreTextSubtitleRenderer", () => {
     };
     const img = await new CoreTextSubtitleRenderer(runner, helper).render(req(path.join(dir, "out", "s.png")));
     expect(img).toEqual({ path: path.join(dir, "out", "s.png"), width: 980, height: 237 });
-    expect(calls[0]).toEqual(["कोई हर रात", "Kohinoor Devanagari", "68", "980", path.join(dir, "out", "s.png"), "5"]);
+    expect(calls[0]).toEqual(["कोई हर रात", "Kohinoor Devanagari", "68", "980", path.join(dir, "out", "s.png"), "5", "0.6"]);
   });
 
   it("fails with a readable error when the helper is missing or fails", async () => {

@@ -25,7 +25,7 @@ export class CoreTextSubtitleRenderer implements SubtitleRenderer {
   async render(req: SubtitleImageRequest): Promise<SubtitleImage> {
     if (!existsSync(this.helper)) throw new SubtitleRenderError(`helper not found at ${this.helper}`);
     await fs.mkdir(path.dirname(req.outPath), { recursive: true });
-    const args = [req.text, req.fontFamily, String(req.fontSizePx), String(req.widthPx), req.outPath, String(req.strokePercent)];
+    const args = [req.text, req.fontFamily, String(req.fontSizePx), String(req.widthPx), req.outPath, String(req.strokePercent), String(req.boxAlpha)];
     let result;
     try {
       result = await this.runner.run(this.helper, args, { timeoutMs: 20_000 });
