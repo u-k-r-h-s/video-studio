@@ -192,13 +192,6 @@ GRANDPA: Next time, just ask for a slice.`;
     ],
   };
   const lines = (arr: [string, string][]) => arr.map(([characterId, text]) => ({ characterId, text }));
-  const _unused = {
-    scenes: [
-      sc({ characters: ["meera", "grandpa"], dialogue: lines([["meera", "Someone is leaving muddy footprints all over my bakery."], ["grandpa", "Then tonight we will set a trap with a basket of warm bread."]]) }),
-      sc({ characters: ["meera"], dialogue: lines([["narrator", "At midnight, a small shadow crept through the window."], ["meera", "Caught you, little fox!"]]) }),
-      sc({ characters: ["grandpa"], dialogue: lines([["grandpa", "Next time, just ask for a slice."]]) }),
-    ],
-  };
   const respond = (scenes: unknown, outline: unknown = castOutline) => new FakeLLM((req) => (req.messages.some((m) => m.content.includes("title and cast")) ? (outline as object) : (scenes as object)));
 
   it("parses NAME: line scripts and derives the cast, mapping NARRATOR to the narrator", () => {

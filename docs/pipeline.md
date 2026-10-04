@@ -116,3 +116,45 @@ free memory is below `MEMORY_WARN_FREE_PERCENT`; it never blocks).
   punctuation are not enforced.
 
 Rewriting happens only when explicitly allowed (`allowRewrite` in the planner input; there is no UI switch for it yet).
+
+## Measured on the target machine
+
+MacBook Air M1, 8 GB, macOS 26.3.1, with other apps open (Claude desktop, a browser) as in normal use. Raw data:
+`results/phase2a/demo_final.txt` (driver output) and `results/mem_demo_final.csv` (memory sampled every 2 s by
+`scripts/memmon.py`). Memory here is system-wide (`memory_pressure`, swap) plus macOS `footprint` per process, because
+process RSS does not include GPU memory.
+
+**Clean run: idea -> final MP4 (`node scripts/demo.mjs`, a fresh project, 2026-10-04)**
+
+| Stage | Wall time | Notes |
+|---|---|---|
+| scene planning (Ollama, llama3.2) | 36.5 s | outline ~10 s, scenes ~26 s, 0 repair rounds; Ollama unloaded + verified |
+| image generation (ComfyUI, one session) | 248.4 s | 6 images (1 background, 2 characters, 3 props), 28.5-46.3 s each, 0 quality retries |
+| voice generation (Piper) | 6.5 s | 6 lines, ~1 s each |
+| subtitles + timeline | 0.5 s | CoreText PNGs for 6 cues + 3 scene audio tracks |
+| scene render (FFmpeg, VideoToolbox) | 6.4 s | 3 clips of 5.0 s, 2.0-2.2 s each |
+| assembly | 0.3 s | concat + SRT |
+| **total** | **302 s** (generation after approval: 263 s) | final video 1080x1920, 30 fps, 15.0 s, H.264 + AAC, 15.6 MB |
+
+**Memory per stage (same run)**
+
+| Stage | Min free memory | Swap | Swapped out | Peak process footprint |
+|---|---|---|---|---|
+| scene planning | 17% | 3.75 GB (flat) | 0.2 GB | llama-server 0.6 GB |
+| **image generation** | **5%** | **3.6 -> 7.5 GB** | **32.0 GB** | ComfyUI 4.7 GB |
+| voices / subtitles / render / assembly | 70-71% | flat | 0 | Piper 24-28 MB, FFmpeg ~350 MB |
+
+ComfyUI and the Ollama model were never resident in the same sample (0 of 137). After ComfyUI exits, free memory is back
+to ~70% within seconds. **The image batch writes about 32 GB to swap per project** while other apps are open, which is a
+real cost (time, and SSD wear if done constantly); closing browsers first helps, and reducing it is Phase 2B work.
+
+**Cache and regeneration, measured on real projects**
+
+- A subtitle-style change re-ran only the subtitle PNGs, the 3 clips and the assembly: **8 s**, with no ComfyUI or Piper activity.
+- Regenerating one scene's voice from the UI ran Piper for that scene's 2 lines only, rendered only that scene, and re-assembled.
+- Re-running a finished project does nothing (no provider calls).
+
+**Image quality control, measured:** with the original wording ("full body character design ... sticker style") both
+characters failed the cut-out check three times each (~120 s per character); with the simple wording in
+`imagePrompts.ts` the same machine produced usable characters first time (6 of 6 lab images passed across three simple
+phrasings). Output art is still crude: see the README limitations.

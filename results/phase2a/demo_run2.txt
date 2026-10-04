@@ -1,0 +1,51 @@
+   0s  resuming project the-midnight-thief-0efe2d
+
+=== SCENE PLAN (for human review) ===
+Characters: Daiquan Sharp Eyes [daiquan-sharp-eyes]:  slender build, messy brown hair, wire-rimmed glasses, and a grey cloak
+            Kaito Sneaky Fingers [kaito-sneaky-fingers]:  lean build, spiky black hair, and a black leather jacket
+
+scene-01 (3.735s) @ shop | camera static/wide | entrance right emphasis impact
+  visual: Detective Daiquan Sharp Eyes stands behind a counter, surrounded by empty food containers, warm lamp light.
+  characters: daiquan-sharp-eyes | props: empty-food-containers
+  daiquan-sharp-eyes: "Midnight Munchies, a village plagued by mystery thefts."
+
+scene-02 (3.575s) @ shop | camera pan_left/medium | entrance none emphasis surprise
+  visual: Daiquan Sharp Eyes sets a trap using a wooden mousetrap, with Kaito Sneaky Fingers nearby.
+  characters: daiquan-sharp-eyes, kaito-sneaky-fingers | props: wooden-mousetrap
+  daiquan-sharp-eyes: "Tonight, the thief will be caught."
+  kaito-sneaky-fingers: "I'll never get caught!"
+
+scene-03 (3.528s) @ shop | camera zoom_in/close_up | entrance none emphasis surprise
+  visual: The wooden mousetrap snaps shut, catching Kaito Sneaky Fingers' fingers.
+  characters: daiquan-sharp-eyes, kaito-sneaky-fingers | props: wooden-mousetrap
+  kaito-sneaky-fingers: "Ahh! It's over!"
+  daiquan-sharp-eyes: "Midnight Munchies solved."
+(normalised prop names via PUT /plan)
+   0s  plan approved; generating (images -> voices -> timeline -> render -> assemble)
+   0s  produce: 1% Starting [idle]
+   2s  produce: 1% Starting [image_generation]
+  14s  produce: 6% Generating bg-shop [image_generation]
+  50s  produce: 14% Generating char-daiquan-sharp-eyes [image_generation]
+  89s  produce: 22% Generating prop-scene-01-empty-food-containers [image_generation]
+ 111s  produce: 30% Generating char-kaito-sneaky-fingers [image_generation]
+ 148s  produce: 38% Generating prop-scene-02-wooden-mousetrap [image_generation]
+ 170s  produce: 46% Generating prop-scene-03-wooden-mousetrap [image_generation]
+ 194s  produce: 80% Timeline 3/3 [scene_render]
+ 196s  produce: 85% Rendered 1/3 [scene_render]
+ 200s  produce: 88% Rendered 2/3 [scene_render]
+
+=== RESULT ===
+status: completed
+  scene_planning     completed  45.7 s 
+  image_generation   completed  193.7 s 
+  voice_generation   completed  0.0 s 
+  subtitles          completed  0.0 s 
+  scene_render       completed  7.9 s 
+  assembly           completed  0.2 s 
+
+images generated: bg-shop 36.8s, char-daiquan-sharp-eyes 38.1s, prop-scene-01-empty-food-containers 22.1s, char-kaito-sneaky-fingers 35.8s, prop-scene-02-wooden-mousetrap 23.2s, prop-scene-03-wooden-mousetrap 24.2s
+scene clips: scene-01 5.0s h264_videotoolbox render 2350ms; scene-02 5.0s h264_videotoolbox render 2773ms; scene-03 5.0s h264_videotoolbox render 2653ms
+final: 1080x1920 30fps 15.0s -> projects/the-midnight-thief-0efe2d/final/final.mp4
+generation wall time (approve -> final): 202 s; total incl. planning: 202 s
+PROJECT_ID=the-midnight-thief-0efe2d
+[demo exited 0]
