@@ -1,0 +1,9 @@
+{
+  "_comment": "Voice catalog. NO model weights live in this repository; `model` is a file name inside PIPER_VOICES_DIR. Both voices below are fine-tuned from the Lessac voice, so their commercial status is unresolved: see README 'Licensing caveats'. Speaker ids on the multi-speaker English model are arbitrary and un-auditioned.",
+  "voices": {
+    "en-narrator": { "language": "en", "model": "en_US-libritts_r-medium.onnx", "speaker": 0, "license": "CC BY 4.0 dataset (LibriTTS-R); fine-tuned from Lessac: unresolved" },
+    "en-a": { "language": "en", "model": "en_US-libritts_r-medium.onnx", "speaker": 0, "license": "see en-narrator" },
+    "en-b": { "language": "en", "model": "en_US-libritts_r-medium.onnx", "speaker": 0, "license": "see en-narrator" },
+    "hi-rohan": { "language": "hi", "model": "hi_IN-rohan-medium.onnx", "license": "IITM IndicTTS EULA; fine-tuned from Lessac: unresolved" }
+  }
+}
