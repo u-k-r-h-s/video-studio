@@ -161,8 +161,8 @@ Measured on the target machine (MacBook Air M1, 8 GB). Details and numbers: [doc
 * **The story writing is only as good as the 3B model.** `llama3.2` returns valid structure, but its mysteries are
   generic, its dialogue repeats ("What's going on?") and it drifts from the idea (a "delivery rider" story may forget the
   bike). The director therefore works beat by beat, repairs ids deterministically, drops junk/repeated lines and
-  varies the framing, but it cannot make a 3B model a screenwriter. A larger model helps most (`OLLAMA_MODEL`, e.g. a 7-8B
-  model; Ollama runs alone, so it fits in 8 GB). The hand-authored prototype in `scripts/lab/prototype-story.ts` shows what
+  varies the framing, but it cannot make a 3B model a screenwriter. A larger model helps (`OLLAMA_MODEL=qwen2.5:7b` was
+  measured: better premise and dialogue, planning takes about 7 minutes instead of 2; see docs/shots.md). The hand-authored prototype in `scripts/lab/prototype-story.ts` shows what
   the renderer does with a good script.
 * **Images are 512x896 upscaled to 1080x1920**, so close-ups are soft; grain, sharpening and depth of field hide this but
   do not fix it. There is no IP-Adapter/LoRA, so character identity relies on a costume-coded prompt plus img2img from the

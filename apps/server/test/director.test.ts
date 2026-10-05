@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { StorySchema, shotId, type Shot } from "@studio/shared";
 import { checkShots, dropRepeatedLines, shotsPerBeat, ShotDirector, varyFraming } from "../src/shots/director";
 import { DirectedShotsSchema, DirectorOutlineSchema, normalizeBeats, normalizeOutline, normalizeShots } from "../src/shots/directorSchemas";
-import { planKeyVisuals } from "../src/shots/keyVisuals";
+import { actionCue, planKeyVisuals } from "../src/shots/keyVisuals";
 import { buildStory } from "../src/shots/storyBuilder";
 import { cinematicAnimatedShort } from "../src/profiles/cinematicAnimatedShort";
 import { FakeLLM } from "./helpers";
@@ -125,8 +125,9 @@ describe("character and location persistence in image prompts", () => {
       expect(ids.indexOf(anchor.id)).toBeLessThan(ids.indexOf(v.id));
       expect(v.initFrom!.denoise).toBeGreaterThan(0.3);
       expect(v.initFrom!.denoise).toBeLessThan(0.8);
-      // a different framing needs room to change composition; a portrait of the same family stays close to the anchor
-      expect(v.initFrom!.denoise).toBe(v.kind === "portrait" ? (v.id.includes("intense") || v.id.includes("eerie") ? 0.66 : 0.6) : 0.72);
+      // only portraits are variants (wider framings stayed portrait-composed when started from the anchor)
+      expect(v.kind).toBe("portrait");
+      expect(v.initFrom!.denoise).toBe(v.id.includes("intense") || v.id.includes("eerie") ? 0.66 : 0.6);
     }
   });
 });
@@ -272,5 +273,17 @@ describe("portrait variety", () => {
     const calm = keyVisuals.filter((k) => k.id.includes("base"));
     expect(calm.length).toBeGreaterThanOrEqual(2); // 4 calm shots -> 2 takes (max 3 per image)
     expect(new Set(keyVisuals.map((k) => k.prompt)).size).toBe(keyVisuals.length); // gaze phrases make takes differ
+  });
+});
+
+describe("action cue in image prompts", () => {
+  it("adds the shot's action without character names, and keeps wide/figure shots text-to-image", () => {
+    const { story, characters } = built();
+    expect(actionCue("Kai's hand trembles as Kai touches the package.", characters)).toBe("the person hand trembles as the person touches the package.");
+    expect(actionCue("x ".repeat(80), characters).length).toBeLessThanOrEqual(100);
+    const hook = story.keyVisuals.find((k) => k.shotIds.includes("shot-01"))!;
+    expect(hook.prompt.toLowerCase()).toContain("phone");
+    for (const k of story.keyVisuals.filter((x) => x.kind !== "portrait")) expect(k.initFrom).toBeUndefined();
+    expect(story.keyVisuals.some((k) => k.prompt.includes("Kai"))).toBe(false);
   });
 });

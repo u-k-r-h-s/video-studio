@@ -6,13 +6,22 @@ export const KEY_RECIPE_VERSION = "cinematic-key-v1";
 
 /** How many shots may reuse one generated picture before another take is generated. */
 export const MAX_SHOTS_PER_IMAGE = 3;
-/** img2img strength for a character in a different framing (medium/wide): high enough that the composition can change, low enough to keep the palette and face. Measured: 0.5 kept the close-up composition. */
-export const FIGURE_DENOISE = 0.72;
 /** img2img strength for another expression of the same portrait: the prototype's 0.55-0.6 changed the expression and kept the face; 0.5 stuck to the anchor's expression. */
 export const PORTRAIT_DENOISE = 0.6;
 export const PORTRAIT_DENOISE_STRONG = 0.66;
 /** Gaze/pose variations for further takes of the same portrait, so a character is not always photographed the same way. */
 const VIEWS = ["", "looking away to the side", "head slightly lowered, looking up", "turned three quarters, glancing over the shoulder"];
+/** The shot's action as a short visual cue for the image prompt, with character names removed (a name is just noise to the model). */
+export function actionCue(action: string, characters: Pick<Character, "name" | "id">[]): string {
+  const stop = new Set(["the", "and", "old", "young", "man", "woman", "boy", "girl", "his", "her"]);
+  let t = action.replace(/["`]/g, "").replace(/\s+/g, " ").trim();
+  const names = new Set<string>();
+  for (const c of characters) for (const n of [c.name, ...c.name.split(/\s+/), ...c.id.split("-")]) if (n.length >= 3 && !stop.has(n.toLowerCase())) names.add(n);
+  for (const n of [...names].sort((x, y) => y.length - x.length)) t = t.replace(new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:'s)?(?![\\w])`, "gi"), "the person");
+  t = t.replace(/(the person)(\s+the person)+/gi, "$1");
+  return t.length > 100 ? t.slice(0, 100).replace(/\s+\S*$/, "") : t;
+}
+
 const PORTRAIT_TYPES = new Set<Shot["shotType"]>(["extreme-close-up", "close-up", "medium-close", "over-shoulder"]);
 
 const FRAMING: Record<Shot["shotType"], string> = {
@@ -42,14 +51,15 @@ export interface PromptCtx { style: string; characters: Character[]; locations: 
  * avoided on purpose: at LCM's low guidance negatives are ignored, so unwanted things must simply not be mentioned.
  */
 export function keyPrompt(shot: Pick<Shot, "shotType" | "emotion" | "subjectIds" | "locationId" | "insert" | "action">, ctx: PromptCtx, kind: KeyVisual["kind"]): string {
+  const cue = actionCue(shot.action, ctx.characters);
   const loc = ctx.locations.find((l) => l.id === shot.locationId) ?? ctx.locations[0]!;
   const who = ctx.characters.find((c) => c.id === shot.subjectIds[0]);
   if (kind === "insert") return `${ctx.style}, close-up of hands holding a smartphone with a bright glowing screen, cold blue light on the fingers, dark background`;
   if (who) {
     const bg = kind === "portrait" ? `blurred background of ${loc.visualIdentity}` : loc.visualIdentity;
-    return `${ctx.style}, ${FRAMING[shot.shotType]} ${characterIdentity(who)}, ${EMOTION_LOOK[shot.emotion]}, ${bg}, ${loc.lighting}`;
+    return `${ctx.style}, ${FRAMING[shot.shotType]} ${characterIdentity(who)}, ${EMOTION_LOOK[shot.emotion]}, ${cue}, ${bg}, ${loc.lighting}`;
   }
-  return `${ctx.style}, ${ENV_FRAMING[shot.shotType] ?? "wide shot of"} ${loc.visualIdentity}, ${loc.lighting}${loc.importantObjects.length ? `, ${loc.importantObjects[0]}` : ""}`;
+  return `${ctx.style}, ${ENV_FRAMING[shot.shotType] ?? "wide shot of"} ${loc.visualIdentity}, ${cue}, ${loc.lighting}${loc.importantObjects.length ? `, ${loc.importantObjects[0]}` : ""}`;
 }
 
 interface Draft { id: string; kind: KeyVisual["kind"]; locationId: string; subjectIds: string[]; shots: Shot[]; group?: string; env?: string }
@@ -129,7 +139,9 @@ export function planKeyVisuals(shots: Shot[], ctx: PromptCtx, maxKeys: number): 
   for (const d of sorted) {
     const rep = d.shots[0]!;
     const anchor = d.subjectIds[0] ? anchorOf.get(d.subjectIds[0]) : undefined;
-    const initFrom = anchor && anchor !== d && d.kind !== "insert" && d.kind !== "environment" ? { keyId: anchor.id, denoise: d.kind !== "portrait" ? FIGURE_DENOISE : d.group === "eerie" || d.group === "intense" ? PORTRAIT_DENOISE_STRONG : PORTRAIT_DENOISE } : undefined;
+    // only portraits are img2img variants: from the anchor, wider framings kept the portrait composition even at 0.72, so they are
+    // text-to-image and rely on the costume-coded prompt for identity (as the prototype's alley shot did)
+    const initFrom = anchor && anchor !== d && d.kind === "portrait" ? { keyId: anchor.id, denoise: d.group === "eerie" || d.group === "intense" ? PORTRAIT_DENOISE_STRONG : PORTRAIT_DENOISE } : undefined;
     const ordinal = d.subjectIds[0] ? (views.get(d.subjectIds[0]) ?? 0) : 0;
     if (d.subjectIds[0] && d.kind !== "insert") views.set(d.subjectIds[0], ordinal + 1);
     const view = d.kind === "portrait" || d.kind === "action" ? VIEWS[ordinal % VIEWS.length]! : "";

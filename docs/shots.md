@@ -147,3 +147,18 @@ sliding in, white-on-box subtitles, no sound design. The cinematic output: full-
 and parallax, a different camera move per shot, word-by-word captions, ambient/tension sound, hits and whooshes, a title
 card. It looks like a different class of product. What it does **not** reach is the quality of the hand-authored
 prototype: the 3B director's stories are generic and repetitive (see README limitations), and characters are still images.
+
+## Director model comparison (same idea, same machine)
+
+| | llama3.2 (3B, default) | qwen2.5:7b (`OLLAMA_MODEL=qwen2.5:7b`, 4.7 GB) |
+|---|---|---|
+| planning time | 105 s | 404 s |
+| story | generic, repeated lines, forgot the bike | coherent premise (a rider meets his younger self), real dialogue, rider on a motorcycle in the action text |
+| shots | more environment shots by luck | 12 shots, 7 of them hero close-ups |
+| final audio (Whisper check) | word for word | 3 % word mismatch |
+| total (fresh) | 486 s | about 13 minutes |
+
+The larger model writes better, but it also puts the hero in every shot, which makes the picture repetitive; the planner
+now adds each shot's action to its image prompt (character names removed) and makes wide/figure images text-to-image
+(img2img from a portrait kept the portrait composition even at high strength). The motorcycle and the package still do not
+reliably appear in the pictures: SD 1.5-class models do not follow object prompts well at LCM guidance.
