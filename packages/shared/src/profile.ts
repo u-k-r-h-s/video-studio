@@ -29,12 +29,37 @@ export const CinematicSettingsSchema = z.object({
 });
 export type CinematicSettings = z.infer<typeof CinematicSettingsSchema>;
 
+/** Settings of the animated pipeline (`pipeline: "animated"`): which assets are generated at which size, and how. */
+export const AnimationSettingsSchema = z.object({
+  imageModel: z.string().min(1),
+  /** Prepended to every asset prompt. */
+  stylePrefix: z.string().min(3),
+  negativePrompt: z.string(),
+  location: z.object({ width: z.number().int().min(256), height: z.number().int().min(256), steps: z.number().int().min(1).max(50), cfg: z.number().min(0.5).max(12) }),
+  character: z.object({ width: z.number().int().min(256), height: z.number().int().min(256), steps: z.number().int().min(1).max(50), cfg: z.number().min(0.5).max(12), viewDenoise: z.number().min(0.2).max(0.95) }),
+  head: z.object({ size: z.number().int().min(256), steps: z.number().int().min(1).max(50) }),
+  prop: z.object({ width: z.number().int().min(256), height: z.number().int().min(256), steps: z.number().int().min(1).max(50), cfg: z.number().min(0.5).max(12) }),
+  /** Character height on the stage (px of the 1920 high frame) in a wide shot. */
+  characterHeight: z.number().int().min(300).max(1600),
+  voiceLengthScale: z.number().min(0.7).max(2),
+  wordsPerSecond: z.number().min(0.8),
+  bitrateKbps: z.number().int().min(2000),
+  minShots: z.number().int().min(3),
+  maxShots: z.number().int().max(24),
+  maxPropKinds: z.number().int().min(0).max(8),
+  captions: z.object({ font: z.string(), size: z.number().int().min(20), maxWidth: z.number().int().min(200), stroke: z.number().min(0).max(20), highlight: z.string().regex(/^[0-9A-Fa-f]{6}$/), emphasisColour: z.string().regex(/^[0-9A-Fa-f]{6}$/) }),
+  grade: z.object({ contrast: z.number(), saturation: z.number(), vignette: z.number(), grain: z.number(), bloom: z.number(), haze: z.number(), gamma: z.number() }).partial().optional(),
+});
+export type AnimationSettings = z.infer<typeof AnimationSettingsSchema>;
+
 export const FormatProfileSchema = z.object({
   id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   name: z.string().min(1),
   description: z.string(),
   /** "scenes": background + cut-out characters per scene (motion comic). "shots": story -> shots -> key images -> 2.5D camera. */
-  pipeline: z.enum(["scenes", "shots"]).optional(),
+  pipeline: z.enum(["scenes", "shots", "animated"]).optional(),
+  /** Required when `pipeline` is "animated": sizes and settings of the generated assets and the layered renderer. */
+  animation: AnimationSettingsSchema.optional(),
   /** Required when `pipeline` is "shots". */
   cinematic: CinematicSettingsSchema.optional(),
   video: z.object({

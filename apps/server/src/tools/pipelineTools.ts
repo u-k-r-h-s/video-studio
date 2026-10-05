@@ -10,6 +10,11 @@ import { generateKeyVisuals } from "../pipeline/stages/shots/generateKeyVisuals"
 import { generateShotVoices } from "../pipeline/stages/shots/generateShotVoices";
 import { planStory } from "../pipeline/stages/shots/planStory";
 import { renderShots } from "../pipeline/stages/shots/renderShots";
+import { assembleAnimShots } from "../pipeline/stages/animated/assembleAnimShots";
+import { buildAnimTimeline } from "../pipeline/stages/animated/buildAnimTimeline";
+import { generateAnimAssets } from "../pipeline/stages/animated/generateAnimAssets";
+import { planAnimStory } from "../pipeline/stages/animated/planAnimStory";
+import { renderAnimShots } from "../pipeline/stages/animated/renderAnimShots";
 import { renderScenes } from "../pipeline/stages/renderScenes";
 import type { PipelineRunner } from "../pipeline/PipelineRunner";
 import type { Job } from "@studio/shared";
@@ -31,8 +36,9 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Ask Ollama to turn the project's idea or script into a validated scene plan (then unloads Ollama and verifies it).",
     inputSchema: ProjectInput.extend({ feedback: z.string().max(500).optional() }),
     async execute(i, ctx) {
-      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
-      await runner.runStage(i.projectId, "scene_planning", shots ? planStory(i.feedback) : planScenes(i.feedback), {}, ctx);
+      const kind = await runner.pipelineOf(i.projectId);
+      const shots = kind === "shots" || kind === "animated";
+      await runner.runStage(i.projectId, "scene_planning", kind === "animated" ? planAnimStory(i.feedback) : shots ? planStory(i.feedback) : planScenes(i.feedback), {}, ctx);
       return { ok: true };
     },
   };
@@ -41,8 +47,9 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Generate all missing/stale background, character and prop images for the project in ONE ComfyUI session (Ollama is unloaded first; ComfyUI is stopped and verified afterwards).",
     inputSchema: ScopeInput.extend({ includeBackground: z.boolean().optional(), includeCharacters: z.boolean().optional() }),
     async execute(i, ctx) {
-      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
-      await runner.runStage(i.projectId, "image_generation", shots ? generateKeyVisuals : generateImages, { sceneIds: i.sceneIds, force: i.force, includeBackground: i.includeBackground, includeCharacters: i.includeCharacters }, ctx);
+      const kind = await runner.pipelineOf(i.projectId);
+      const shots = kind === "shots" || kind === "animated";
+      await runner.runStage(i.projectId, "image_generation", kind === "animated" ? generateAnimAssets : shots ? generateKeyVisuals : generateImages, { sceneIds: i.sceneIds, force: i.force, includeBackground: i.includeBackground, includeCharacters: i.includeCharacters }, ctx);
       return { ok: true };
     },
   };
@@ -51,7 +58,8 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Generate Piper voice audio for the dialogue (trimmed of silence). Requires ComfyUI to be stopped.",
     inputSchema: ScopeInput,
     async execute(i, ctx) {
-      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
+      const kind = await runner.pipelineOf(i.projectId);
+      const shots = kind === "shots" || kind === "animated";
       await runner.runStage(i.projectId, "voice_generation", shots ? generateShotVoices : generateVoices, { sceneIds: i.sceneIds, force: i.force }, ctx);
       return { ok: true };
     },
@@ -62,9 +70,10 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     inputSchema: ScopeInput,
     async execute(i, ctx) {
       const scope = { sceneIds: i.sceneIds, force: i.force };
-      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
-      await runner.runStage(i.projectId, "subtitles", shots ? buildShotTimeline : buildSceneTimelines, scope, { ...ctx, progress: (p, m) => ctx.progress?.(p / 2, m) });
-      await runner.runStage(i.projectId, "scene_render", shots ? renderShots : renderScenes, scope, { ...ctx, progress: (p, m) => ctx.progress?.(50 + p / 2, m) });
+      const kind = await runner.pipelineOf(i.projectId);
+      const shots = kind === "shots" || kind === "animated";
+      await runner.runStage(i.projectId, "subtitles", kind === "animated" ? buildAnimTimeline : shots ? buildShotTimeline : buildSceneTimelines, scope, { ...ctx, progress: (p, m) => ctx.progress?.(p / 2, m) });
+      await runner.runStage(i.projectId, "scene_render", kind === "animated" ? renderAnimShots : shots ? renderShots : renderScenes, scope, { ...ctx, progress: (p, m) => ctx.progress?.(50 + p / 2, m) });
       return { ok: true };
     },
   };
@@ -73,8 +82,9 @@ export function createPipelineTools(runner: PipelineRunner, getJob: (id: string)
     description: "Join the rendered scene clips into the final 1080x1920 MP4 and write the SRT.",
     inputSchema: ProjectInput.extend({ force: z.boolean().optional() }),
     async execute(i, ctx) {
-      const shots = (await runner.pipelineOf(i.projectId)) === "shots";
-      await runner.runStage(i.projectId, "assembly", shots ? assembleShots : assembleFinal, { force: i.force }, ctx);
+      const kind = await runner.pipelineOf(i.projectId);
+      const shots = kind === "shots" || kind === "animated";
+      await runner.runStage(i.projectId, "assembly", kind === "animated" ? assembleAnimShots : shots ? assembleShots : assembleFinal, { force: i.force }, ctx);
       return { ok: true };
     },
   };

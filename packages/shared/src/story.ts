@@ -65,6 +65,8 @@ export const AnimActionSchema = z.object({
   duration: z.number().min(0.1).max(8).optional(),
   /** walk/run/enter: a screen position ("left" | "center" | "right") or an x in stage px; turn/head-turn: "left" | "right" | "camera". */
   to: z.union([z.enum(["left", "center", "right", "camera"]), z.number()]).optional(),
+  /** Where the action is directed, in the director's words ("the door", "the building", "away", "the sound", "camera", "left"). Resolved by the animation compiler. */
+  toward: z.string().max(40).optional(),
 });
 export const ObjectActionSchema = z.object({
   object: z.string().min(1).max(64),

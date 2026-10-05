@@ -8,6 +8,8 @@ import { mixTracks, toFloat44k, toWav, type MixTrack } from "./mixer";
 import * as synth from "./synth";
 
 export type SfxKindName = Shot["sfx"][number]["kind"];
+/** A sound implied by the animation, at a global time. */
+export interface ExtraCue { kind: SfxKindName | "footsteps"; at: number; volume?: number }
 
 /** Procedural sound effect for a kind (deterministic, no sample files). */
 export function sfxSamples(kind: SfxKindName, seed = 1): synth.Buf {
@@ -38,7 +40,7 @@ export interface SoundtrackPlan {
  * (whoosh into a zoom transition, impact on flash/impact frames), a looping ambience, and a tension bed whose
  * intensity follows the story (derived from each shot's beat/emotion/action).
  */
-export async function planSoundtrack(opts: { shots: Shot[]; timeline: Timeline; voicePaths: Record<string, string>; dir: string; musicVolume?: number; ambientVolume?: number }): Promise<AudioTrack[]> {
+export async function planSoundtrack(opts: { shots: Shot[]; timeline: Timeline; voicePaths: Record<string, string>; dir: string; musicVolume?: number; ambientVolume?: number; extraCues?: ExtraCue[]; rain?: boolean }): Promise<AudioTrack[]> {
   const { shots, timeline, dir } = opts;
   await fs.mkdir(dir, { recursive: true });
   const tracks: AudioTrack[] = [];
@@ -79,6 +81,15 @@ export async function planSoundtrack(opts: { shots: Shot[]; timeline: Timeline; 
     if (s.transition.type === "zoom" && i < shots.length - 1 && !explicit.has("whoosh") && !explicit.has("whoosh-rise")) await addSfx("whoosh-rise", st.end - 0.5);
     if ((s.effects?.impact || s.effects?.flash) && !explicit.has("impact")) await addSfx("impact", st.start);
   }
+  // sounds implied by the animation itself: footsteps on foot contacts, doors, impacts (global times)
+  for (const q of opts.extraCues ?? []) {
+    if (q.kind === "footsteps") {
+      const p = path.join(dir, "sfx-step.wav");
+      if (!seen.has("sfx-step")) { await fs.writeFile(p, encodeWav(toWav(synth.footsteps(1, 0.5, 5)))); seen.add("sfx-step"); }
+      tracks.push({ type: "sfx", path: p, startTime: Math.max(0, q.at), volume: q.volume ?? 0.32 });
+    } else await addSfx(q.kind, q.at, q.volume);
+  }
+  if (opts.rain) tracks.push({ type: "ambient", path: await writeSynth("ambient-rain", synth.normalize(synth.bandpass(synth.whiteNoise(total, 3), 1800, 7500), 0.5)), startTime: 0, duration: total, volume: 0.16 });
   return tracks;
 }
 

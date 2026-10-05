@@ -36,7 +36,7 @@ export const DirectedShotSchema = z.object({
   action: z.string().min(3).max(200).describe("what we SEE in this shot, one sentence, present tense"),
   line: z.object({ speaker: Id.describe("a character id or 'narrator'"), text: z.string().min(1).max(140) }).optional().describe("at most one short spoken line; omit for silent shots"),
   onScreenText: z.string().max(40).optional().describe("only for a phone/message/screen close-up: the text shown"),
-  actions: z.array(z.object({ action: z.enum(ANIM_ACTIONS), when: z.enum(ANIM_WHEN) })).max(3).optional().describe("what the visible character physically does in this shot, in order"),
+  actions: z.array(z.object({ action: z.enum(ANIM_ACTIONS), when: z.enum(ANIM_WHEN), toward: z.string().max(40).optional() })).max(3).optional().describe("what the visible character physically does in this shot, in order"),
   objects: z.array(z.object({ object: z.string().min(1).max(30), action: z.enum(OBJECT_ACTIONS), when: z.enum(ANIM_WHEN) })).max(2).optional().describe("what a visible object does (a door opens, a phone lights up)"),
 });
 export const DirectedBeatsSchema = z.object({
@@ -70,7 +70,8 @@ const WHEN_SYN: Record<string, string> = { begin: "start", beginning: "start", f
 function normAction(a: unknown): unknown {
   if (!isRecord(a)) return a;
   const k = key(a.action);
-  return { action: ACTION_SYN[k] ?? k, when: WHEN_SYN[key(a.when)] ?? (key(a.when) || "mid") };
+  const toward = typeof a.toward === "string" ? a.toward.trim().slice(0, 40) : "";
+  return { action: ACTION_SYN[k] ?? k, when: WHEN_SYN[key(a.when)] ?? (key(a.when) || "mid"), ...(toward ? { toward } : {}) };
 }
 
 export function normalizeOutline(raw: unknown): unknown {

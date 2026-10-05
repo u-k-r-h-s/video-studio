@@ -18,6 +18,9 @@ function ShotRow({ project, shot }: { project: Project; shot: Shot }) {
           {shot.transition.type !== "cut" && ` · ${shot.transition.type} out`}{shot.effects?.impact ? " · impact" : ""}{shot.effects?.flash ? " · flash" : ""}
         </p>
         <p className="text-zinc-300">{shot.action}</p>
+        {shot.animation && (shot.animation.actions.length > 0 || shot.animation.objects.length > 0) && (
+          <p className="text-xs text-emerald-300">Animation: {[...shot.animation.actions.map((a) => `${a.action}${a.toward ? ` → ${a.toward}` : ""}`), ...shot.animation.objects.map((o) => `${o.object}: ${o.action}`)].join(" · ")}</p>
+        )}
         {shot.dialogue.map((d) => <p key={d.id} className="text-zinc-200"><span className="font-medium text-indigo-300">{nameOf(project, d.characterId)}</span> “{d.text}”</p>)}
         {shot.insert && <p className="text-xs text-amber-300">On screen ({shot.insert.kind}): {shot.insert.text}</p>}
         {shot.sfx.length > 0 && <p className="text-xs text-zinc-500">SFX: {shot.sfx.map((s) => s.kind).join(", ")}</p>}
@@ -30,10 +33,10 @@ function ShotRow({ project, shot }: { project: Project; shot: Shot }) {
 /** The director's shot list, grouped by scene, with per-scene regeneration (images share across shots, so a scene's images may affect others). */
 export function ShotList({ project, busy, onRegenerate }: { project: Project; busy: boolean; onRegenerate: (sceneId: string, parts: RegenPart[]) => void }) {
   const story = project.story!;
-  const keys = story.keyVisuals.length;
+  const keys = project.formatProfile === "animated-short" ? 0 : story.keyVisuals.length;
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-400">{story.logline} <span className="text-zinc-500">· {story.shots.length} shots from {keys} generated images (shared and varied between shots).</span></p>
+      <p className="text-sm text-zinc-400">{story.logline} <span className="text-zinc-500">· {keys > 0 ? `${story.shots.length} shots from ${keys} generated images (shared and varied between shots).` : `${story.shots.length} shots, animated from generated locations, characters and props (see manifest.json).`}</span></p>
       {story.scenes.map((sc, i) => {
         const shots = story.shots.filter((s) => s.sceneId === sc.id);
         const loc = story.locations.find((l) => l.id === sc.locationId);

@@ -8,6 +8,8 @@ export interface TimelineOptions {
   gap: number;
   /** Hold after the last line before the cut. */
   tail: number;
+  /** Per shot: the least time its physical action needs (a walk must cross the screen). */
+  minDuration?: Record<string, number>;
 }
 export const DEFAULT_TIMELINE: TimelineOptions = { lead: 0.3, hookLead: 0.15, gap: 0.22, tail: 0.35 };
 
@@ -33,7 +35,7 @@ export function planTimeline(shots: Shot[], lineDurations: Record<string, number
       local += dur + o.gap;
     }
     const speech = lines.length ? lines[lines.length - 1]!.localEnd + o.tail : 0;
-    const duration = Math.max(shot.duration, speech);
+    const duration = Math.max(shot.duration, speech, o.minDuration?.[shot.id] ?? 0);
     out.push({ shotId: shot.id, start: cursor, duration, end: cursor + duration, lines });
     cursor += duration;
   }

@@ -8,6 +8,7 @@ import type { SubtitleRenderer } from "../providers/subtitle/SubtitleRenderer";
 import type { TTSProvider } from "../providers/tts/TTSProvider";
 import type { FFmpegMotionRenderer } from "../render/FFmpegMotionRenderer";
 import type { SceneRenderer } from "../render/SceneRenderer";
+import type { AssetCache } from "../anim/assets";
 import type { ShotDirector } from "../shots/director";
 import type { MemoryAdvisor } from "../services/MemoryAdvisor";
 import type { MemoryGate } from "../services/MemoryGate";
@@ -44,6 +45,8 @@ export interface PipelineServices {
   media?: MediaTools;
   /** Files an image model needs, by model id: checked before generation for a readable error. */
   modelFiles?: Record<string, string[]>;
+  /** Content-addressed cache of generated cut-outs and backgrounds, shared by all projects. */
+  assetCache?: AssetCache;
 }
 
 /** Which part of a project a stage should work on. Empty scope = the whole project. */

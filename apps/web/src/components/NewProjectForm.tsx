@@ -16,7 +16,7 @@ export function NewProjectForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { void api.profiles().then((r) => { setProfiles(r.profiles); setProfile((cur) => (r.profiles.some((p) => p.id === cur) ? cur : r.profiles[0]?.id ?? cur)); }).catch(() => {}); }, []);
-  const shots = profiles.find((p) => p.id === profile)?.pipeline === "shots";
+  const shots = profiles.find((p) => p.id === profile)?.pipeline !== undefined && profiles.find((p) => p.id === profile)?.pipeline !== "scenes";
 
   async function submit(e: FormEvent) {
     e.preventDefault();

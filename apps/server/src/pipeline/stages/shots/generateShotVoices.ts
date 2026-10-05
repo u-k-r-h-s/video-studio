@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { voiceAudioId } from "@studio/shared";
 import { CancelledError, StageOrderError } from "../../../errors";
+import { spokenText } from "../../../lib/spoken";
 import { durationSec, encodeWav, parseWav, trimSilence } from "../../../lib/wav";
 import { resolveVoiceId } from "../../../providers/tts/voices";
 import { findAudio, upsertAudio } from "../../assets";
@@ -8,7 +9,7 @@ import { stableHash } from "../../hash";
 import type { StageFn } from "../../types";
 import { cinematicOf, shotsInScope, storyOf } from "./common";
 
-const VOICE_RECIPE_VERSION = "piper-trim-shots-v1";
+const VOICE_RECIPE_VERSION = "piper-trim-shots-v2-spoken";
 
 /** Stage 3 (shot pipeline): Piper voice for each shot's line, slowed by the profile's length scale, silence-trimmed. ComfyUI must be stopped. */
 export const generateShotVoices: StageFn = async (svc, ctx) => {
@@ -29,7 +30,7 @@ export const generateShotVoices: StageFn = async (svc, ctx) => {
       if (ctx.signal?.aborted) throw new CancelledError();
       const voiceId = resolveVoiceId(d.characterId, project.characters, project.language, profile);
       const voice = tts.getVoice(voiceId);
-      const hash = stableHash({ text: d.text, voiceId, model: voice.model, speaker: voice.speaker, scale: cin.voiceLengthScale, recipe: VOICE_RECIPE_VERSION });
+      const hash = stableHash({ text: spokenText(d.text), voiceId, model: voice.model, speaker: voice.speaker, scale: cin.voiceLengthScale, recipe: VOICE_RECIPE_VERSION });
       const id = voiceAudioId(d.id);
       const current = await svc.store.require(project.id);
       const existing = findAudio(current, id);
@@ -38,7 +39,7 @@ export const generateShotVoices: StageFn = async (svc, ctx) => {
       } else {
         const rawRel = `audio/${d.id}.raw.wav`, finalRel = `audio/${d.id}.wav`;
         await ctx.log.time({ stage, scene: shot.sceneId, asset: id }, async () => {
-          const raw = await tts.synthesize({ text: d.text.replace(/\.\.\./g, ","), voiceId, outPath: svc.store.resolve(project.id, rawRel), lengthScale: cin.voiceLengthScale, signal: ctx.signal });
+          const raw = await tts.synthesize({ text: spokenText(d.text).replace(/\.\.\./g, ","), voiceId, outPath: svc.store.resolve(project.id, rawRel), lengthScale: cin.voiceLengthScale, signal: ctx.signal });
           const trimmed = trimSilence(parseWav(await fs.readFile(raw.path)));
           await fs.writeFile(svc.store.resolve(project.id, finalRel), encodeWav(trimmed.wav));
           await svc.store.update(project.id, (p) => {

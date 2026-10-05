@@ -1,5 +1,6 @@
 import { dialogueId, sceneId, shotId, StorySchema, type Beat, type Character, type FormatProfile, type Location, type Shot, type Story } from "@studio/shared";
 import { slugify } from "@studio/shared";
+import { enrichAnimation } from "./animationRules";
 import { characterIdentity, planKeyVisuals } from "./keyVisuals";
 import { defaultFocus, planCamera } from "./cameraLanguage";
 import type { DirectedShots, DirectorOutline } from "./directorSchemas";
@@ -43,7 +44,7 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
   const raw = directed.shots.slice(0, cin.maxShots);
   const n = raw.length;
 
-  const shots: Shot[] = raw.map((d, i) => {
+  const base: Shot[] = raw.map((d, i) => {
     const order = i + 1;
     const id = shotId(order);
     const subject = known.has(d.character) ? [d.character] : [];
@@ -71,7 +72,7 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
     const effects: Shot["effects"] = intense && beat !== "hook" ? { impact: true } : beat === "payoff" && i === n - 2 ? { flash: true } : undefined;
     if (effects?.impact && !sfx.some((x) => x.kind === "impact")) sfx.push({ kind: "impact", at: 0, volume: 0.6 });
     const animation = subject.length || d.objects?.length
-      ? { actions: (d.actions ?? []).filter((x) => subject.length > 0).map((x) => ({ character: subject[0]!, action: x.action, when: x.when })), objects: (d.objects ?? []).map((o) => ({ object: o.object, action: o.action, when: o.when })) }
+      ? { actions: (d.actions ?? []).filter((x) => subject.length > 0).map((x) => ({ character: subject[0]!, action: x.action, when: x.when, ...(x.toward ? { toward: x.toward } : {}) })), objects: (d.objects ?? []).map((o) => ({ object: o.object, action: o.action, when: o.when })) }
       : undefined;
     return {
       id, sceneId: "", order, beat, duration, shotType: d.shotType, subjectIds: subject, locationId: locations.some((l) => l.id === d.location) ? d.location : locations[0]!.id, emotion: d.emotion, action: d.action, visualPrompt: d.action, visualKey: "",
@@ -79,6 +80,9 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
       transition: { type: i === n - 1 ? "fade" : "cut" }, characterMotion, dialogue, sfx, ...(insert ? { insert } : {}), ...(effects ? { effects } : {}), ...(animation && (animation.actions.length || animation.objects.length) ? { animation } : {}),
     };
   });
+
+  // the animated pipeline reads the physical verbs of each sentence and makes sure the character actually travels in the film
+  const shots: Shot[] = profile.pipeline === "animated" ? enrichAnimation(base) : base;
 
   // a hard cut into a shocking shot lands harder with a zoom punch on the way out of the previous one
   for (let i = 0; i + 1 < shots.length; i++) if (shots[i + 1]!.emotion === "shock" && shots[i]!.transition.type === "cut") shots[i]!.transition = { type: "zoom", duration: 0.3 };

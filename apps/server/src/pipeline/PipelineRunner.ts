@@ -18,7 +18,7 @@ export class PipelineRunner {
   constructor(private readonly svc: PipelineServices) {}
 
   /** Which pipeline a project's profile uses ("scenes" = motion comic, "shots" = cinematic short). */
-  async pipelineOf(projectId: string): Promise<"scenes" | "shots"> {
+  async pipelineOf(projectId: string): Promise<"scenes" | "shots" | "animated"> {
     const p = await this.svc.store.require(projectId);
     return this.svc.profiles.get(p.formatProfile).pipeline ?? "scenes";
   }

@@ -9,7 +9,9 @@ import type { StageFn } from "../../types";
 import { mediaOf, storyOf, timelineOf } from "./common";
 
 /** Stage 6 (shot pipeline): join the shot clips (stream copy), mux the global soundtrack, normalise loudness; write the SRT. */
-export const assembleShots: StageFn = async (svc, ctx) => {
+export const assembleShots: StageFn = (svc, ctx) => assembleWith(svc, ctx, timelineOf);
+
+export const assembleWith = async (svc: Parameters<StageFn>[0], ctx: Parameters<StageFn>[1], timelineFor: typeof timelineOf): Promise<void> => {
   const project = await svc.store.require(ctx.projectId);
   const profile = svc.profiles.get(project.formatProfile);
   const story = storyOf(project);
@@ -41,8 +43,8 @@ export const assembleShots: StageFn = async (svc, ctx) => {
     ], { timeoutMs: 600_000, signal: ctx.signal });
     if (r.code !== 0) throw new RenderError(`ffmpeg assembly exited with code ${r.code}: ${r.stderr.slice(-600)}`);
     const probe = await media.renderer.probe(out);
-    const tl = timelineOf(project, story);
-    if (Math.abs(probe.durationSec - tl.totalSec) > 0.1 * clips.length + 0.3) throw new RenderError(`assembled video is ${probe.durationSec.toFixed(2)} s but the timeline is ${tl.totalSec.toFixed(2)} s`);
+    const tl = timelineFor(project, story);
+    if (Math.abs(probe.durationSec - tl.totalSec) > 0.04 * clips.length + 0.3) throw new RenderError(`assembled video is ${probe.durationSec.toFixed(2)} s but the timeline is ${tl.totalSec.toFixed(2)} s`);
     if (probe.width !== profile.video.width || probe.height !== profile.video.height || !probe.hasAudio) throw new RenderError(`assembled video failed validation (${probe.width}x${probe.height}, audio ${probe.hasAudio})`);
 
     const cues = tl.shots.flatMap((st) => st.lines.map((l) => ({ text: l.text, start: l.start, end: l.end })));

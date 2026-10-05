@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import { SOUNDTRACK_ASSET_ID, type Project, type Shot } from "@studio/shared";
 import { StageOrderError } from "../../../errors";
-import { mixSoundtrack, planSoundtrack } from "../../../audio/soundtrack";
+import { mixSoundtrack, planSoundtrack, type ExtraCue } from "../../../audio/soundtrack";
 import { chunkLine, renderCaptionStates, type CaptionState, type CaptionStyle } from "../../../shots/captions";
 import { findAsset, findAudio, upsertAsset } from "../../assets";
 import { stableHash } from "../../hash";
-import type { StageFn } from "../../types";
+import type { Timeline } from "../../../shots/timeline";
+import type { PipelineServices, StageFn } from "../../types";
 import { cinematicOf, mediaOf, storyOf, timelineOf } from "./common";
 
 export const CAPTION_RECIPE_VERSION = "captions-karaoke-v1";
@@ -26,15 +27,27 @@ export async function readShotCaptions(readJson: (rel: string) => Promise<unknow
  * shot (and insert cards: phone text, title); the global audio timeline (voices, SFX, ambience, ducked music) mixed to
  * one WAV. Everything is content-addressed, so only changed captions/audio are re-made.
  */
-export const buildShotTimeline: StageFn = async (svc, ctx) => {
+export interface TimelineStageConfig {
+  /** The edit timeline from the real voice durations (the animated pipeline also reserves time for the action). */
+  timeline: (project: Project, story: NonNullable<Project["story"]>, svc: PipelineServices) => Timeline;
+  style: (project: Project, svc: PipelineServices) => CaptionStyle;
+  /** Sounds implied by the animation (footsteps, doors, impacts) with global times. */
+  extraCues?: (project: Project, story: NonNullable<Project["story"]>, tl: Timeline, svc: PipelineServices) => Promise<ExtraCue[]>;
+  rain?: (project: Project, svc: PipelineServices) => boolean;
+  recipe?: string;
+}
+
+export const buildShotTimeline: StageFn = (svc, ctx) => runTimelineStage(svc, ctx, { timeline: (p, story) => timelineOf(p, story), style: (p, s) => cinematicOf(s.profiles.get(p.formatProfile)).captions as CaptionStyle });
+
+export const runTimelineStage = async (svc: PipelineServices, ctx: Parameters<StageFn>[1], cfg: TimelineStageConfig): Promise<void> => {
   const project = await svc.store.require(ctx.projectId);
-  const profile = svc.profiles.get(project.formatProfile);
-  const cin = cinematicOf(profile);
   const story = storyOf(project);
   const media = mediaOf(svc);
   const stage = "subtitles";
-  const tl = timelineOf(project, story);
-  const style: CaptionStyle = cin.captions as CaptionStyle;
+  const tl = cfg.timeline(project, story, svc);
+  const style: CaptionStyle = cfg.style(project, svc);
+  const extra = cfg.extraCues ? await cfg.extraCues(project, story, tl, svc) : [];
+  const rain = cfg.rain?.(project, svc) ?? false;
   const capDir = svc.store.resolve(project.id, "captions");
 
   await ctx.log.time({ stage }, async () => {
@@ -59,7 +72,7 @@ export const buildShotTimeline: StageFn = async (svc, ctx) => {
     // 2. the global soundtrack
     const voices = story.shots.flatMap((s) => s.dialogue.map((d) => findAudio(project, `voice-${d.id}`)!));
     const mixHash = stableHash({
-      recipe: SOUNDTRACK_RECIPE_VERSION, total: tl.totalSec, voices: voices.map((v) => [v.id, v.inputHash, v.createdAt]),
+      recipe: SOUNDTRACK_RECIPE_VERSION + (cfg.recipe ?? ""), extra, rain, total: tl.totalSec, voices: voices.map((v) => [v.id, v.inputHash, v.createdAt]),
       shots: story.shots.map((s, i) => [s.id, s.sfx, s.transition, s.effects, s.emotion, s.beat, s.action, tl.shots[i]!.start, tl.shots[i]!.duration, tl.shots[i]!.lines.map((l) => l.localStart)]),
     });
     const prev = findAsset(project, SOUNDTRACK_ASSET_ID);
@@ -69,7 +82,7 @@ export const buildShotTimeline: StageFn = async (svc, ctx) => {
     } else {
       ctx.progress(60, "Mixing the soundtrack...");
       const voicePaths = Object.fromEntries(voices.map((v) => [v.dialogueId, svc.store.resolve(project.id, v.path)]));
-      const tracks = await planSoundtrack({ shots: story.shots, timeline: tl, voicePaths, dir: svc.store.resolve(project.id, "audio", "synth") });
+      const tracks = await planSoundtrack({ shots: story.shots, timeline: tl, voicePaths, dir: svc.store.resolve(project.id, "audio", "synth"), extraCues: extra, rain });
       const mix = await mixSoundtrack(tracks, tl.totalSec, svc.store.resolve(project.id, mixRel));
       await svc.store.update(project.id, (p) => upsertAsset(p, { id: SOUNDTRACK_ASSET_ID, kind: "audio_track", path: mixRel, status: "ready", inputHash: mixHash, meta: { durationSec: tl.totalSec, peak: mix.peak, tracks: tracks.length }, createdAt: new Date().toISOString() }));
     }

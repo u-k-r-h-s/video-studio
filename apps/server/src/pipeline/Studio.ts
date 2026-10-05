@@ -42,7 +42,7 @@ export class Studio {
   async editPlan(projectId: string, edit: unknown): Promise<void> {
     const p = await this.svc.store.require(projectId);
     if (p.status === "planning" || p.status === "generating") throw new HttpError(409, "project_busy", "The project is being processed. Wait for it to finish or cancel it.");
-    if (this.svc.profiles.get(p.formatProfile).pipeline === "shots") throw new HttpError(400, "plan_not_editable", "Shot-based projects cannot be edited here yet. Ask for a re-plan with feedback instead.");
+    if ((this.svc.profiles.get(p.formatProfile).pipeline ?? "scenes") !== "scenes") throw new HttpError(400, "plan_not_editable", "Shot-based projects cannot be edited here yet. Ask for a re-plan with feedback instead.");
     const next = applyPlanEdit(p, edit, this.svc.profiles.get(p.formatProfile));
     await this.svc.store.update(projectId, (x) => {
       x.title = next.title;

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// One command from an idea to a finished 1080x1920 MP4 (cinematic animated short).
+// One command from an idea to a finished 1080x1920 MP4 (layered animated short).
 //   npm run short -- "Create a 25 second animated mystery short about a delivery rider."
 //   npm run short -- "<idea>" --out ~/Desktop/my-short.mp4 --seconds 25
+//   npm run short -- "<idea>" --profile cinematic-animated-short   (the older still-image shots; not the default)
 //   npm run short -- --resume <project-id>      (continue a failed/interrupted run; finished work is cached)
 // Starts the local API itself when it is not running (and stops it afterwards), plans with Ollama, approves the plan
 // (use --review to stop after planning and approve in the UI instead), then runs images -> voices -> edit -> render.
@@ -14,7 +15,7 @@ const args = process.argv.slice(2);
 const flag = (name, dflt) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : dflt; };
 const idea = args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--") && args[i - 1] !== "--review")) ?? "Create a 25 second animated mystery short about a delivery rider.";
 const seconds = Number(flag("seconds", (/(\d+)[ -]?second/i.exec(idea)?.[1]) ?? 25));
-const profile = flag("profile", "cinematic-animated-short");
+const profile = flag("profile", "animated-short");
 const reviewOnly = args.includes("--review");
 const API = process.env.STUDIO_API ?? "http://127.0.0.1:8787/api";
 const root = path.resolve(new URL("..", import.meta.url).pathname);
@@ -64,8 +65,14 @@ try {
 
   const story = project.story;
   console.log(`\nTITLE: ${project.title}\nLOGLINE: ${story.logline}\nCAST: ${project.characters.map((c) => `${c.name} (${c.visualIdentity})`).join("; ")}`);
-  console.log(`${story.shots.length} shots from ${story.keyVisuals.length} generated images:`);
-  for (const s of story.shots) console.log(`  ${s.id} ${s.beat.padEnd(10)} ${s.shotType.padEnd(16)} ${s.motion.type.padEnd(9)} ${s.duration.toFixed(1)}s  ${s.action}${s.dialogue[0] ? `  — ${s.dialogue[0].characterId}: "${s.dialogue[0].text}"` : ""}`);
+  const animated = profile === "animated-short" || project.formatProfile === "animated-short";
+  console.log(animated ? `${story.shots.length} shots, animated from generated assets:` : `${story.shots.length} shots from ${story.keyVisuals.length} generated images:`);
+  const acts = (s) => (s.animation?.actions ?? []).map((a) => `${a.action}${a.toward ? ` ${a.toward}` : ""}`).concat((s.animation?.objects ?? []).map((o) => `${o.object}:${o.action}`)).join(", ");
+  for (const s of story.shots) console.log(`  ${s.id} ${s.beat.padEnd(10)} ${s.shotType.padEnd(16)} ${animated ? "" : s.motion.type.padEnd(9)} ${s.duration.toFixed(1)}s  ${s.action}${animated && acts(s) ? `  [${acts(s)}]` : ""}${s.dialogue[0] ? `  — ${s.dialogue[0].characterId}: "${s.dialogue[0].text}"` : ""}`);
+  if (animated) {
+    const m = await fs.promises.readFile(path.join(path.join(root, "projects"), id, "manifest.json"), "utf8").then(JSON.parse, () => null);
+    if (m) console.log(`ASSET MANIFEST: ${m.assets.length} assets — ${m.locations.length} locations, ${m.characters.map((c) => `${c.id}: ${c.assetIds.length}`).join(", ")} character assets, ${m.props.length} props`);
+  }
   if (reviewOnly) { console.log(`\nPlan ready for review: open the UI and approve project ${id}.`); stop(); process.exit(0); }
 
   await call("POST", `/projects/${id}/approve`);
@@ -77,6 +84,8 @@ try {
 
   console.log("\n=== RESULT ===");
   for (const [name, s] of Object.entries(project.stages)) console.log(`  ${name.padEnd(18)} ${s.status.padEnd(10)} ${s.durationMs != null ? (s.durationMs / 1000).toFixed(1) + " s" : ""}`);
+  const clips = project.assets.filter((a) => a.kind === "shot_video");
+  console.log(`  renderer: ${[...new Set(clips.map((c) => c.meta.renderer ?? "still-image"))].join(", ")} (${clips.length} clips, ${clips.reduce((n, c) => n + (c.meta.frames ?? 0), 0)} frames drawn)`);
   const fin = project.assets.find((a) => a.kind === "final_video");
   const src = path.join(root, "projects", id, fin.path);
   const slug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "short";

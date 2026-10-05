@@ -41,7 +41,7 @@ export function animPostGraph(W: number, H: number, D: number, fps: number, o: A
   const ov = (c: CaptionOverlay, cy: number, label: string): void => {
     inputs.push("-loop", "1", "-framerate", String(fps), "-t", f(D + 0.1), "-i", c.png);
     const a = f(c.start), b = f(c.end);
-    lines.push(`[${cur}][${idx}:v]overlay=x='(W-w)/2':y='${f(cy * H)}-h/2+16*max(0,1-(t-${a})/0.12)':enable='between(t,${a},${b})':format=auto[${label}]`);
+    lines.push(`[${cur}][${idx}:v]overlay=x='(W-w)/2':y='${f(cy * H)}-h/2+16*max(0,1-(t-${a})/0.12)':enable='between(t,${a},${b})':format=auto:shortest=1[${label}]`);
     cur = label;
     idx += 1;
   };
@@ -63,7 +63,7 @@ export async function renderAnimShot(engine: AnimEngine, outPath: string, o: Ani
     : ["-c:v", "libx264", "-preset", "medium", "-crf", "17", "-profile:v", "high"];
   const args = [
     "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${W}x${H}`, "-r", String(fps), "-i", "-", ...post.inputs,
-    "-filter_complex", post.filter, "-map", "[vout]", ...venc, "-pix_fmt", "yuv420p", "-r", String(fps), "-an", "-movflags", "+faststart", outPath,
+    "-filter_complex", post.filter, "-map", "[vout]", ...venc, "-pix_fmt", "yuv420p", "-r", String(fps), "-frames:v", String(total), "-an", "-movflags", "+faststart", outPath,
   ];
   const t0 = Date.now();
   const child = spawn(o.ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
