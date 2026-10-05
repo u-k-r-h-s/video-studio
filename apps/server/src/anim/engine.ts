@@ -2,7 +2,10 @@ import { createCanvas, loadImage, type Canvas, type Image, type SKRSContext2D } 
 import { CharacterTimeline, type Pose } from "./character";
 import { EffectPainter } from "./effects";
 import { Track, ease, envelope, noise1, type Easing } from "./ease";
-import type { Rig } from "./rig";
+import { audioCuesFor } from "./cues";
+import { drawDoor, hexa } from "./props";
+import { composeFigure, glowsAt, type FigureLight } from "./figure";
+import type { Rig, RigSet } from "./rig";
 import type { AnimShotSpec, AnimationEvent, AudioCue, CameraState, VisualLayer } from "./types";
 
 export type Drawable = Image | Canvas;
@@ -10,7 +13,7 @@ export type Drawable = Image | Canvas;
 /** Loaded pictures and rigs, addressed by id. */
 export class AssetLibrary {
   readonly images = new Map<string, Drawable>();
-  readonly rigs = new Map<string, Rig>();
+  readonly rigs = new Map<string, RigSet>();
   async addImage(id: string, src: string | Buffer, opts: { blur?: number } = {}): Promise<Drawable> {
     const img = await loadImage(src);
     let out: Drawable = img;
@@ -23,7 +26,11 @@ export class AssetLibrary {
     this.images.set(id, out);
     return out;
   }
-  addRig(rig: Rig): void { this.rigs.set(rig.id, rig); }
+  /** Registers a character: one rig (front view only) or a set with several camera views. */
+  addRig(rig: Rig | RigSet): void {
+    if ("views" in rig) this.rigs.set(rig.id, rig);
+    else this.rigs.set(rig.id, { id: rig.id, views: { [rig.view]: rig } });
+  }
 }
 
 const num = (p: AnimationEvent["params"], k: string, d: number): number => (typeof p?.[k] === "number" ? (p[k] as number) : d);
@@ -81,7 +88,7 @@ class ObjectTimeline {
   }
 }
 
-interface CharEntry { layer: VisualLayer; rig: Rig; tl: CharacterTimeline; lights: AnimationEvent[] }
+interface CharEntry { layer: VisualLayer; set: RigSet; tl: CharacterTimeline; lights: AnimationEvent[] }
 
 export interface FrameInfo { camera: CameraState }
 
@@ -101,10 +108,12 @@ export class AnimEngine {
     this.fx = new EffectPainter(this.W, this.H, spec.seed ?? 1);
     for (const l of spec.layers) {
       if (l.type === "character") {
-        const rig = lib.rigs.get(l.rig ?? l.source);
-        if (!rig) throw new Error(`character layer ${l.id}: no rig "${l.rig ?? l.source}" in the asset library`);
-        const tl = new CharacterTimeline(l, spec.events, { nativeFacing: rig.nativeFacing, variants: new Set(Object.keys(rig.variants)) }, spec.duration);
-        this.chars.set(l.id, { layer: l, rig, tl, lights: spec.events.filter((e) => e.type === "glow" && e.targetId === l.id) });
+        const set = lib.rigs.get(l.rig ?? l.source);
+        if (!set) throw new Error(`character layer ${l.id}: no rig "${l.rig ?? l.source}" in the asset library`);
+        const views = Object.fromEntries(Object.entries(set.views).map(([v, r]) => [v, { nativeFacing: r!.nativeFacing, variants: new Set(Object.keys(r!.variants)) }]));
+        const first = Object.values(set.views)[0]!;
+        const tl = new CharacterTimeline(l, spec.events, { nativeFacing: first.nativeFacing, variants: new Set(Object.keys(first.variants)), views }, spec.duration);
+        this.chars.set(l.id, { layer: l, set, tl, lights: spec.events.filter((e) => e.type === "glow" && e.targetId === l.id) });
       } else this.objs.set(l.id, new ObjectTimeline(l, spec.events));
     }
     this.order = [...spec.layers].sort((a, b) => a.zIndex - b.zIndex);
@@ -156,20 +165,8 @@ export class AnimEngine {
     return { x: this.camX.at(t) + sx, y: this.camY.at(t) + sy, zoom: this.camZoom.at(t), rotation: this.camRot.at(t) + sr, flash };
   }
 
-  /** Sound cues implied by the animation. */
-  audioCues(): AudioCue[] {
-    const cues: AudioCue[] = [];
-    for (const c of this.chars.values()) {
-      const contacts = c.tl.footContacts().filter((t) => c.tl.speed(t) > 40);
-      for (const t of contacts) cues.push({ kind: "footsteps", at: t, volume: 0.32 });
-    }
-    for (const e of this.spec.events) {
-      if (e.type === "open" || e.type === "close") cues.push({ kind: "door", at: e.start, volume: 0.45 });
-      if (typeof e.params?.sfx === "string") cues.push({ kind: e.params.sfx as AudioCue["kind"], at: e.start + num(e.params, "sfxAt", 0), volume: num(e.params, "sfxVolume", 0.6) });
-      if (e.type === "camera" && str(e.params, "mode", "") === "shake" && e.params?.impact !== false && num(e.params, "amount", 18) >= 12) cues.push({ kind: "impact", at: e.start, volume: 0.7 });
-    }
-    return cues.sort((a, b) => a.at - b.at);
-  }
+  /** Sound cues implied by the animation (see `audioCuesFor`). */
+  audioCues(): AudioCue[] { return audioCuesFor(this.spec); }
 
   private project(cam: CameraState, p: number): { project: (x: number, y: number) => { x: number; y: number }; zl: number } {
     const { W, H } = this;
@@ -238,28 +235,27 @@ export class AnimEngine {
     if (l.flipX) g.scale(-1, 1);
     const ox = -wPx / 2, oy = centered ? -hPx / 2 : -hPx;
     if (l.door) {
-      const open = src.open.at(t);
-      // light behind the door grows as it opens, then the door swings about its hinge
-      if (open > 0.01) {
-        const gr = g.createLinearGradient(0, oy, 0, oy + hPx);
-        gr.addColorStop(0, "rgba(0,0,0,0.9)");
-        gr.addColorStop(0.35, l.door.glow);
-        gr.addColorStop(1, "rgba(0,0,0,0.85)");
-        g.globalAlpha = Math.min(1, opacity) * Math.min(1, open * 3);
-        g.fillStyle = gr;
-        g.fillRect(ox, oy, wPx, hPx);
-        g.globalAlpha = Math.min(1, opacity);
-      }
-      const sx = Math.max(0.06, Math.cos(open * 1.3));
-      const hingeX = l.door.hinge === "left" ? ox : ox + wPx;
-      g.translate(hingeX, 0);
-      g.scale(sx, 1);
-      g.translate(-hingeX, 0);
-      g.drawImage(img, ox, oy, wPx, hPx);
-      if (open > 0.01) { g.fillStyle = `rgba(0,0,0,${0.5 * open})`; g.fillRect(ox, oy, wPx, hPx); }
-    } else {
-      g.drawImage(img, ox, oy, wPx, hPx);
+      g.restore();
+      g.save();
+      drawDoor(g, { x: p.x, y: p.y, w: wPx, h: hPx, open: src.open.at(t), hinge: l.door.hinge, glow: l.door.glow, leaf: img, opacity: Math.min(1, opacity), zoom: zl });
+      if (l.tint && (l.tintAmount ?? 0) > 0) { g.globalAlpha = l.tintAmount! * 0.5; g.fillStyle = l.tint; g.fillRect(p.x - wPx / 2, p.y - hPx, wPx, hPx); }
+      g.restore();
+      this.drawGlow(g, m.glow, project, x, y - (l.height ?? img.height) * scale * 0.5, zl);
+      return;
     }
+    // props standing on the ground get a contact shadow; distant or very near ones are blurred (depth of field)
+    if (!centered && l.shadow !== false && l.type === "prop") {
+      g.save();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, wPx * 0.6);
+      gr.addColorStop(0, `rgba(0,0,0,${0.5 * Math.min(1, opacity)})`);
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      g.translate(p.x, p.y); g.scale(1, 0.2); g.translate(-p.x, -p.y);
+      g.fillStyle = gr; g.fillRect(p.x - wPx, p.y - wPx, wPx * 2, wPx * 2);
+      g.restore();
+    }
+    if (l.blur && l.blur > 0) g.filter = `blur(${(l.blur * zl).toFixed(1)}px)`;
+    g.drawImage(img, ox, oy, wPx, hPx);
     if (l.tint && (l.tintAmount ?? 0) > 0) {
       g.globalCompositeOperation = "source-atop";
       g.fillStyle = l.tint;
@@ -267,141 +263,88 @@ export class AnimEngine {
       g.fillRect(ox - 4, oy - 4, wPx + 8, hPx + 8);
     }
     g.restore();
-    if (m.glow && m.glow.amount > 0.01) {
-      const gp = project(x, y - (centered ? 0 : (l.height ?? img.height) * scale * 0.5));
-      g.save();
-      g.globalCompositeOperation = "screen";
-      const r = m.glow.radius * zl;
-      const gr = g.createRadialGradient(gp.x, gp.y, 0, gp.x, gp.y, r);
-      gr.addColorStop(0, hexA(m.glow.color, 0.9 * m.glow.amount));
-      gr.addColorStop(0.4, hexA(m.glow.color, 0.35 * m.glow.amount));
-      gr.addColorStop(1, hexA(m.glow.color, 0));
-      g.fillStyle = gr;
-      g.fillRect(gp.x - r, gp.y - r, r * 2, r * 2);
-      g.restore();
-    }
+    this.drawGlow(g, m.glow, project, x, y - (centered ? 0 : (l.height ?? img.height) * scale * 0.5), zl);
+  }
+
+  private drawGlow(g: SKRSContext2D, glow: { color: string; radius: number; amount: number } | null, project: (x: number, y: number) => { x: number; y: number }, wx: number, wy: number, zl: number): void {
+    if (!glow || glow.amount <= 0.01) return;
+    const gp = project(wx, wy);
+    g.save();
+    g.globalCompositeOperation = "screen";
+    const r = glow.radius * zl;
+    const gr = g.createRadialGradient(gp.x, gp.y, 0, gp.x, gp.y, r);
+    gr.addColorStop(0, hexa(glow.color, 0.9 * glow.amount));
+    gr.addColorStop(0.4, hexa(glow.color, 0.35 * glow.amount));
+    gr.addColorStop(1, hexa(glow.color, 0));
+    g.fillStyle = gr;
+    g.fillRect(gp.x - r, gp.y - r, r * 2, r * 2);
+    g.restore();
   }
 
   private drawCharacter(g: SKRSContext2D, c: CharEntry, t: number, cam: CameraState): void {
-    const l = c.layer, rig = c.rig, par = l.parallax ?? 1;
+    const l = c.layer, par = l.parallax ?? 1;
     const { project, zl } = this.project(cam, par);
-    const root = c.tl.root(t), pose = c.tl.pose(t);
+    const root = c.tl.root(t);
     const opacity = c.tl.alpha(t);
     if (opacity < 0.003) return;
-    const H = rig.h;
+    const weights = c.tl.viewWeights(t);
+    const views = (Object.entries(weights) as [keyof RigSet["views"], number][]).filter(([v]) => c.set.views[v]).sort((x, y) => x[1] - y[1]);
+    const base = c.tl.pose(t, views[views.length - 1]![0]);
     const stageH = (l.height ?? 900) * root.scale;
-    const s = (stageH / H) * zl * (1 + pose.pop);
-    const sg = Math.sign(root.sx) || 1;
-    const rp = project(root.x + pose.trembleX * stageH, root.y + pose.trembleY * stageH);
+    const rp = project(root.x + base.trembleX * stageH, root.y + base.trembleY * stageH);
+    const glows = glowsAt(c.lights, t);
+    const light: FigureLight = { tint: l.tint, tintAmount: l.tintAmount, rim: l.rim, glows };
+    const glitch = c.tl.glitch(t);
 
-    // contact shadow
     g.save();
+    // contact shadow
     if (l.shadow !== false) {
-      const sw = rig.w * 0.55 * s * (1 - pose.bob * 2), sh = sw * 0.16;
+      const ref = c.set.views[views[views.length - 1]![0]]!;
+      const s0 = (stageH / ref.h) * zl * (1 + base.pop);
+      const sw = ref.w * 0.55 * s0 * (1 - base.bob * 2), sh = sw * 0.16;
       const gr = g.createRadialGradient(rp.x, rp.y, 0, rp.x, rp.y, sw);
       gr.addColorStop(0, `rgba(0,0,0,${0.55 * opacity})`);
       gr.addColorStop(1, "rgba(0,0,0,0)");
-      g.translate(0, 0);
       g.fillStyle = gr;
       g.save();
       g.translate(rp.x, rp.y); g.scale(1, sh / sw); g.translate(-rp.x, -rp.y);
       g.fillRect(rp.x - sw, rp.y - sw, sw * 2, sw * 2);
       g.restore();
     }
+    if (l.blur && l.blur > 0) g.filter = `blur(${(l.blur * zl).toFixed(1)}px)`;
 
-    // compose the puppet in native pixels: legs on one scratch canvas, torso + head on another (the rim light must not
-    // catch the straight cut edges of the leg slices)
-    const m = Math.round(H * 0.3);
-    const cw = rig.w + 2 * m, ch = rig.h + rig.pad + 2 * m;
-    const lc = this.canvas(`legs-${l.id}`, cw, ch);
-    const lf = lc.getContext("2d");
-    const uc = this.canvas(`upper-${l.id}`, cw, ch);
-    const f = uc.getContext("2d");
-    const a = rig.analysis;
-    const pivotY = a.hipY;
-    const legs: [Pose["legL"], Canvas, number][] = [[pose.legR, rig.legR, a.hipRx], [pose.legL, rig.legL, a.hipLx]];
-    for (const [leg, canvas, px] of legs) {
-      lf.save();
-      lf.translate(m + px, m + pivotY + pose.bob * H - leg.lift * H);
-      lf.rotate(leg.rot * sg * (Math.PI / 180) * -1);
-      lf.translate(-px, -pivotY);
-      lf.drawImage(canvas, 0, 0);
-      lf.restore();
+    // each camera view is posed on its own canvas and cross-faded while the character turns
+    for (const [view, w] of views) {
+      const rig = c.set.views[view]!;
+      const sx0 = root.fv * (rig.nativeFacing === -1 ? -1 : 1);
+      const sx = Math.abs(sx0) < 0.05 ? 0.05 * (sx0 < 0 ? -1 : 1) : sx0;
+      const sg = Math.sign(sx) || 1;
+      const pose = view === views[views.length - 1]![0] ? base : c.tl.pose(t, view);
+      const fig = composeFigure((k, cw, ch) => this.canvas(k, cw, ch), `${l.id}-${view}`, rig, pose, sg, light);
+      const s = (stageH / rig.h) * zl * (1 + pose.pop);
+      const dx = -(fig.margin + rig.w / 2), dy = -(fig.margin + rig.pad + rig.h);
+      g.save();
+      g.globalAlpha = Math.min(1, opacity) * (views.length > 1 ? (w >= 0.999 ? 1 : w) : 1);
+      g.translate(rp.x, rp.y);
+      g.scale(sx * s, s);
+      if (glitch > 0) {
+        // glitch: the figure is drawn in horizontal bands that slip sideways, with a red/blue split
+        const bands = 9, bh = fig.canvas.height / bands;
+        for (let i = 0; i < bands; i++) {
+          const off = (noise1(t * 31 + i * 3.7, 11) > 0.1 ? noise1(t * 17 + i, 5) * 34 * glitch : 0);
+          g.drawImage(fig.canvas, 0, i * bh, fig.canvas.width, bh, dx + off, dy + i * bh, fig.canvas.width, bh);
+        }
+        g.globalCompositeOperation = "screen";
+        g.globalAlpha *= 0.35 * glitch;
+        g.drawImage(fig.canvas, dx - 5 * glitch, dy);
+        g.drawImage(fig.canvas, dx + 5 * glitch, dy);
+      } else {
+        g.drawImage(fig.canvas, dx, dy);
+      }
+      g.restore();
     }
-    const hipCx = (a.hipLx + a.hipRx) / 2;
-    f.save();
-    f.translate(m + hipCx, m + pivotY + pose.bob * H);
-    f.rotate(pose.lean * (rig.nativeFacing === -1 ? -1 : 1) * (Math.PI / 180));
-    f.translate(-hipCx, -pivotY);
-    f.drawImage(rig.torso, 0, 0);
-    // head about the neck
-    f.save();
-    f.translate(a.neckCx + pose.headDx * H * sg, a.neckY + pose.headDy * H);
-    f.rotate(pose.headRot * sg * (Math.PI / 180));
-    f.scale(pose.headSquashX, pose.headSquashY);
-    f.translate(-a.neckCx, -a.neckY);
-    // cross-fade the head: the neutral head fades OUT as variants fade in, so two hairlines never show at once
-    const entries = Object.entries(pose.head).filter(([n, w]) => rig.variants[n] && w > 0.002);
-    const total = Math.min(1, entries.reduce((a, [, w]) => a + w, 0));
-    f.globalAlpha = 1 - total;
-    if (total < 0.999) f.drawImage(rig.head, 0, 0);
-    let cum = 1 - total;
-    for (const [name, w] of entries) {
-      cum += w;
-      f.globalAlpha = Math.min(1, w / cum);
-      f.drawImage(rig.variants[name]!, 0, 0);
-    }
-    f.globalAlpha = 1;
-    f.restore();
-    f.restore();
-
-    // lighting match: ambient tint on both parts; event-driven glow (a phone lighting the face) on the upper body only
-    for (const part of [lf, f]) {
-      part.globalCompositeOperation = "source-atop";
-      if (l.tint && (l.tintAmount ?? 0) > 0) { part.globalAlpha = l.tintAmount!; part.fillStyle = l.tint; part.fillRect(0, 0, cw, ch); part.globalAlpha = 1; }
-      part.globalCompositeOperation = "source-over";
-    }
-    for (const e of c.lights) {
-      const local = t - e.start;
-      if (local < 0 || local > e.duration) continue;
-      const amt = num(e.params, "amount", 0.5) * envelope(local, e.duration, num(e.params, "in", 0.15), num(e.params, "out", 0.3));
-      f.globalCompositeOperation = "source-atop";
-      f.globalAlpha = Math.min(0.12, amt * 0.14);
-      f.fillStyle = str(e.params, "color", "#8fc4ff");
-      f.fillRect(0, 0, cw, ch);
-      f.globalAlpha = 1;
-      f.globalCompositeOperation = "source-over";
-    }
-    if (l.rim) {
-      const rc = this.canvas(`rim-${l.id}`, cw, ch), rg = rc.getContext("2d");
-      rg.drawImage(uc, 0, 0);
-      rg.globalCompositeOperation = "source-in";
-      rg.fillStyle = l.rim.color;
-      rg.fillRect(0, 0, cw, ch);
-      rg.globalCompositeOperation = "destination-out";
-      rg.drawImage(uc, -l.rim.side * sg * 3, 0);
-      f.globalCompositeOperation = "source-atop";
-      f.globalAlpha = l.rim.amount ?? 0.5;
-      f.drawImage(rc, 0, 0);
-      f.globalAlpha = 1;
-      f.globalCompositeOperation = "source-over";
-    }
-    lf.drawImage(uc, 0, 0); // upper body over the legs
-    const cv = lc;
-
-    // place on stage: feet-centre at the projected root; sx flips (and squashes during turns)
-    g.globalAlpha = Math.min(1, opacity);
-    g.translate(rp.x, rp.y);
-    g.scale(root.sx * s, s);
-    g.drawImage(cv, -(m + rig.w / 2), -(m + rig.pad + rig.h));
     g.restore();
   }
 }
 
-function hexA(hex: string, a: number): string {
-  const mm = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if (!mm) return hex;
-  const v = parseInt(mm[1]!, 16);
-  return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${a})`;
-}
 export { ease };

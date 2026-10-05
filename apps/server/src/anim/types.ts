@@ -3,6 +3,9 @@
  * body-part rigs, a list of timed AnimationEvents that move/animate any target, a camera, and procedural effects.
  * Everything is DATA: the director (or a hand-written script) produces it, the engine evaluates and renders it.
  */
+export const VIEW_NAMES = ["front", "three-quarter", "side", "back"] as const;
+export type ViewName = (typeof VIEW_NAMES)[number];
+
 export const LAYER_TYPES = ["background", "midground", "character", "prop", "foreground", "effect"] as const;
 export type LayerType = (typeof LAYER_TYPES)[number];
 
@@ -11,6 +14,8 @@ export interface VisualLayer {
   type: LayerType;
   /** Characters: rig id (defaults to `source`). */
   rig?: string;
+  /** Characters: the camera view shown at the start (default: the first available of front, three-quarter, side, back). */
+  view?: ViewName;
   /** Asset id in the AssetLibrary (a PNG with or without alpha). For characters: the rig id. */
   source: string;
   /** World position in stage pixels (1080x1920 at camera zoom 1). Characters/props: bottom-centre; backgrounds: centre. */
@@ -45,7 +50,7 @@ export interface VisualLayer {
 }
 
 export const CHARACTER_PRIMITIVES = [
-  "idle", "walk", "run", "enter", "exit", "turn", "look-left", "look-right", "look-up", "look-down", "look-center", "head-turn", "nod", "shake-head",
+  "idle", "view", "walk", "run", "enter", "exit", "turn", "look-left", "look-right", "look-up", "look-down", "look-center", "head-turn", "nod", "shake-head",
   "lean", "step-forward", "step-back", "hand-gesture", "point", "react", "surprise", "fear", "anger", "smile", "neutral", "stop",
 ] as const;
 export const OBJECT_PRIMITIVES = ["move", "scale", "rotate", "fade", "appear", "disappear", "shake", "flicker", "open", "close", "glow", "drive", "particle"] as const;

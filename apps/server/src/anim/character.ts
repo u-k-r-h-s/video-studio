@@ -1,5 +1,5 @@
 import { Track, ease, envelope, noise1 } from "./ease";
-import type { AnimationEvent, VisualLayer } from "./types";
+import type { AnimationEvent, ViewName, VisualLayer } from "./types";
 
 /**
  * Character animation by procedural pose: body-part transforms (bob, sway, leg swing, head turn/nod/shake, lean, pop,
@@ -8,7 +8,9 @@ import type { AnimationEvent, VisualLayer } from "./types";
  *
  * Units: offsets are fractions of the character's on-screen height H; angles in degrees; times in seconds.
  */
-export interface LegPose { rot: number; lift: number }
+/** Thigh rotation (deg, + = forward), knee flexion (deg, shin swings back) and foot lift (fraction of H). */
+export interface LegPose { rot: number; knee: number; lift: number }
+export interface ArmPose { rot: number }
 /** Conventions: headRot/headDx/trembleX are SCREEN space (clockwise / right positive); lean is relative to the facing direction. */
 export interface Pose {
   bob: number; // + = body lower
@@ -20,13 +22,15 @@ export interface Pose {
   headSquashY: number;
   legL: LegPose;
   legR: LegPose;
+  armL: ArmPose;
+  armR: ArmPose;
   pop: number; // extra uniform scale
   trembleX: number;
   trembleY: number;
   /** Head variant weights (sum <= 1; the rest is the neutral head). Keys: front, lookL, lookR, surprised, smile, worried, angry. */
   head: Record<string, number>;
 }
-export interface RootState { x: number; y: number; scale: number; /** signed horizontal scale: facing * native flip, passes through ~0 during a turn */ sx: number; facing: number }
+export interface RootState { x: number; y: number; scale: number; /** continuous facing value: -1 left .. +1 right, passing through 0 during a turn */ fv: number; /** signed horizontal scale: facing * native flip, passes through ~0 during a turn */ sx: number; facing: number }
 
 export const HEAD_VARIANTS = ["front", "lookL", "lookR", "surprised", "smile", "worried", "angry"] as const;
 const LOOKS = ["center", "left", "right", "up", "down", "camera"] as const;
@@ -37,12 +41,28 @@ type Expr = (typeof EXPRS)[number];
 const num = (p: AnimationEvent["params"], k: string, d: number): number => (typeof p?.[k] === "number" ? (p[k] as number) : d);
 const str = (p: AnimationEvent["params"], k: string, d: string): string => (typeof p?.[k] === "string" ? (p[k] as string) : d);
 
-export interface CharacterOptions {
-  /** Which way the source art faces on screen: -1 = left, +1 = right. */
+export interface ViewInfo {
+  /** Which way the source art of this view faces on screen: -1 = left, +1 = right. */
   nativeFacing: -1 | 1;
-  /** Does the rig have separate head variants (otherwise looks/expressions fall back to head transforms)? */
+  /** Does the view have separate head variants (otherwise looks/expressions fall back to head transforms)? */
   variants: ReadonlySet<string>;
 }
+export interface CharacterOptions {
+  /** Legacy single-view form (kept for simple rigs and tests). */
+  nativeFacing: -1 | 1;
+  variants: ReadonlySet<string>;
+  /** The views the character has art for. The first of `front`, `three-quarter`, `side`, `back` that exists is the default. */
+  views?: Partial<Record<ViewName, ViewInfo>>;
+}
+
+const VIEW_ORDER: ViewName[] = ["front", "three-quarter", "side", "back"];
+/** How a gait looks from each side: from the front the legs mostly lift and the body bobs; from the side they swing wide. */
+const GAIT: Record<ViewName, { swing: number; knee: number; bob: number; arm: number }> = {
+  front: { swing: 0.32, knee: 0.7, bob: 1.25, arm: 6 },
+  "three-quarter": { swing: 0.72, knee: 0.95, bob: 1.1, arm: 11 },
+  side: { swing: 1.12, knee: 1.15, bob: 1, arm: 0 },
+  back: { swing: 0.32, knee: 0.7, bob: 1.25, arm: 6 },
+};
 
 export class CharacterTimeline {
   readonly pathX: Track;
@@ -55,6 +75,8 @@ export class CharacterTimeline {
   readonly scaleT: Track;
   /** Visibility (fade / appear / disappear events) and flicker. */
   private readonly opacityT: Track;
+  private readonly viewT = {} as Record<ViewName, Track>;
+  readonly availableViews: ViewName[];
   private readonly look = {} as Record<Look, Track>;
   private readonly expr = {} as Record<Expr, Track>;
   private readonly events: AnimationEvent[];
@@ -72,6 +94,10 @@ export class CharacterTimeline {
     this.scaleT = new Track(layer.scale);
     this.opacityT = new Track(this.events.some((e) => e.type === "appear") ? 0 : layer.opacity);
     this.baseH = layer.height ?? 900;
+    const info = opts.views ?? { front: { nativeFacing: opts.nativeFacing, variants: opts.variants } };
+    this.availableViews = VIEW_ORDER.filter((v) => info[v]);
+    const first = layer.view && info[layer.view] ? layer.view : this.availableViews[0] ?? "front";
+    for (const v of VIEW_ORDER) this.viewT[v] = new Track(v === first ? 1 : 0);
     for (const l of LOOKS) this.look[l] = new Track(l === "center" ? 1 : 0);
     for (const x of EXPRS) this.expr[x] = new Track(x === "neutral" ? 1 : 0);
     this.compile();
@@ -139,6 +165,12 @@ export class CharacterTimeline {
           this.setLook(s, Math.max(0.12, Math.min(d, 0.45)), to === "left" ? "left" : to === "camera" ? "camera" : to === "right" ? "right" : "center");
           break;
         }
+        case "view": {
+          const to = str(p, "to", "front") as ViewName;
+          const use = this.availableViews.includes(to) ? to : this.nearestView(to);
+          for (const v of VIEW_ORDER) this.viewT[v].moveTo(s, Math.max(0.05, d), v === use ? 1 : 0, "inOut");
+          break;
+        }
         case "fade": this.opacityT.moveTo(s, d, num(p, "to", 0), "inOut"); break;
         case "appear": this.opacityT.moveTo(s, Math.min(d, 0.3), this.layer.opacity, "out"); break;
         case "disappear": this.opacityT.moveTo(s, d, 0, "in"); break;
@@ -184,6 +216,28 @@ export class CharacterTimeline {
   /** Speed in character heights per second (independent of depth scale). */
   private speedN(t: number): number { return this.speed(t) / (this.baseH * this.scaleT.at(t)); }
 
+  /** The available view closest to a requested one (a missing 3/4 view falls back to the front, a missing back to the front...). */
+  private nearestView(want: ViewName): ViewName {
+    const near: Record<ViewName, ViewName[]> = { front: ["three-quarter", "side", "back"], "three-quarter": ["front", "side", "back"], side: ["three-quarter", "front", "back"], back: ["three-quarter", "front", "side"] };
+    return this.availableViews.includes(want) ? want : near[want].find((v) => this.availableViews.includes(v)) ?? "front";
+  }
+
+  /** Weights of the views at time t (sum 1, only views that exist). */
+  viewWeights(t: number): Partial<Record<ViewName, number>> {
+    const out: Partial<Record<ViewName, number>> = {};
+    let total = 0;
+    for (const v of this.availableViews) { const w = Math.max(0, this.viewT[v].at(t)); if (w > 0.001) { out[v] = w; total += w; } }
+    if (total <= 0) return { [this.availableViews[0] ?? "front"]: 1 };
+    for (const v of Object.keys(out) as ViewName[]) out[v] = out[v]! / total;
+    return out;
+  }
+
+  /** Strength (0..1) of a glitch right now: flicker events with `glitch: true` break the figure into slipping bands. */
+  glitch(t: number): number {
+    for (const e of this.events) if (e.type === "flicker" && e.params?.glitch === true && t >= e.start && t <= e.start + e.duration) return noise1(t * 8, 3) > -0.1 ? num(e.params, "strength", 0.8) : 0;
+    return 0;
+  }
+
   /** Current opacity including glitch flicker events. */
   alpha(t: number): number {
     let a = this.opacityT.at(t);
@@ -200,25 +254,32 @@ export class CharacterTimeline {
     const f = this.facing.at(t);
     const sx = f * (this.opts.nativeFacing === -1 ? -1 : 1);
     // a turn passes through 0: keep a sliver so the figure squashes but never vanishes
-    return { x: this.pathX.at(t), y: this.pathY.at(t), scale: this.scaleT.at(t), sx: Math.abs(sx) < 0.05 ? 0.05 * (sx < 0 ? -1 : 1) : sx, facing: Math.sign(f) || 1 };
+    return { x: this.pathX.at(t), y: this.pathY.at(t), scale: this.scaleT.at(t), fv: f, sx: Math.abs(sx) < 0.05 ? 0.05 * (sx < 0 ? -1 : 1) : sx, facing: Math.sign(f) || 1 };
   }
 
-  pose(t: number): Pose {
+  pose(t: number, view: ViewName = this.availableViews[0] ?? "front"): Pose {
+    const gait = GAIT[view];
+    const viewVariants = (this.opts.views?.[view]?.variants ?? this.opts.variants) as ReadonlySet<string>;
     const run = this.runBlend.at(t);
     const v = this.speedN(t);
     const move = ease("inOut", Math.min(1, v / (0.19 + 0.10 * run))); // 0 = standing, 1 = full gait
     const stride = 0.30 + 0.10 * run;
     const phase = (Math.PI * this.dist.at(t)) / stride;
     const sinP = Math.sin(phase), cosP = Math.cos(phase);
-    const A = (16 + 16 * run) * move; // leg swing amplitude (deg)
+    const A = (16 + 16 * run) * move * gait.swing; // thigh swing amplitude (deg)
+    const K = (24 + 14 * run) * move * gait.knee; // knee flexion at mid-swing (deg)
+    const armA = (gait.arm * (1 + 0.9 * run)) * move;
     const f = Math.sign(this.facing.at(t)) || 1;
     const p: Pose = {
-      bob: move * (0.010 + 0.014 * run) * Math.abs(sinP),
+      bob: move * (0.010 + 0.014 * run) * Math.abs(sinP) * gait.bob,
       lean: move * (1.3 * sinP + (3 + 7 * run) * (v > 0 ? 1 : 0)),
       headRot: -move * 1.2 * sinP,
       headDx: 0, headDy: 0, headSquashX: 1, headSquashY: 1,
-      legL: { rot: A * sinP, lift: move * (0.012 + 0.02 * run) * Math.max(0, cosP) },
-      legR: { rot: -A * sinP, lift: move * (0.012 + 0.02 * run) * Math.max(0, -cosP) },
+      // the leg that is swinging forward (cos > 0 for the left one) bends its knee; the planted leg stays straight
+      legL: { rot: A * sinP, knee: K * Math.pow(Math.max(0, cosP), 1.1), lift: move * 0.008 * Math.max(0, cosP) * (view === "front" || view === "back" ? 1.8 : 1) },
+      legR: { rot: -A * sinP, knee: K * Math.pow(Math.max(0, -cosP), 1.1), lift: move * 0.008 * Math.max(0, -cosP) * (view === "front" || view === "back" ? 1.8 : 1) },
+      armL: { rot: -armA * sinP },
+      armR: { rot: armA * sinP },
       pop: 0, trembleX: 0, trembleY: 0, head: {},
     };
     // idle life: slow breathing, tiny weight shift and head drift (always present, strongest when standing)
@@ -232,7 +293,7 @@ export class CharacterTimeline {
     const lw = Object.fromEntries(LOOKS.map((l) => [l, this.look[l].at(t)])) as Record<Look, number>;
     const screenToNative = (screenSide: 1 | -1): "lookL" | "lookR" => (screenSide * (Math.sign(this.root(t).sx) || 1) < 0 ? "lookL" : "lookR");
     const addVariant = (name: string, w: number): void => { if (w > 0.001) p.head[name] = (p.head[name] ?? 0) + w; };
-    const has = (n: string): boolean => this.opts.variants.has(n);
+    const has = (n: string): boolean => viewVariants.has(n);
     const lookSide = (screenSide: 1 | -1, w: number): void => {
       if (w <= 0) return;
       const v = screenToNative(screenSide);
@@ -286,16 +347,19 @@ export class CharacterTimeline {
         }
         case "hand-gesture": {
           const env = envelope(local, e.duration, 0.1, 0.2), w = Math.sin((2 * Math.PI * 2.5 * local));
-          p.lean += (3 * w + 2) * env * f; p.headRot += 2.5 * w * env; p.bob -= 0.004 * Math.abs(w) * env; break;
+          p.lean += (3 * w + 2) * env * f; p.headRot += 2.5 * w * env; p.bob -= 0.004 * Math.abs(w) * env;
+          p.armR.rot += (38 + 14 * w) * env; break;
         }
         case "point": {
           const env = envelope(local, e.duration, 0.12, 0.25);
-          p.lean += 7 * env * f; p.headDx += 0.01 * env * f; p.pop += 0.01 * env; break;
+          p.lean += 7 * env * f; p.headDx += 0.01 * env * f; p.pop += 0.01 * env;
+          p.armR.rot += 78 * env; break;
         }
         case "surprise": case "react": {
           const k = Math.exp(-local * 6);
           const hop = Math.sin(Math.min(1, local / 0.18) * Math.PI) * (local < 0.18 ? 1 : 0);
           p.pop += num(q, "strength", 0.06) * k; p.bob -= 0.03 * hop; p.lean -= 7 * k * f; p.headRot -= 6 * k * f;
+          p.armL.rot += 20 * k; p.armR.rot += 20 * k;
           p.trembleX += 0.003 * k * Math.sin(local * 90); break;
         }
         case "shake": {
@@ -304,6 +368,7 @@ export class CharacterTimeline {
         }
         case "fear": {
           const env = envelope(local, e.duration, 0.1, 0.2);
+          p.armL.rot += (8 + 3 * Math.sin(local * 40)) * env; p.armR.rot += (8 + 3 * Math.sin(local * 37)) * env;
           p.trembleX += 0.0035 * env * Math.sin(local * 67); p.trembleY += 0.0025 * env * Math.sin(local * 81 + 1); break;
         }
         default: break;

@@ -6,9 +6,9 @@ import type { ShotAnimAction, ShotObjectAction } from "@studio/shared";
  * with a coarse `when`; this compiles it into timed AnimationEvents. The model never writes a time or a pixel, so a bad answer
  * can only produce a boring shot, never a broken one.
  */
-const WHEN_AT: Record<string, number> = { start: 0.04, early: 0.2, mid: 0.42, late: 0.66, end: 0.86 };
+export const WHEN_AT: Record<string, number> = { start: 0.04, early: 0.2, mid: 0.42, late: 0.66, end: 0.86 };
 /** Seconds an action takes when the director gives no duration (walks and runs fill most of the shot). */
-const DEFAULT_DURATION: Partial<Record<string, number>> = {
+export const DEFAULT_DURATION: Partial<Record<string, number>> = {
   walk: 0.7, run: 0.6, enter: 0.5, exit: 0.45, turn: 0.28, "head-turn": 0.5, "look-left": 0.6, "look-right": 0.6, "look-up": 0.6, "look-down": 0.7, "look-center": 0.5,
   nod: 0.8, "shake-head": 0.9, lean: 0.9, "step-forward": 0.7, "step-back": 0.7, "hand-gesture": 1.2, point: 1.0, react: 0.7, surprise: 0.9, fear: 1.4, anger: 1.2, smile: 1.4, idle: 1,
 };
@@ -24,6 +24,12 @@ export interface CompileInput {
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+/** Where an action starts and how long it lasts inside a shot of length D. */
+export function placeAction(when: string, dur: number, D: number): { start: number; duration: number } {
+  const start = clamp((WHEN_AT[when] ?? WHEN_AT.mid!) * D, 0, Math.max(0, D - 0.2));
+  return { start: Math.round(start * 100) / 100, duration: Math.round(clamp(dur, 0.1, Math.max(0.1, D - start)) * 100) / 100 };
+}
 
 export function compileAnimation(input: CompileInput): AnimationEvent[] {
   const D = input.duration;
