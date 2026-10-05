@@ -6,8 +6,55 @@ action; sound is driven by the movement. It is local, CPU-only (a Skia canvas vi
 video model, and renders a 3 s 1080x1920 shot in about 4-7 s on the M1.
 
 ```
-AI images (ComfyUI)  ->  cut-outs + rig  ->  shot spec (layers + events)  ->  frames (canvas)  ->  grade/captions (FFmpeg)  ->  mux with audio
+idea -> Ollama director -> story / scenes / shots (semantic actions)
+     -> asset manifest (what to generate, what exists)  -> ComfyUI: locations, character views, faces, props (+ BiRefNet matte)
+     -> animation compiler (shot -> layers + timed events + camera)  -> layered renderer (canvas, 30 fps)  -> grade/captions (FFmpeg)
+     -> voices + footsteps/doors/impacts locked to the motion + music -> 1080x1920 H.264/AAC MP4
 ```
+
+**This is the pipeline behind `npm run short`** (profile `animated-short`, `pipeline: "animated"`). The still-image pipeline
+(`cinematic-animated-short`) is still there as `--profile cinematic-animated-short`, but the animated pipeline never falls back to it:
+the render stage marks every clip `renderer: "anim"` and assembly refuses a project with any clip that lacks the mark
+(`test/anim-pipeline.test.ts` fails if that ever regresses).
+
+## Pipeline stages (`apps/server/src/pipeline/stages/animated/`)
+
+| stage id | file | what it does |
+|---|---|---|
+| `scene_planning` | `planAnimStory.ts` | director (small structured Ollama calls) -> story; `shots/animationRules.ts` reads the physical verbs of each sentence and guarantees that a quarter of the character shots travel; then the **asset manifest** is saved as `manifest.json` |
+| `image_generation` | `generateAnimAssets.ts` | one ComfyUI session: locations, the character's front view, other camera views, face variants, props; each cut out with BiRefNet and checked (`lib/matte.ts`); cached by content hash |
+| `voice_generation` | (shared) `generateShotVoices.ts` | Piper; digits are spelled out first (`lib/spoken.ts`: "13" -> "thirteen") |
+| `subtitles` | `buildAnimTimeline.ts` | timeline = real voice durations + time each action needs; word-timed captions; soundtrack incl. cues from the animation (`anim/cues.ts`) |
+| `scene_render` | `renderAnimShots.ts` | `anim/compose.ts` (compiler) -> `AnimEngine` -> FFmpeg; clips cached by hash of composed shot + art used |
+| `assembly` | `assembleAnimShots.ts` | guard (every clip is `renderer: anim`), join, mux, loudnorm |
+
+### The director states intent, the compiler decides numbers
+
+The model writes coarse semantic actions: `walk toward the building`, `turn toward the sound`, `look-down toward the phone`,
+`run away`, object `door: open`. It never writes pixels, coordinates, frame numbers or transforms. `anim/semantics.ts` resolves the
+words ("toward the door" -> direction `object`, "the sound" -> screen right, "away" -> into the depth), `anim/compose.ts` places the
+action in time (`when` -> seconds), picks the camera view of the character (walking right = side view, towards the camera = front),
+moves the layers and the camera, and `anim/cues.ts` derives the sounds. Same input -> byte-identical output (tested).
+
+### Asset manifest (`anim/manifest.ts`)
+
+`planAssets(story, characters, settings)` lists exactly what the shots need and nothing else: one wide background per location,
+per character the **views** its actions need (front always; side for a walk, three-quarter for a turn, back for walking away), the
+**face variants** its close shots need (look left/right, surprised, worried, smile, angry), and props from the objects that move
+(door, phone, car, package, generic). Every asset has a stable id (`loc-*`, `char-<id>-<view>`, `head-<id>-<variant>`, `prop-*`)
+and a hash of everything that defines it (prompt, size, steps, cfg, model, recipe version). Generation compares hashes with what the
+project has and with a content-addressed cache shared by all projects (`projects/.asset-cache`), so an unchanged asset is never
+generated twice. Other camera views are **text-to-image** with the same costume text and the same seed as the front view
+(measured: img2img from the front view returns the front view again, even at denoise 0.85).
+
+### Cut-outs: matte, not colour heuristics (`lib/matte.ts`, `anim/assets.ts`)
+
+BiRefNet runs in the same ComfyUI session (`LoadBackgroundRemovalModel` -> `RemoveBackground`), and its foreground matte is the
+alpha channel directly. White, black, grey, skin, pastel and glossy things stay exactly where the model says foreground is.
+A quality gate rejects an empty matte, a full-frame matte, a figure split into pieces, and a figure whose head or feet are cut off
+by the frame; a rejected asset is regenerated with a new seed (up to 3 rounds). A hand + phone gets a second matte pass on the
+residual. If ComfyUI crashes natively (seen once in the matting model under memory pressure) the provider restarts it and retries.
+
 
 ## Model (`apps/server/src/anim/types.ts`)
 
@@ -36,9 +83,9 @@ their joints; the rig is padded above the head so a taller hairline is never cli
   `fear` (tremble), `anger`, `smile`, fade/appear/flicker (glitch) are transient or held states.
 * Lighting match: scene tint, a thin rim light on the upper body, a contact shadow, event-driven glow (a phone lighting the face).
 
-## Cut-outs (`lib/chroma.ts`)
+## Cut-outs, heuristic fallback (`lib/chroma.ts`)
 
-The image model ignores "green screen" and draws a grey studio backdrop, so keying is by **flood fill of low-saturation, mid-brightness
+Kept for the lab scripts. The pipeline uses the matte above. The image model ignores "green screen" and draws a grey studio backdrop, so keying is by **flood fill of low-saturation, mid-brightness
 pixels from the border** (`keyGreyBackdrop`): the cast is dressed in saturated colours (white or grey clothing leaks: the prompts say so),
 edges are eroded, defringed and feathered. Head variants use the same keyer on a light backdrop with an adaptive brightness floor and
 `closeAlpha` to fill notches. (Keying by colour distance deleted white trousers; a flood fill with a continuity test leaked too.)
@@ -47,13 +94,23 @@ edges are eroded, defringed and feathered. Head variants use the same keyer on a
 
 The director states, per shot, a few physical actions with a coarse `when` (`start early mid late end`) and objects that move. The
 compiler turns them into timed events and a camera that responds (follow a walker, shake on a startle, push harder when tense).
-The model never writes seconds or pixels. **Status: the schema, director prompt and compiler exist and are tested; the one-command
-pipeline (`npm run short`) still renders with the still-image renderer. Wiring rig/prop/background generation into the shot pipeline is the next step.**
+The model never writes seconds or pixels.
 
 ## Sound driven by motion
 
-`engine.audioCues()` returns footsteps on every foot contact (from the gait), door sounds on `open`, `sfx` params on events, and an
+`audioCuesFor(spec)` (`anim/cues.ts`; `engine.audioCues()` is the same) returns footsteps on every foot contact (from the gait), door sounds on `open`, `sfx` params on events, and an
 impact for strong camera shakes. The lab scripts mix them with ambience, rain, a tension bed and ducked voices.
+
+## Checking a finished short
+
+```bash
+npx tsx scripts/audio-plan.ts <project-id>                    # what the soundtrack should contain (voice slots, cue times)
+venv-asr-testonly/bin/python scripts/audio_check.py ~/Desktop/<video>.mp4 /tmp/audio-plan-<project-id>.json
+```
+
+Reports loudness (LUFS/true peak/clipping), silent stretches, per-line Whisper intelligibility and start error against the timeline,
+and whether each footstep/door/ping/impact has a transient within 60 ms of its planned time. Nobody can *listen* here; these are
+measurements, not a verdict on how it sounds.
 
 ## Try it (lab scripts, assets in `projects/anim-lab`, not committed)
 

@@ -1,7 +1,9 @@
 # Pipeline
 
 > This page describes the scene pipeline (`motion-comic`). The shot pipeline (`cinematic-animated-short`) uses the same
-> stage ids, gates, caching and regeneration; its stages are listed in [shots.md](shots.md).
+> stage ids, gates, caching and regeneration; its stages are listed in [shots.md](shots.md). The animated pipeline
+> (`animated-short`, the default of `npm run short`) also keeps the stage ids and gates; its stages are in
+> [animation.md](animation.md#pipeline-stages-appsserversrcpipelinestagesanimated).
 
 ```
 User idea / script

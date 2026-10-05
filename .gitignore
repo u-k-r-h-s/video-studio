@@ -42,3 +42,4 @@ dist/
 projects/
 # Native helper binaries built by `npm run build:native`
 bin/
+results/run-*.csv

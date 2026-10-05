@@ -3,10 +3,14 @@
 A **local-first, profile-driven AI video studio**. Give it an idea; a local LLM directs it as a shot list, ComfyUI
 paints a handful of key images, Piper speaks the lines, a small synthesizer makes the sound, and FFmpeg renders a
 vertical 1080x1920 MP4 with 2.5D camera moves, depth of field, grade, grain and word-timed captions, all on your own
-machine with no paid API. A format is a data object (`FormatProfile`), not hard-coded behaviour. Two formats exist:
+machine with no paid API. A format is a data object (`FormatProfile`), not hard-coded behaviour. Three formats exist:
 
-* **`cinematic-animated-short`** (default, Phase 2B): story -> beats -> shots -> ~6-8 key images -> parallax camera ->
-  SFX/music -> edit. See [docs/shots.md](docs/shots.md).
+* **`animated-short`** (default): the director's shot list with semantic physical actions -> asset manifest ->
+  ComfyUI locations, character views, faces and props (cut out with a BiRefNet matte) -> animation compiler -> layered 2D/2.5D
+  renderer (walks, turns, doors, weather, camera) -> voices + sound locked to the motion -> MP4. See
+  [docs/animation.md](docs/animation.md).
+* **`cinematic-animated-short`** (Phase 2B, `--profile cinematic-animated-short`): story -> beats -> shots -> ~6-8 key images -> parallax camera ->
+  SFX/music -> edit. Still images with a moving camera, not animation. See [docs/shots.md](docs/shots.md).
 * **`motion-comic`** (Phase 2A): still illustrations with sliding cut-out characters. Kept working; visibly cruder.
 
 ```bash
@@ -16,7 +20,7 @@ npm run short -- "Create a 25 second animated mystery short about a delivery rid
 That one command starts the local API if needed, plans with Ollama, approves, generates and writes the MP4 to your
 Desktop (`--out`, `--seconds`, `--review` to stop after planning, `--resume <project-id>` to continue a failed run).
 
-**Animation engine (new):** a layered 2D/2.5D engine animates characters (walk, run, turn, look, react), props, doors, weather and the camera instead of zooming a still: see [docs/animation.md](docs/animation.md) and `npm run anim:test` / `npm run anim:short`. It is not yet wired into `npm run short`.
+**Animation engine:** `npm run short` now runs the layered 2D/2.5D engine (characters walk, turn, look and react; doors open; weather and camera move) and never falls back to the still-image renderer: see [docs/animation.md](docs/animation.md). `npm run anim:test` / `npm run anim:short` remain as the hand-authored regression/demo. It is a paper-doll style of animation with visible weaknesses; the honest list is in docs/animation.md.
 
 **Status: Phase 2B-Replacement.** The visual system is a large step up from the comic MVP and the pipeline is real end
 to end, but the *story writing* is limited by the 3B local model: see [Current limitations](#current-limitations) for an
@@ -99,6 +103,10 @@ curl -L -o comfyui/models/text_encoders/dreamshaper8_clip_fp16.safetensors     $
 curl -L -o comfyui/models/vae/dreamshaper8_vae_fp16.safetensors               $H/vae/diffusion_pytorch_model.fp16.safetensors    # 167 MB,  sha256 ff38c7ec...a33d
 # the same LCM-LoRA as below (comfyui/models/loras/lcm-lora-sdv1-5.safetensors) is required too
 ```
+
+**Background-removal model (needed by `animated-short`)**: BiRefNet (MIT, 444 MB) cuts characters and props out of their backdrop; it is loaded in the same ComfyUI session as the image model.
+
+Download the BiRefNet file from the `Comfy-Org/BiRefNet` repository on Hugging Face into `comfyui/models/background_removal/` and name it `birefnet.safetensors` (or set `COMFYUI_MATTE_MODEL` to its file name). The folder is git-ignored like all model weights.
 
 SD 1.5 + LCM-LoRA (motion comic, and the LoRA is shared), ~2.3 GB:
 
