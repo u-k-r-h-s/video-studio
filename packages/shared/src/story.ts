@@ -1,5 +1,8 @@
 import { z } from "zod";
 import {
+  ANIM_ACTIONS,
+  ANIM_WHEN,
+  OBJECT_ACTIONS,
   BEATS,
   CHARACTER_ACTIONS,
   EMOTIONS,
@@ -53,6 +56,25 @@ export const CameraRigSchema = z.object({
 });
 export type CameraRig = z.infer<typeof CameraRigSchema>;
 
+/** What happens physically in a shot, as the director states it: the engine places and times it. */
+export const AnimActionSchema = z.object({
+  character: z.string().min(1).max(64),
+  action: z.enum(ANIM_ACTIONS),
+  when: z.enum(ANIM_WHEN).default("mid"),
+  /** Seconds; derived from the action when absent. */
+  duration: z.number().min(0.1).max(8).optional(),
+  /** walk/run/enter: a screen position ("left" | "center" | "right") or an x in stage px; turn/head-turn: "left" | "right" | "camera". */
+  to: z.union([z.enum(["left", "center", "right", "camera"]), z.number()]).optional(),
+});
+export const ObjectActionSchema = z.object({
+  object: z.string().min(1).max(64),
+  action: z.enum(OBJECT_ACTIONS),
+  when: z.enum(ANIM_WHEN).default("mid"),
+  duration: z.number().min(0.1).max(8).optional(),
+});
+export type ShotAnimAction = z.infer<typeof AnimActionSchema>;
+export type ShotObjectAction = z.infer<typeof ObjectActionSchema>;
+
 export const ShotSchema = z.object({
   id: z.string().regex(/^shot-\d{2,3}$/),
   sceneId: z.string(),
@@ -81,6 +103,8 @@ export const ShotSchema = z.object({
   /** UI-style text drawn into the frame (phone message, title card). */
   insert: z.object({ kind: z.enum(["phone", "title"]), text: z.string().min(1).max(80) }).optional(),
   effects: z.object({ flash: z.boolean().optional(), impact: z.boolean().optional() }).optional(),
+  /** Physical action for the layered animation engine. */
+  animation: z.object({ actions: z.array(AnimActionSchema).max(8), objects: z.array(ObjectActionSchema).max(6) }).optional(),
 });
 export type Shot = z.infer<typeof ShotSchema>;
 

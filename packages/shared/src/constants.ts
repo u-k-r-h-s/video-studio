@@ -63,3 +63,11 @@ export const CHARACTER_ACTIONS = [
 
 export const SFX_KINDS = ["whoosh", "whoosh-rise", "impact", "ping", "ding", "door", "footsteps", "heartbeat", "riser", "glitch"] as const;
 export type SfxKind = (typeof SFX_KINDS)[number];
+
+/** Animation vocabulary for the layered engine (see docs/animation.md). `when` places an action in its shot without the model writing numbers. */
+export const ANIM_ACTIONS = ["idle", "walk", "run", "enter", "exit", "turn", "look-left", "look-right", "look-up", "look-down", "look-center", "head-turn", "nod", "shake-head", "lean", "step-forward", "step-back", "hand-gesture", "point", "react", "surprise", "fear", "anger", "smile"] as const;
+export type AnimActionName = (typeof ANIM_ACTIONS)[number];
+export const ANIM_WHEN = ["start", "early", "mid", "late", "end"] as const;
+export type AnimWhenName = (typeof ANIM_WHEN)[number];
+export const OBJECT_ACTIONS = ["appear", "disappear", "move", "open", "close", "glow", "shake", "drive", "flicker"] as const;
+export type ObjectActionName = (typeof OBJECT_ACTIONS)[number];

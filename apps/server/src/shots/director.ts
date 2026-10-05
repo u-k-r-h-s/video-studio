@@ -93,6 +93,8 @@ Shot rules:
 - "action": one concrete sentence about what we SEE (present tense), no camera jargon.
 - "line": optional, one short line a person would really SAY (max 12 words), never a place name or caption. "speaker" is a character id, or "narrator" (avoid narration). Spoken words left for the whole film: about ${wordBudget}.
 - "onScreenText": only for a phone/message/screen close-up: the text shown on it.
+- "actions": 1 to 3 PHYSICAL things the visible character does in this shot, in order, each with "when" (start, early, mid, late, end), e.g. walk, run, stop (idle), turn, look-left, look-right, look-down, head-turn (toward the camera), nod, shake-head, lean, step-forward, step-back, react, surprise, fear, anger, smile. Every shot with a character needs at least one action: nobody just stands there.
+- "objects": optional, for a visible object that moves: a door that opens, a phone that lights up (action appear, disappear, move, open, close, glow, shake, drive, flicker).
 - "location" is one of the ids above.`;
 }
 

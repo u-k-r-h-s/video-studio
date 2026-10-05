@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { StorySchema, shotId, type Shot } from "@studio/shared";
 import { checkShots, dropRepeatedLines, shotsPerBeat, ShotDirector, varyFraming } from "../src/shots/director";
-import { DirectedShotsSchema, DirectorOutlineSchema, normalizeBeats, normalizeOutline, normalizeShots } from "../src/shots/directorSchemas";
+import { BeatShotsSchema, DirectedShotsSchema, DirectorOutlineSchema, normalizeBeats, normalizeOutline, normalizeShots } from "../src/shots/directorSchemas";
 import { actionCue, planKeyVisuals } from "../src/shots/keyVisuals";
 import { buildStory } from "../src/shots/storyBuilder";
 import { cinematicAnimatedShort } from "../src/profiles/cinematicAnimatedShort";
@@ -285,5 +285,29 @@ describe("action cue in image prompts", () => {
     expect(hook.prompt.toLowerCase()).toContain("phone");
     for (const k of story.keyVisuals.filter((x) => x.kind !== "portrait")) expect(k.initFrom).toBeUndefined();
     expect(story.keyVisuals.some((k) => k.prompt.includes("Kai"))).toBe(false);
+  });
+});
+
+describe("director states the physical action", () => {
+  it("normalises action names and timing words, and keeps them on the shot as animation", () => {
+    const out = BeatShotsSchema.parse(normalizeShots({ shots: [
+      { beat: "hook", shotType: "wide", location: "alley", character: "kai", emotion: "calm", action: "Kai walks down the alley.", actions: [{ action: "Walking", when: "beginning" }, { action: "Turns Head", when: "after" }], objects: [{ object: "Street Lamp", action: "flicker", when: "middle" }] },
+    ] }, outline));
+    expect(out.shots[0]!.actions).toEqual([{ action: "walk", when: "start" }, { action: "head-turn", when: "late" }]);
+    expect(out.shots[0]!.objects).toEqual([{ object: "street-lamp", action: "flicker", when: "mid" }]);
+  });
+  it("a built story carries each shot's actions for the engine (only when a character is on screen)", () => {
+    const withActions = DirectedShotsSchema.parse(normalizeShots({ shots: DIRECTOR_SHOTS.shots.map((s, i) => ({ ...s, ...(i === 3 ? { actions: [{ action: "look-down", when: "early" }, { action: "nod", when: "late" }] } : {}) })) }, outline));
+    const { story } = buildStory(outline, withActions, profile, "T");
+    expect(story.shots[3]!.animation?.actions.map((a) => a.action)).toEqual(["look-down", "nod"]);
+    expect(story.shots[3]!.animation?.actions[0]!.character).toBe("kai");
+    expect(story.shots[2]!.animation).toBeUndefined();
+    expect(StorySchema.safeParse(story).success).toBe(true);
+  });
+  it("the shot prompt asks for physical actions", () => {
+    const llm = new FakeLLM((req) => directorResponder(req));
+    return new ShotDirector(llm, { maxRepairs: 1, temperature: 0.5 }).direct({ idea: "A rider.", targetDurationSeconds: 25 }, profile).then(() => {
+      expect(llm.requests[2]!.messages.at(-1)!.content).toContain("PHYSICAL");
+    });
   });
 });

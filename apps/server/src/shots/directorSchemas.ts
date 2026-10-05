@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BEATS, SHOT_TYPES, STORY_EMOTIONS, slugify } from "@studio/shared";
+import { ANIM_ACTIONS, ANIM_WHEN, BEATS, OBJECT_ACTIONS, SHOT_TYPES, STORY_EMOTIONS, slugify } from "@studio/shared";
 
 /**
  * What the LLM is asked to return. Deliberately small: it chooses ENUMS and short TEXT only. Camera moves, durations,
@@ -36,6 +36,8 @@ export const DirectedShotSchema = z.object({
   action: z.string().min(3).max(200).describe("what we SEE in this shot, one sentence, present tense"),
   line: z.object({ speaker: Id.describe("a character id or 'narrator'"), text: z.string().min(1).max(140) }).optional().describe("at most one short spoken line; omit for silent shots"),
   onScreenText: z.string().max(40).optional().describe("only for a phone/message/screen close-up: the text shown"),
+  actions: z.array(z.object({ action: z.enum(ANIM_ACTIONS), when: z.enum(ANIM_WHEN) })).max(3).optional().describe("what the visible character physically does in this shot, in order"),
+  objects: z.array(z.object({ object: z.string().min(1).max(30), action: z.enum(OBJECT_ACTIONS), when: z.enum(ANIM_WHEN) })).max(2).optional().describe("what a visible object does (a door opens, a phone lights up)"),
 });
 export const DirectedBeatsSchema = z.object({
   beats: z.array(z.object({ beat: z.enum(BEATS), what: z.string().min(5).max(220).describe("one or two sentences: what happens in this part of the story") })).length(6),
@@ -62,6 +64,14 @@ const EMOTION_SYNONYMS: Record<string, string> = {
   scared: "fear", afraid: "fear", terrified: "fear", frightened: "fear", surprised: "shock", shocked: "shock", surprise: "shock", happy: "joy", excited: "joy", relieved: "calm", suspicious: "uneasy", worried: "uneasy", nervous: "uneasy", anxious: "uneasy", mysterious: "eerie", creepy: "eerie", spooky: "eerie", angry: "anger", furious: "anger", sadness: "sad", tension: "tense", determined: "tense", wonder: "awe", amazed: "awe", curiosity: "curious", confused: "curious", thinking: "curious",
 };
 const BEAT_SYNONYMS: Record<string, string> = { intro: "hook", opening: "hook", introduction: "setup", exposition: "setup", rising: "escalation", "rising-action": "escalation", climax: "escalation", twist: "payoff", resolution: "payoff", ending: "payoff", reveal: "payoff", problem: "conflict", mystery: "curiosity", discovery: "curiosity" };
+
+const ACTION_SYN: Record<string, string> = { walking: "walk", walks: "walk", running: "run", runs: "run", turns: "turn", "turn-around": "turn", "look-at-camera": "head-turn", "turns-head": "head-turn", "looks-left": "look-left", "looks-right": "look-right", "look-down": "look-down", nods: "nod", gasp: "surprise", startled: "surprise", scared: "fear", frightened: "fear", angry: "anger", smiles: "smile", "steps-forward": "step-forward", "steps-back": "step-back", gesture: "hand-gesture", points: "point", react: "react", stops: "idle", stop: "idle", stand: "idle", standing: "idle" };
+const WHEN_SYN: Record<string, string> = { begin: "start", beginning: "start", first: "early", middle: "mid", center: "mid", after: "late", finally: "end", last: "end" };
+function normAction(a: unknown): unknown {
+  if (!isRecord(a)) return a;
+  const k = key(a.action);
+  return { action: ACTION_SYN[k] ?? k, when: WHEN_SYN[key(a.when)] ?? (key(a.when) || "mid") };
+}
 
 export function normalizeOutline(raw: unknown): unknown {
   if (!isRecord(raw)) return raw;
@@ -116,6 +126,8 @@ export function normalizeShots(raw: unknown, outline: DirectorOutline): unknown 
         beat: BEAT_SYNONYMS[be] ?? be, shotType: SHOT_SYNONYMS[st] ?? st, location, character, emotion: EMOTION_SYNONYMS[em] ?? em,
         action: typeof s.action === "string" ? s.action.trim() : s.action,
         // junk lines ("-", "...") are dropped: a caption must be words
+        ...(Array.isArray(s.actions) ? { actions: s.actions.map(normAction).filter(Boolean) } : {}),
+        ...(Array.isArray(s.objects) ? { objects: s.objects.filter(isRecord).map((o) => ({ object: slugify(String(o.object ?? "")), action: key(o.action), when: WHEN_SYN[key(o.when)] ?? (key(o.when) || "mid") })) } : {}),
         ...(line && typeof line.text === "string" && (line.text.match(/\p{L}/gu)?.length ?? 0) >= 2 ? { line } : {}), ...(text ? { onScreenText: text.slice(0, 40) } : {}),
       };
     }),

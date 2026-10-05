@@ -70,10 +70,13 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
     const insert: Shot["insert"] = phone ? { kind: "phone", text: d.onScreenText!.toUpperCase() } : i === n - 1 ? { kind: "title", text: title.toUpperCase().slice(0, 60) } : undefined;
     const effects: Shot["effects"] = intense && beat !== "hook" ? { impact: true } : beat === "payoff" && i === n - 2 ? { flash: true } : undefined;
     if (effects?.impact && !sfx.some((x) => x.kind === "impact")) sfx.push({ kind: "impact", at: 0, volume: 0.6 });
+    const animation = subject.length || d.objects?.length
+      ? { actions: (d.actions ?? []).filter((x) => subject.length > 0).map((x) => ({ character: subject[0]!, action: x.action, when: x.when })), objects: (d.objects ?? []).map((o) => ({ object: o.object, action: o.action, when: o.when })) }
+      : undefined;
     return {
       id, sceneId: "", order, beat, duration, shotType: d.shotType, subjectIds: subject, locationId: locations.some((l) => l.id === d.location) ? d.location : locations[0]!.id, emotion: d.emotion, action: d.action, visualPrompt: d.action, visualKey: "",
       focus: defaultFocus(d.shotType), camera: cam.camera, motion: cam.motion,
-      transition: { type: i === n - 1 ? "fade" : "cut" }, characterMotion, dialogue, sfx, ...(insert ? { insert } : {}), ...(effects ? { effects } : {}),
+      transition: { type: i === n - 1 ? "fade" : "cut" }, characterMotion, dialogue, sfx, ...(insert ? { insert } : {}), ...(effects ? { effects } : {}), ...(animation && (animation.actions.length || animation.objects.length) ? { animation } : {}),
     };
   });
 

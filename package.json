@@ -19,7 +19,9 @@
     "test": "npm run test --workspaces --if-present",
     "build:native": "bash scripts/build-native.sh",
     "doctor": "bash scripts/check-env.sh",
-    "short": "node scripts/create-short.mjs"
+    "short": "node scripts/create-short.mjs",
+    "anim:test": "tsx scripts/lab/anim-test.ts",
+    "anim:short": "tsx scripts/lab/anim-short.ts"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

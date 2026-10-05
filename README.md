@@ -16,6 +16,8 @@ npm run short -- "Create a 25 second animated mystery short about a delivery rid
 That one command starts the local API if needed, plans with Ollama, approves, generates and writes the MP4 to your
 Desktop (`--out`, `--seconds`, `--review` to stop after planning, `--resume <project-id>` to continue a failed run).
 
+**Animation engine (new):** a layered 2D/2.5D engine animates characters (walk, run, turn, look, react), props, doors, weather and the camera instead of zooming a still: see [docs/animation.md](docs/animation.md) and `npm run anim:test` / `npm run anim:short`. It is not yet wired into `npm run short`.
+
 **Status: Phase 2B-Replacement.** The visual system is a large step up from the comic MVP and the pipeline is real end
 to end, but the *story writing* is limited by the 3B local model: see [Current limitations](#current-limitations) for an
 honest account. This repository also contains the earlier hardware feasibility harness (`REPORT.md`, `results/`,
