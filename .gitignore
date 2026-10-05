@@ -43,3 +43,6 @@ projects/
 # Native helper binaries built by `npm run build:native`
 bin/
 results/run-*.csv
+assets/3d/**/*.glb
+assets/3d/**/*.gltf
+assets/3d/**/*.bin

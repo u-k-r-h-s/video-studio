@@ -1,0 +1,31 @@
+{
+ "out": "/Users/apple/Desktop/three3d-poc.mp4",
+ "frames": 300,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "sizeMB": 17.8,
+ "totalSeconds": 23.3,
+ "renderSeconds": 22.1,
+ "msPerFrame": {
+  "median": 64,
+  "p95": 70,
+  "max": 165
+ },
+ "effectiveFps": 13.6,
+ "peakMemoryMB": 1440,
+ "scene": {
+  "clips": [
+   "Idle 1.97s",
+   "Run 0.70s",
+   "TPose 0.03s",
+   "Walk 1.03s"
+  ],
+  "triangles": 35442,
+  "calls": 68,
+  "textures": 14,
+  "geometries": 35,
+  "gl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+  "walkMeters": "6.98"
+ }
+}
