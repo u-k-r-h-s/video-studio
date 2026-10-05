@@ -44,8 +44,8 @@ describe.skipIf(!ready)("animated pipeline end to end (fake Ollama/ComfyUI/Piper
     const manifest = JSON.parse(await fs.readFile(h.svc.store.resolve(id, "manifest.json"), "utf8"));
     const ids: string[] = manifest.assets.map((a: { id: string }) => a.id);
     expect(ids.filter((x) => x.startsWith("loc-"))).toHaveLength(2);
-    expect(ids).toContain("char-kai-front");
-    expect(ids).toContain("char-kai-side"); // a walk needs the side view
+    expect(ids).toContain("char-kai-puppet"); // one body picture, cut into a puppet
+    expect(ids.some((x) => x.includes("flashlight"))).toBe(false); // the torch is drawn, not generated
     expect(ids.some((x) => x.startsWith("prop-"))).toBe(true);
     expect(new Set(ids).size).toBe(ids.length); // nothing is generated twice
   });
@@ -74,7 +74,12 @@ describe.skipIf(!ready)("animated pipeline end to end (fake Ollama/ComfyUI/Piper
       const c = clips.find((x) => x.meta.shotId === shot.id)!;
       expect(Math.abs((c.meta.durationSec as number) - tl.shots[i]!.duration)).toBeLessThan(1 / lowFps.video.fps + 0.02);
     }
-    expect(p.assets.some((a) => a.kind === "key_visual")).toBe(false); // no still key images in this pipeline
+    expect(p.assets.some((a) => a.kind === "key_visual")).toBe(false);
+    // the torch the director asked for is carried in the hand (parented to the character) and raised
+    const torchShot = p.story!.shots.find((s) => s.animation?.objects.some((o) => o.object === "flashlight"))!;
+    const compiled = JSON.parse(await fs.readFile(h.svc.store.resolve(id, `shots/${torchShot.id}.compiled.json`), "utf8"));
+    expect(compiled.spec.layers.find((l: { id: string }) => l.id === "obj-flashlight")?.parent?.layerId).toBe("kai");
+    expect(compiled.spec.events.some((e: { type: string }) => e.type === "raise-object")).toBe(true); // no still key images in this pipeline
     const fin = p.assets.find((a) => a.kind === "final_video")!;
     expect(fin.meta.width).toBe(1080);
     expect(fin.meta.height).toBe(1920);

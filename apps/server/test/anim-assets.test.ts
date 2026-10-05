@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { audioCuesFor } from "../src/anim/cues";
 import { composeShot } from "../src/anim/compose";
 import { AssetCache } from "../src/anim/assets";
-import { diffManifest, planAssets } from "../src/anim/manifest";
+import { MANNEQUIN_INIT, diffManifest, planAssets, withoutBeings } from "../src/anim/manifest";
 import { applyMatte, assessMatte } from "../src/lib/matte";
 import { setLogQuiet } from "../src/lib/logger";
 import { spokenText } from "../src/lib/spoken";
@@ -25,18 +25,23 @@ describe("asset manifest", () => {
     const ids = manifest.assets.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.filter((i) => i.startsWith("loc-"))).toHaveLength(2);
-    expect(ids).toContain("char-kai-front");
-    expect(ids).toContain("char-kai-side"); // walk
-    expect(ids).not.toContain("char-kai-back"); // nobody walks away in this film
+    expect(ids).toContain("char-kai-puppet"); // ONE body picture per character, cut into a puppet
+    expect(ids.some((i) => /^char-kai-(front|side|back|three-quarter)$/.test(i))).toBe(false); // no separately generated views
+    expect(ids.some((i) => /head-kai-(lookL|lookR|front)/.test(i))).toBe(false); // looks are head turns, not new pictures
     expect(ids.some((i) => i.startsWith("prop-door"))).toBe(true);
     expect(ids.some((i) => i.startsWith("prop-phone"))).toBe(true);
     expect(ids.some((i) => i.startsWith("head-kai-"))).toBe(true);
   });
-  it("gives other camera views a text-to-image recipe with a shared seed (img2img from the front only returns the front)", () => {
-    const side = manifest.assets.find((a) => a.id === "char-kai-side")!, front = manifest.assets.find((a) => a.id === "char-kai-front")!;
-    expect(side.init).toBeUndefined();
-    expect(side.seedKey).toBe(front.seedKey);
-    expect(side.prompt).toContain("side");
+  it("draws every character over the mannequin, faces from the body's head crop, backgrounds checked for intruders", () => {
+    const body = manifest.assets.find((a) => a.id === "char-kai-puppet")!;
+    expect(body.init).toEqual({ assetId: MANNEQUIN_INIT, denoise: 0.78 });
+    expect(body.prompt).toContain("arms held away from the body");
+    const heads = manifest.assets.filter((a) => a.kind === "head_variant" && a.ownerId === "kai");
+    expect(heads.every((h) => h.init?.assetId === body.id && h.init.denoise <= 0.56 && h.matte === "none")).toBe(true);
+    const loc = manifest.assets.find((a) => a.kind === "location")!;
+    expect(loc.matte).toBe("check");
+    expect(loc.negative).toMatch(/person/);
+    expect(withoutBeings("crowded with machinery, gentle green light from the glowing fox")).toBe("crowded with machinery");
   });
   it("is stable: planning twice gives identical ids and hashes; changing a prompt changes only that asset's hash", () => {
     const again = planAssets(built.story, built.characters, anim);
