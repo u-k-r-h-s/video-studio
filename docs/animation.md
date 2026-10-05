@@ -122,8 +122,24 @@ npm run anim:test                                  # the five-part animation tes
 npm run anim:short                                 # "The Last Delivery", 10 shots, ~29 s -> projects/anim-lab/short/
 ```
 
-## Honest limits
+## Honest limits (measured on real runs, 2026-10-06)
 
-Paper-doll animation: legs scissor and stay straight, arms do not swing, the character always faces the camera (never walks away),
-faces are limited to the redrawn variants, the door and phone are flat props, and the "double" is the same face tinted. It reads as
-physical action (walking, running, turning, reacting, a door opening, traffic, weather), not as hand-animated film.
+Two complete runs of `npm run short` from an idea (7B director): a night guard in a museum and a lighthouse keeper. Both give a 1080x1920,
+30 fps, H.264/AAC video of 23-28 s in 12-21 minutes on the 8 GB M1. What is real and what is weak:
+
+* **Real**: characters walk in profile with alternating legs, turn through a three-quarter view, change expression (face variants),
+  a door opens with light spilling out, rain/fog/dust move, the camera follows, footsteps and door sounds land within 60 ms of the
+  visible event, speech is intelligible (Whisper recovers every line).
+* **Identity drifts between camera views.** Each view is a separate text-to-image render (img2img from the front view only returns the
+  front view). The front view and the side view of the same character can look like different people (hair length, coat). This is the
+  most visible flaw.
+* **Paper-doll look.** Cut-out puppets: arms swing only in non-profile views, a long coat is rigid, faces are swapped variants (the
+  expression pops rather than morphs), the "double"/ghost is a tinted copy. Close-ups of a standing character are still close to a slideshow.
+* **The director is the ceiling.** The 7B model often writes few physical actions, so the pipeline reads verbs from the sentence and
+  forces a quarter of the character shots to walk. Stories are generic.
+* **Props are generated art, not 3D.** Doors get a frame, perspective leaf, dark interior and light spill; a "drawing" or "flashlight"
+  is a flat generated sprite and sometimes the wrong object. A location image may contain things nobody asked for (a fox, a ghost at the end of a hall).
+* **Memory.** ComfyUI + BiRefNet reached an 8.3 GB footprint and 9 GB swap on the 8 GB machine (free memory 2 %); it finished, and one
+  native ComfyUI crash in the matting model was recovered by the restart logic. Close other apps.
+* **Audio**: loudness -16 LUFS, true peak -1.4 dBTP, no clipping. Nobody has listened to it; voice start alignment against the plan could
+  only be bounded to about 0.3 s by measurement.
