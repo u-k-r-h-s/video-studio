@@ -7,6 +7,7 @@ import { PipelineRunner } from "./pipeline/PipelineRunner";
 import { Studio } from "./pipeline/Studio";
 import type { PipelineServices } from "./pipeline/types";
 import { ScenePlanner } from "./planner/ScenePlanner";
+import { AssetCache } from "./anim/assets";
 import { ShotDirector } from "./shots/director";
 import path from "node:path";
 import { ProfileRegistry } from "./profiles";
@@ -61,6 +62,7 @@ export function createContainer(config: AppConfig): Container {
       ds8: { id: "ds8", unet: d.unet, clip: d.clip, vae: d.vae, lora: config.comfy.lora },
     },
     defaultModel: "sd15",
+    matteModel: config.comfy.matteModel,
   });
   const tts = new PiperProvider(runner, config.piper, loadVoiceCatalog(config.piper.catalogFile));
   const subtitle = new CoreTextSubtitleRenderer(runner, config.subtitles.helper);
@@ -70,10 +72,12 @@ export function createContainer(config: AppConfig): Container {
     store, profiles, gate,
     planner: new ScenePlanner(llm, { maxRepairs: config.ollama.maxRepairs, temperature: config.ollama.temperature }),
     advisor: new MemoryAdvisor(runner), memoryWarnFreePercent: config.memory.warnFreePercent,
+    assetCache: new AssetCache(path.join(config.projectsDir, ".asset-cache")),
     director: new ShotDirector(llm, { maxRepairs: config.ollama.maxRepairs, temperature: config.ollama.temperature }),
     media: { runner, ffmpeg: config.ffmpeg.ffmpeg, ffprobe: config.ffmpeg.ffprobe, captionHelper: config.subtitles.helper, renderer },
     modelFiles: {
       ds8: [path.join(config.comfy.dir, "models", "diffusion_models", d.unet), path.join(config.comfy.dir, "models", "text_encoders", d.clip), path.join(config.comfy.dir, "models", "vae", d.vae), path.join(config.comfy.dir, "models", "loras", config.comfy.lora)],
+      birefnet: [path.join(config.comfy.dir, "models", "background_removal", config.comfy.matteModel)],
     },
     providers: { image: { [image.name]: image }, tts: { [tts.name]: tts }, subtitle: { [subtitle.name]: subtitle }, renderer: { [renderer.name]: renderer } },
   };

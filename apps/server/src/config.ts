@@ -35,6 +35,8 @@ const EnvSchema = z.object({
   /** DreamShaper 8 split components (Lykon/dreamshaper-8, CreativeML OpenRAIL-M): used by the cinematic profile. */
   COMFYUI_DS8_UNET: z.string().default("dreamshaper8_unet_fp16.safetensors"),
   COMFYUI_DS8_CLIP: z.string().default("dreamshaper8_clip_fp16.safetensors"),
+  /** Background-removal model for cut-outs (ComfyUI BiRefNet, models/background_removal). */
+  COMFYUI_MATTE_MODEL: z.string().default("birefnet.safetensors"),
   COMFYUI_DS8_VAE: z.string().default("dreamshaper8_vae_fp16.safetensors"),
   COMFYUI_START_TIMEOUT_MS: z.coerce.number().int().min(5000).default(180_000),
   COMFYUI_IMAGE_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(600_000),
@@ -67,6 +69,7 @@ export interface AppConfig {
     checkpoint: string;
     lora: string;
     ds8: { unet: string; clip: string; vae: string };
+    matteModel: string;
     startTimeoutMs: number;
     imageTimeoutMs: number;
     stopTimeoutMs: number;
@@ -137,6 +140,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, root: string = 
       checkpoint: e.COMFYUI_CHECKPOINT,
       lora: e.COMFYUI_LORA,
       ds8: { unet: e.COMFYUI_DS8_UNET, clip: e.COMFYUI_DS8_CLIP, vae: e.COMFYUI_DS8_VAE },
+      matteModel: e.COMFYUI_MATTE_MODEL,
       startTimeoutMs: e.COMFYUI_START_TIMEOUT_MS,
       imageTimeoutMs: e.COMFYUI_IMAGE_TIMEOUT_MS,
       stopTimeoutMs: e.COMFYUI_STOP_TIMEOUT_MS,

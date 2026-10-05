@@ -77,6 +77,12 @@ export class ComfyTimeoutError extends AppError {
     });
   }
 }
+/** ComfyUI's process died while a request was running (a native crash): the session can be restarted and the request retried. */
+export class ComfyCrashedError extends AppError {
+  constructor(detail: string) {
+    super("comfy_crashed", "ComfyUI stopped unexpectedly while generating.", { details: detail, hint: "Close other apps to free memory, then retry. Finished images are kept.", status: 502 });
+  }
+}
 export class ComfyGenerationError extends AppError {
   constructor(detail: string, cause?: unknown) {
     super("comfyui_generation_failed", "ComfyUI could not generate the image.", { details: detail, cause, status: 502 });

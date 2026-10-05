@@ -20,6 +20,17 @@ export interface ImageRequest {
   scheduler?: string;
   /** img2img: start from this image (absolute path) with the given denoise strength (0..1). Output has the init image's size. */
   initImage?: { path: string; denoise: number };
+  /**
+   * "matte": instead of generating, compute the foreground mask of `initImage.path` with a background-removal model and write
+   * it to `outPath` as a grey image (white = foreground). Runs in the same ComfyUI session as the generations.
+   */
+  task?: "generate" | "matte";
+  /**
+   * Awaited right before this request runs (after the previous requests were saved and reported through `onImage`). It may
+   * create the files this request depends on (a head crop cut from an image generated earlier in the batch) and may replace
+   * request fields. Return `null` to skip the request.
+   */
+  prepare?: () => Promise<Partial<Pick<ImageRequest, "initImage" | "prompt">> | null | void>;
 }
 
 export interface ImageResult {

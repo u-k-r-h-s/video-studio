@@ -100,3 +100,17 @@ export function buildWorkflow(p: WorkflowParams): ComfyGraph {
 export function buildLcmWorkflow(p: { checkpoint: string; lora: string; prompt: string; negativePrompt: string; width: number; height: number; seed: number; steps?: number; cfg?: number }): ComfyGraph {
   return buildWorkflow({ model: { id: "sd15", checkpoint: p.checkpoint, lora: p.lora }, ...p });
 }
+
+/**
+ * Foreground matte with ComfyUI's built-in BiRefNet "Remove Background" node. The graph returns the mask as a grey image
+ * (white = foreground) through the same PreviewImage output, so the provider fetches it like any other result.
+ */
+export function buildMatteWorkflow(p: { imageName: string; modelFile: string }): ComfyGraph {
+  return {
+    "1": { class_type: "LoadImage", inputs: { image: p.imageName } },
+    "2": { class_type: "LoadBackgroundRemovalModel", inputs: { bg_removal_name: p.modelFile } },
+    "3": { class_type: "RemoveBackground", inputs: { bg_removal_model: ["2", 0], image: ["1", 0] } },
+    "4": { class_type: "MaskToImage", inputs: { mask: ["3", 0] } },
+    [OUTPUT_NODE_ID]: { class_type: "PreviewImage", inputs: { images: ["4", 0] } },
+  };
+}

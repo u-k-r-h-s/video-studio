@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ServiceDetail } from "@studio/shared";
-import { CancelledError, ComfyGenerationError, ComfyTimeoutError, describeError } from "../../errors";
+import { CancelledError, ComfyCrashedError, ComfyGenerationError, ComfyTimeoutError, describeError } from "../../errors";
 import { createLogger } from "../../lib/logger";
 import type { MemoryGate } from "../../services/MemoryGate";
 import type { ComfySession } from "./ComfyProcess";
 import { createHash } from "node:crypto";
-import { buildWorkflow, OUTPUT_NODE_ID, type ComfyGraph, type ModelSpec, type WorkflowParams } from "./comfyWorkflow";
+import { buildMatteWorkflow, buildWorkflow, OUTPUT_NODE_ID, type ComfyGraph, type ModelSpec, type WorkflowParams } from "./comfyWorkflow";
 import type { BatchHooks, ImageProvider, ImageRequest, ImageResult } from "./ImageProvider";
 
 const log = createLogger("comfyui");
@@ -20,6 +20,8 @@ export interface ComfyUIOptions {
   /** Registered models by id. The first one (or `defaultModel`) is used when a request names none. */
   models?: Record<string, ModelSpec>;
   defaultModel?: string;
+  /** File name (models/background_removal) of the matting model used by "matte" requests. */
+  matteModel?: string;
   imageTimeoutMs: number;
   /** Where to append ComfyUI's own stdout/stderr (diagnostics only). */
   logFile?: string;
@@ -40,6 +42,8 @@ export interface ComfyUIOptions {
  *   6. verify the process is gone and the port closed (MemoryGate)
  * Steps 4-6 run in `finally`, so cancellation and failures also release the memory.
  */
+const MAX_CRASH_RESTARTS = 2;
+
 export class ComfyUIProvider implements ImageProvider {
   readonly name = "comfyui";
 
@@ -58,9 +62,27 @@ export class ComfyUIProvider implements ImageProvider {
       await this.session.start({ logFile: hooks.logFile ?? this.opts.logFile }); // 2
       for (const [i, req] of requests.entries()) {
         if (hooks.signal?.aborted) throw new CancelledError();
-        hooks.onProgress?.(i, requests.length, `Generating ${req.id}`);
+        hooks.onProgress?.(i, requests.length, `${req.task === "matte" ? "Cutting out" : "Generating"} ${req.id}`);
+        let run = req;
+        if (req.prepare) {
+          const patch = await req.prepare();
+          if (patch === null) { hooks.onProgress?.(i + 1, requests.length, `Skipped ${req.id}`); continue; }
+          if (patch) run = { ...req, ...patch };
+        }
         hooks.onImageStart?.(req.id);
-        const result = await this.generateWithQc(req, hooks); // 3
+        let result: ImageResult | undefined;
+        for (let crashes = 0; !result; crashes++) {
+          try {
+            result = await this.generateWithQc(run, hooks); // 3
+          } catch (err) {
+            // a native crash (seen in the matting model under memory pressure): restart ComfyUI and retry this request
+            if (!(err instanceof ComfyCrashedError) || crashes >= MAX_CRASH_RESTARTS) throw err;
+            log.warn(`ComfyUI crashed during ${req.id}; restarting (${crashes + 1}/${MAX_CRASH_RESTARTS})`);
+            await this.session.stop().catch(() => {});
+            await sleep(2000);
+            await this.session.start({ logFile: hooks.logFile ?? this.opts.logFile });
+          }
+        }
         results.push(result);
         await hooks.onImage?.(result);
         hooks.onProgress?.(i + 1, requests.length, `Generated ${req.id}`);
@@ -135,11 +157,27 @@ export class ComfyUIProvider implements ImageProvider {
 
   private async generateOne(req: ImageRequest, signal?: AbortSignal): Promise<ImageResult> {
     const t0 = Date.now();
+    if (req.task === "matte") return this.matteOne(req, signal);
     const init = req.initImage ? { imageName: await this.upload(req.initImage.path), denoise: req.initImage.denoise } : undefined;
     const graph = (this.opts.buildWorkflow ?? buildWorkflow)({
       model: this.modelFor(req), prompt: req.prompt, negativePrompt: req.negativePrompt, width: req.width, height: req.height, seed: req.seed,
       steps: req.steps, cfg: req.cfg, sampler: req.sampler, scheduler: req.scheduler, init,
     });
+    const promptId = await this.submit(graph);
+    const file = await this.waitForImage(promptId, req.id, signal);
+    const bytes = await this.download(file);
+    await fs.mkdir(path.dirname(req.outPath), { recursive: true });
+    const tmp = `${req.outPath}.tmp`;
+    await fs.writeFile(tmp, bytes);
+    await fs.rename(tmp, req.outPath);
+    return { id: req.id, path: req.outPath, seed: req.seed, durationMs: Date.now() - t0 };
+  }
+
+  private async matteOne(req: ImageRequest, signal?: AbortSignal): Promise<ImageResult> {
+    const t0 = Date.now();
+    if (!req.initImage) throw new ComfyGenerationError(`matte request ${req.id} has no source image`);
+    if (!this.opts.matteModel) throw new ComfyGenerationError("no background-removal model is configured for the ComfyUI provider");
+    const graph = buildMatteWorkflow({ imageName: await this.upload(req.initImage.path), modelFile: this.opts.matteModel });
     const promptId = await this.submit(graph);
     const file = await this.waitForImage(promptId, req.id, signal);
     const bytes = await this.download(file);
@@ -179,6 +217,7 @@ export class ComfyUIProvider implements ImageProvider {
         throw new ComfyTimeoutError(`${label} did not finish within ${Math.round(this.opts.imageTimeoutMs / 1000)} s`);
       }
       const res = await fetch(`${this.opts.baseUrl}/history/${promptId}`, { signal: AbortSignal.timeout(15_000) }).catch(() => undefined);
+      if (!res && !this.session.isProcessAlive()) throw new ComfyCrashedError(`the ComfyUI process exited while ${label} was running`);
       const entry = res?.ok ? ((await res.json()) as Record<string, { status?: { status_str?: string; completed?: boolean; messages?: unknown[] }; outputs?: Record<string, { images?: { filename: string; subfolder: string; type: string }[] }> }>)[promptId] : undefined;
       if (entry?.status?.status_str === "error") throw new ComfyGenerationError(`ComfyUI reported an error for ${label}: ${JSON.stringify(entry.status.messages ?? []).slice(0, 400)}`);
       if (entry?.status?.completed) {

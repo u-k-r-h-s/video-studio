@@ -72,7 +72,7 @@ export class ProjectStore {
     const entries = await fs.readdir(this.root, { withFileTypes: true });
     const projects: Project[] = [];
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
       try {
         const p = await this.get(entry.name);
         if (p) projects.push(p);
