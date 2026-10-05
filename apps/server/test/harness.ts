@@ -22,6 +22,7 @@ import type { PipelineServices } from "../src/pipeline/types";
 import { createPipelineTools } from "../src/tools/pipelineTools";
 import { TOOL_NAMES } from "../src/tools/pipelineTools";
 import { ToolDispatcher } from "../src/tools/ToolDispatcher";
+import { AssetCache } from "../src/anim/assets";
 import { encodePng } from "../src/lib/png";
 import { encodeWav } from "../src/lib/wav";
 import { FakeLLM } from "./helpers";
@@ -36,6 +37,16 @@ export function figurePng(w = 64, h = 112): Buffer {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const fig = x > w * 0.3 && x < w * 0.7 && y > h * 0.15 && y < h * 0.95;
     data.set(fig ? [60, 30, 20, 255] : [225, 154, 84, 255], (y * w + x) * 4);
+  }
+  return encodePng({ width: w, height: h, data });
+}
+
+/** What BiRefNet returns for `figurePng`: a white silhouette on black where the figure is. */
+export function maskPng(w = 64, h = 112): Buffer {
+  const data = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const fig = x > w * 0.3 && x < w * 0.7 && y > h * 0.15 && y < h * 0.95;
+    data.set(fig ? [255, 255, 255, 255] : [0, 0, 0, 255], (y * w + x) * 4);
   }
   return encodePng({ width: w, height: h, data });
 }
@@ -80,16 +91,18 @@ export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: Fo
   const profile = opts.profile ?? motionComic;
 
   // --- fake ComfyUI HTTP API
+  const mattes = new Set<string>();
   const server = http.createServer((req, res) => {
     const url = new URL(req.url!, "http://x");
     const json = (o: unknown, code = 200) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(o)); };
     if (url.pathname === "/prompt") { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
-      state.prompts++; events.push("comfy:prompt");
+      state.prompts++; events.push(b.includes("RemoveBackground") ? "comfy:matte" : "comfy:prompt");
+      if (b.includes("RemoveBackground")) mattes.add(`p${state.prompts}`);
       if (state.failPromptNumber === state.prompts) return json({ error: "boom", node_errors: { "7": "out of memory" } }, 500);
       json({ prompt_id: `p${state.prompts}` });
     }); }
     else if (url.pathname.startsWith("/history/")) { const id = url.pathname.split("/")[2]!; json({ [id]: { status: { status_str: "success", completed: true, messages: [] }, outputs: { "9": { images: [{ filename: `${id}.png`, subfolder: "", type: "temp" }] } } } }); }
-    else if (url.pathname === "/view") { res.writeHead(200, { "Content-Type": "image/png" }); res.end(figurePng()); }
+    else if (url.pathname === "/view") { res.writeHead(200, { "Content-Type": "image/png" }); res.end(mattes.has((url.searchParams.get("filename") ?? "").replace(/\.png$/, "")) ? maskPng() : figurePng()); }
     else if (url.pathname === "/upload/image") { events.push("comfy:upload"); req.resume(); req.on("end", () => json({ name: "uploaded.png" })); }
     else if (url.pathname === "/free") { events.push("comfy:free"); json({}); }
     else json({}, 404);
@@ -113,7 +126,7 @@ export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: Fo
     start: async () => { events.push("comfy:start"); if (state.ollamaLoaded) throw new Error("GATE BYPASSED: ComfyUI started while Ollama was resident"); state.comfyAlive = true; },
     stop: async () => { events.push("comfy:stop"); state.comfyAlive = false; },
   };
-  const image = new ComfyUIProvider(session, gate, { baseUrl: base, checkpoint: "ck", lora: "lora", imageTimeoutMs: 5000, pollMs: 2, models: { sd15: { id: "sd15", checkpoint: "ck", lora: "lora" }, ds8: { id: "ds8", unet: "u", clip: "c", vae: "v", lora: "lora" } }, defaultModel: "sd15" });
+  const image = new ComfyUIProvider(session, gate, { baseUrl: base, checkpoint: "ck", lora: "lora", imageTimeoutMs: 5000, pollMs: 2, models: { sd15: { id: "sd15", checkpoint: "ck", lora: "lora" }, ds8: { id: "ds8", unet: "u", clip: "c", vae: "v", lora: "lora" } }, defaultModel: "sd15", matteModel: "birefnet.safetensors" });
 
   // --- fake TTS / subtitles / renderer
   const voices: VoiceInfo[] = [{ id: "en-a", language: "en", model: "m.onnx" }, { id: "en-b", language: "en", model: "m.onnx" }, { id: "en-narrator", language: "en", model: "m.onnx" }, { id: "en-c", language: "en", model: "m.onnx" }, { id: "hi-rohan", language: "hi", model: "h.onnx" }];
@@ -156,7 +169,7 @@ export async function makeHarness(opts: { renderer?: SceneRenderer; profile?: Fo
   const svc: PipelineServices = {
     store, profiles: new ProfileRegistry([profile]), planner: new ScenePlanner(llm, { maxRepairs: 1, temperature: 0.5 }), gate,
     advisor: { snapshot: async () => ({ freePercent: 60, swapUsedMb: 1000 }) }, memoryWarnFreePercent: 30,
-    director: new ShotDirector(llm, { maxRepairs: 1, temperature: 0.5 }), media: opts.media,
+    director: new ShotDirector(llm, { maxRepairs: 1, temperature: 0.5 }), media: opts.media, assetCache: new AssetCache(path.join(dir, ".asset-cache")),
     providers: { image: { comfyui: image }, tts: { piper: tts }, subtitle: { coretext: subtitle }, renderer: { "ffmpeg-motion": opts.renderer ?? fakeRenderer } },
   };
   const runner = new PipelineRunner(svc);

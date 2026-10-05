@@ -17,7 +17,8 @@ beforeAll(() => setLogQuiet(true));
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"); // fake bytes: the provider only stores them
 
 /** A fake ComfyUI HTTP API. */
-function fakeComfy(opts: { pollsBeforeDone?: number; failWith?: string; neverFinish?: boolean } = {}) {
+function fakeComfy(opts: { pollsBeforeDone?: number; failWith?: string; neverFinish?: boolean; crashOnPrompt?: number } = {}) {
+  const state = { crashed: false };
   const events: string[] = [];
   const graphs: any[] = [];
   let n = 0;
@@ -28,10 +29,12 @@ function fakeComfy(opts: { pollsBeforeDone?: number; failWith?: string; neverFin
     if (url.pathname === "/prompt" && req.method === "POST") {
       let body = ""; req.on("data", (c) => (body += c)); req.on("end", () => {
         const g = JSON.parse(body).prompt; graphs.push(g); events.push("http:prompt");
+        if (opts.crashOnPrompt === n + 1 && !state.crashed) state.crashed = true; // the process dies while this prompt runs
         json({ prompt_id: `p${++n}` });
       });
     } else if (url.pathname.startsWith("/history/")) {
       const id = url.pathname.split("/")[2]!; const k = (polls.get(id) ?? 0) + 1; polls.set(id, k);
+      if (state.crashed) return req.socket.destroy();
       if (opts.neverFinish || k <= (opts.pollsBeforeDone ?? 0)) return json({});
       if (opts.failWith) return json({ [id]: { status: { status_str: "error", completed: false, messages: [opts.failWith] }, outputs: {} } });
       json({ [id]: { status: { status_str: "success", completed: true, messages: [] }, outputs: { "9": { images: [{ filename: `${id}.png`, subfolder: "", type: "temp" }] } } } });
@@ -41,7 +44,7 @@ function fakeComfy(opts: { pollsBeforeDone?: number; failWith?: string; neverFin
     else if (url.pathname === "/interrupt") { events.push("http:interrupt"); json({}); }
     else json({ error: "nope" }, 404);
   });
-  return { server, events, graphs };
+  return { server, events, graphs, state };
 }
 
 let dir: string;
@@ -61,9 +64,9 @@ async function setup(copts?: Parameters<typeof fakeComfy>[0], over: { startFails
   } as unknown as MemoryGate;
   let alive = false;
   const session: ComfySession = {
-    start: async () => { events.push("proc:start"); if (over.startFails) throw new Error("boom"); alive = true; },
+    start: async () => { events.push("proc:start"); if (over.startFails) throw new Error("boom"); alive = true; comfy.state.crashed = false; },
     stop: async () => { events.push("proc:stop"); alive = false; if (over.stopFails) throw new ComfyStopError("won't die"); },
-    isProcessAlive: () => alive,
+    isProcessAlive: () => alive && !comfy.state.crashed,
     isPortOpen: async () => alive,
   };
   const provider = new ComfyUIProvider(session, gate, { baseUrl: base, checkpoint: "ck.safetensors", lora: "lcm.safetensors", imageTimeoutMs: over.imageTimeoutMs ?? 5000, pollMs: 5 });
@@ -120,6 +123,15 @@ describe("ComfyUIProvider lifecycle", () => {
     expect(err).toBeInstanceOf(ComfyGenerationError);
     expect(events.slice(-3)).toEqual(["http:free", "proc:stop", "gate:comfy-stopped"]);
     expect(events.filter((e) => e === "http:prompt")).toHaveLength(1); // stopped at the first failure
+  });
+
+  it("detects a native ComfyUI crash, restarts the session and retries the request (finished images are kept)", async () => {
+    const { provider, events } = await setup({ crashOnPrompt: 2 });
+    const out = await provider.generateBatch(reqs(3));
+    expect(out.map((r) => r.id)).toEqual(["img-1", "img-2", "img-3"]);
+    expect(events.filter((e) => e === "proc:start")).toHaveLength(2);
+    expect(events.filter((e) => e === "http:prompt")).toHaveLength(4); // img-2 was submitted twice
+    expect(events.slice(-2)).toEqual(["proc:stop", "gate:comfy-stopped"]);
   });
 
   it("times out a stuck image, interrupts it, and still shuts down", async () => {

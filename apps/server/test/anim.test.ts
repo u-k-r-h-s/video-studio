@@ -46,14 +46,14 @@ describe("character timeline: walking is derived from distance travelled", () =>
   });
   it("swings the legs in opposition while walking, and not at all when standing", () => {
     const c = tl(walk);
-    const mid = c.pose(3);
+    const mid = c.pose(3, "side");
     expect(Math.abs(mid.legL.rot)).toBeGreaterThan(0);
     expect(mid.legL.rot * mid.legR.rot).toBeLessThanOrEqual(0);
-    const amp = Math.max(...Array.from({ length: 120 }, (_, i) => Math.abs(c.pose(2 + i / 40).legL.rot)));
+    const amp = Math.max(...Array.from({ length: 120 }, (_, i) => Math.abs(c.pose(2 + i / 40, "side").legL.rot)));
     expect(amp).toBeGreaterThan(10);
     expect(amp).toBeLessThan(30);
-    expect(Math.abs(c.pose(0.5).legL.rot)).toBeLessThan(0.01); // before the walk
-    expect(Math.abs(c.pose(7.9).legL.rot)).toBeLessThan(0.5); // after arriving
+    expect(Math.abs(c.pose(0.5, "side").legL.rot)).toBeLessThan(0.01); // before the walk
+    expect(Math.abs(c.pose(7.9, "side").legL.rot)).toBeLessThan(0.5); // after arriving
   });
   it("bobs the body with each step (twice per leg cycle) and lowers it at the widest stance", () => {
     const c = tl(walk);
@@ -74,14 +74,14 @@ describe("character timeline: walking is derived from distance travelled", () =>
   it("running swings further and faster than walking, with a forward lean", () => {
     const run = tl([ev({ type: "run", start: 0, duration: 2, params: { to: 900 } })]);
     const walkc = tl([ev({ type: "walk", start: 0, duration: 7, params: { to: 900 } })]);
-    const maxLeg = (c: CharacterTimeline, a: number, b: number) => Math.max(...Array.from({ length: 100 }, (_, i) => Math.abs(c.pose(a + ((b - a) * i) / 100).legL.rot)));
+    const maxLeg = (c: CharacterTimeline, a: number, b: number) => Math.max(...Array.from({ length: 100 }, (_, i) => Math.abs(c.pose(a + ((b - a) * i) / 100, "side").legL.rot)));
     expect(maxLeg(run, 0.5, 1.5)).toBeGreaterThan(maxLeg(walkc, 2, 5) * 1.2);
     expect(run.pose(1).lean).toBeGreaterThan(walkc.pose(3.5).lean);
     expect(run.footContacts().length).toBeGreaterThan(walkc.footContacts().length * 0.6);
   });
   it("any horizontal move walks (no foot skating), and enter/exit start/end off screen", () => {
     const c = tl([ev({ type: "move", start: 0, duration: 2, params: { to: 600 } })]);
-    expect(Math.abs(c.pose(1).legL.rot)).toBeGreaterThan(5);
+    expect(Math.abs(c.pose(1, "side").legL.rot)).toBeGreaterThan(5);
     const e = tl([ev({ type: "enter", start: 0, duration: 2, params: { side: "left", to: 500 } }), ev({ type: "exit", start: 4, duration: 2, params: { side: "right" } })], 8);
     expect(e.root(0).x).toBeLessThan(0);
     expect(e.root(3).x).toBeCloseTo(500, 3);
@@ -184,10 +184,11 @@ describe("rig analysis and slicing", () => {
     expect(alpha(rig.head, 60, 300 + P)).toBe(0);
     expect(alpha(rig.torso, 60, 150 + P)).toBe(255);
     expect(alpha(rig.torso, 60, 30 + P)).toBe(0);
-    expect(alpha(rig.legL, 45, 330 + P)).toBe(255);
-    expect(alpha(rig.legL, 75, 330 + P)).toBe(0);
-    expect(alpha(rig.legR, 75, 330 + P)).toBe(255);
-    expect(alpha(rig.legR, 45, 330 + P)).toBe(0);
+    expect(alpha(rig.shinL, 45, 360 + P)).toBe(255);
+    expect(alpha(rig.shinL, 75, 360 + P)).toBe(0);
+    expect(alpha(rig.shinR, 75, 360 + P)).toBe(255);
+    expect(alpha(rig.thighL, 45, 235 + P)).toBe(255);
+    expect(alpha(rig.thighL, 45, 360 + P)).toBe(0); // the shin belongs to the lower piece
     expect(rig.analysis.w).toBe(120);
   });
 });
@@ -306,7 +307,7 @@ describe("director actions -> animation events", () => {
     const events = compileAnimation({ duration: 3, width: 1080, actions: [act({ action: "walk", when: "start", to: "right" })], objects: [], ids: { mira: "rider" } });
     const c = tl(events, 3);
     expect(c.root(2.8).x).toBeGreaterThan(c.root(0.2).x + 300);
-    expect(Math.max(...Array.from({ length: 60 }, (_, i) => Math.abs(c.pose(0.5 + i / 30).legL.rot)))).toBeGreaterThan(8);
+    expect(Math.max(...Array.from({ length: 60 }, (_, i) => Math.abs(c.pose(0.5 + i / 30, "side").legL.rot)))).toBeGreaterThan(8);
   });
   it("the camera follows a walker, shakes for a startle and pushes in harder when tense", async () => {
     const { cameraForActions } = await import("../src/anim/actions");
@@ -324,7 +325,7 @@ describe("depth walking, visibility and effects", () => {
     expect(c.root(3).y).toBeCloseTo(1800, 3);
     expect(c.root(3).scale).toBeCloseTo(1.5, 3);
     expect(c.root(1.5).scale).toBeGreaterThan(1);
-    expect(Math.max(...Array.from({ length: 60 }, (_, i) => Math.abs(c.pose(0.5 + i / 30).legL.rot)))).toBeGreaterThan(8);
+    expect(Math.max(...Array.from({ length: 60 }, (_, i) => Math.abs(c.pose(0.5 + i / 30, "side").legL.rot)))).toBeGreaterThan(8);
   });
   it("characters fade in/out and flicker like a glitch", () => {
     const c = tl([ev({ type: "fade", start: 1, duration: 1, params: { to: 0.8 } }), ev({ type: "flicker", start: 3, duration: 1, params: { rate: 12, depth: 0.6, threshold: 0 } })], 5);
@@ -366,5 +367,89 @@ describe("post chain and keyers", () => {
     const clean = keepMainBody({ width: w, height: h, data: d });
     expect(clean.data[(2 * w + 2) * 4 + 3]).toBe(0);
     expect(clean.data[(20 * w + 20) * 4 + 3]).toBe(255);
+  });
+});
+
+describe("walking that looks like a person: knees, arms, views", () => {
+  const walk = [ev({ type: "walk", start: 0, duration: 6, params: { to: 1500 } })];
+  const samples = (c: CharacterTimeline, view: "front" | "side" | "three-quarter") => Array.from({ length: 180 }, (_, i) => c.pose(1 + i / 60, view));
+  it("bends the knee only on the leg that is swinging forward, and keeps the planted leg straight", () => {
+    const c = tl(walk, 8);
+    for (const p of samples(c, "side")) {
+      expect(p.legL.knee).toBeGreaterThanOrEqual(0);
+      expect(Math.min(p.legL.knee, p.legR.knee)).toBeLessThan(1.5); // never both bent at once
+    }
+    expect(Math.max(...samples(c, "side").map((p) => p.legL.knee))).toBeGreaterThan(15);
+    expect(Math.max(...samples(c, "side").map((p) => p.legR.knee))).toBeGreaterThan(15);
+  });
+  it("swings the arms opposite to the legs, only in views where the arms are separate", () => {
+    const c = tl(walk, 8);
+    const ps = samples(c, "three-quarter");
+    expect(Math.max(...ps.map((p) => p.armL.rot))).toBeGreaterThan(5);
+    for (const p of ps) expect(p.armL.rot * p.legL.rot).toBeLessThanOrEqual(1e-9); // left arm back while left leg forward
+    expect(Math.max(...samples(c, "side").map((p) => Math.abs(p.armL.rot)))).toBe(0);
+    expect(Math.abs(tl([], 4).pose(1).armL.rot)).toBeLessThan(0.01); // still when standing
+  });
+  it("walks differently from the front (mostly lifting and bobbing) than from the side (wide swing)", () => {
+    const c = tl(walk, 8);
+    const amp = (v: "front" | "side") => Math.max(...samples(c, v).map((p) => Math.abs(p.legL.rot)));
+    expect(amp("side")).toBeGreaterThan(amp("front") * 2);
+    expect(Math.max(...samples(c, "front").map((p) => p.legL.lift))).toBeGreaterThan(Math.max(...samples(c, "side").map((p) => p.legL.lift)));
+  });
+  it("gestures raise an arm; a startle throws both up", () => {
+    const g = tl([ev({ type: "point", start: 0, duration: 1.2 }), ev({ type: "surprise", start: 3, duration: 0.8 })], 6);
+    expect(g.pose(0.6, "three-quarter").armR.rot).toBeGreaterThan(50);
+    expect(g.pose(3.05, "three-quarter").armL.rot).toBeGreaterThan(10);
+  });
+  it("cross-fades between camera views: front, then three-quarter, then side, with weights that sum to 1", () => {
+    const views = { front: { nativeFacing: -1 as const, variants: new Set<string>() }, "three-quarter": { nativeFacing: -1 as const, variants: new Set<string>() }, side: { nativeFacing: -1 as const, variants: new Set<string>() } };
+    const c = new CharacterTimeline(layer(), [ev({ type: "view", start: 1, duration: 0.3, params: { to: "three-quarter" } }), ev({ type: "view", start: 2, duration: 0.3, params: { to: "side" } })], { nativeFacing: -1, variants: new Set(), views }, 4);
+    expect(c.viewWeights(0.5)).toEqual({ front: 1 });
+    const mid = c.viewWeights(1.15);
+    expect(Object.keys(mid).sort()).toEqual(["front", "three-quarter"]);
+    expect(Object.values(mid).reduce((a, b) => a + (b ?? 0), 0)).toBeCloseTo(1, 6);
+    expect(c.viewWeights(1.6)).toEqual({ "three-quarter": 1 });
+    expect(c.viewWeights(3)).toEqual({ side: 1 });
+  });
+  it("a view that has no art falls back to the nearest one (no back view -> three-quarter, then front)", () => {
+    const views = { front: { nativeFacing: -1 as const, variants: new Set<string>() }, "three-quarter": { nativeFacing: -1 as const, variants: new Set<string>() } };
+    const c = new CharacterTimeline(layer(), [ev({ type: "view", start: 0, duration: 0.1, params: { to: "back" } })], { nativeFacing: -1, variants: new Set(), views }, 3);
+    expect(c.viewWeights(2)).toEqual({ "three-quarter": 1 });
+  });
+});
+
+describe("the door is built from pieces", () => {
+  it("draws frame, interior, leaf and light spill; the free edge swings in toward the hinge and the interior fills with light as it opens", async () => {
+    const { drawDoor } = await import("../src/anim/props");
+    const leaf = createCanvas(100, 200);
+    const lg = leaf.getContext("2d"); lg.fillStyle = "#7a5230"; lg.fillRect(0, 0, 100, 200);
+    const shot = (open: number) => {
+      const c = createCanvas(400, 500), g = c.getContext("2d");
+      g.fillStyle = "#000"; g.fillRect(0, 0, 400, 500);
+      drawDoor(g, { x: 200, y: 400, w: 120, h: 240, open, hinge: "left", glow: "#ffcf8a", leaf, opacity: 1, zoom: 1 });
+      return g.getImageData(0, 0, 400, 500).data;
+    };
+    const px = (d: Uint8ClampedArray, x: number, y: number): [number, number, number] => [d[(y * 400 + x) * 4]!, d[(y * 400 + x) * 4 + 1]!, d[(y * 400 + x) * 4 + 2]!];
+    const closed = shot(0), half = shot(0.5), wide = shot(1);
+    expect(px(closed, 200, 300)[0]).toBeGreaterThan(80); // the leaf covers the opening
+    expect(px(closed, 200, 300)[2]).toBeLessThan(80);
+    expect(px(wide, 230, 300)[0]).toBeGreaterThan(120); // light fills the interior (leaf has swung away from the right half)
+    expect(px(wide, 230, 300)[2]).toBeGreaterThan(px(closed, 230, 300)[2]);
+    expect(px(half, 200, 420)[0]).toBeGreaterThan(px(closed, 200, 420)[0]); // light spills across the floor
+    let different = 0;
+    for (let i = 0; i < closed.length; i += 4) if (Math.abs(closed[i]! - half[i]!) > 20) different++;
+    expect(different).toBeGreaterThan(2000);
+  });
+  it("drawQuad maps an image onto a slanted quadrilateral (a perspective strip fill)", async () => {
+    const { drawQuad } = await import("../src/anim/props");
+    const img = createCanvas(40, 40); img.getContext("2d").fillStyle = "#ff0000"; img.getContext("2d").fillRect(0, 0, 40, 40);
+    const c = createCanvas(200, 200), g = c.getContext("2d");
+    drawQuad(g, img, [{ x: 20, y: 40 }, { x: 160, y: 10 }, { x: 160, y: 150 }, { x: 20, y: 120 }]);
+    const d = g.getImageData(0, 0, 200, 200).data;
+    const lit = (x: number, y: number) => d[(y * 200 + x) * 4]! > 200;
+    expect(lit(30, 80)).toBe(true);
+    expect(lit(150, 80)).toBe(true);
+    expect(lit(150, 5)).toBe(false); // above the slanted top edge
+    expect(lit(30, 20)).toBe(false);
   });
 });
