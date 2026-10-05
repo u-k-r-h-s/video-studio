@@ -35,6 +35,8 @@ export interface TimelineStageConfig {
   extraCues?: (project: Project, story: NonNullable<Project["story"]>, tl: Timeline, svc: PipelineServices) => Promise<ExtraCue[]>;
   rain?: (project: Project, svc: PipelineServices) => boolean;
   recipe?: string;
+  /** Caption phrasing: words per caption (default 3) and characters per caption (default 20). */
+  chunk?: { maxWords: number; maxChars: number };
 }
 
 export const buildShotTimeline: StageFn = (svc, ctx) => runTimelineStage(svc, ctx, { timeline: (p, story) => timelineOf(p, story), style: (p, s) => cinematicOf(s.profiles.get(p.formatProfile)).captions as CaptionStyle });
@@ -54,7 +56,7 @@ export const runTimelineStage = async (svc: PipelineServices, ctx: Parameters<St
     // 1. captions + inserts per shot
     for (const [i, shot] of story.shots.entries()) {
       const st = tl.shots[i]!;
-      const chunks = st.lines.flatMap((l) => chunkLine(l.text, l.localStart, l.localEnd, l.emphasis));
+      const chunks = st.lines.flatMap((l) => chunkLine(l.text, l.localStart, l.localEnd, l.emphasis, cfg.chunk));
       const insertKey = shot.insert ? [shot.insert.kind, shot.insert.text] : null;
       const hash = stableHash({ chunks, insert: insertKey, style, duration: st.duration, recipe: CAPTION_RECIPE_VERSION });
       const id = captionAssetId(shot.id), rel = `captions/${shot.id}.json`;

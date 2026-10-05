@@ -1,7 +1,7 @@
 import type { AnimationSettings, Character, Shot, ShotAnimAction, ShotObjectAction, Story } from "@studio/shared";
 import { DEFAULT_DURATION, placeAction } from "./actions";
 import { effectsForLocation, type AssetManifest } from "./manifest";
-import { classifyProp, impliedActions, MOVING, normName, resolveDirection, viewFor, type Direction } from "./semantics";
+import { classifyProp, impliedActions, isHandheld, MOVING, normName, resolveDirection, viewFor, type Direction } from "./semantics";
 import type { AnimShotSpec, AnimationEvent, EffectSpec, EventType, VisualLayer } from "./types";
 
 export const STAGE = { W: 1080, H: 1920 } as const;
@@ -84,6 +84,9 @@ export function composeShot(inp: ComposeInput): ComposedShot {
   if (shot.subjectIds[0] && !who) notes.push(`character ${shot.subjectIds[0]} has no art: shown as an empty place`);
   const objects: ShotObjectAction[] = shot.animation?.objects ?? [];
   const actions = who ? impliedActions(shot) : [];
+  // a puppet (one body picture cut into parts) can hold things, gesture and push doors
+  const puppet = !!who && !!manifest.characters.find((c) => c.id === who)?.assetIds.some((x) => x.endsWith("-puppet"));
+  const heldIds = new Map<string, { kind: string }>();
   const mover = actions.find((a) => MOVING.has(a.action) && a.action !== "step-forward" && a.action !== "step-back");
   let frame = framingOf(shot.shotType);
   if (mover && (frame.kind === "close" || frame.kind === "extreme")) { frame = FRAMES.medium; notes.push("a moving character needs room: framed as a medium shot"); }
@@ -131,6 +134,27 @@ export function composeShot(inp: ComposeInput): ComposedShot {
   for (const o of objects) {
     const kind = classifyProp(o.object);
     const key = kind === "generic" || kind === "picture" ? normName(o.object) : kind;
+    if (puppet && who && isHandheld(o.object) && (frame.kind === "close" || frame.kind === "extreme")) {
+      // a close-up shows the face: the hands and what they hold are below the frame (a torch still lights the face, see below)
+      propLayerId.set(normName(o.object), `obj-${key}`);
+      heldIds.set(`obj-${key}`, { kind });
+      continue;
+    }
+    if (puppet && who && isHandheld(o.object) && !heldIds.has(`obj-${key}`)) {
+      // carried in the hand: it moves with the arm, a torch casts its beam along the forearm
+      const assetH = manifest.props.find((p) => p.id === key)?.assetId;
+      const source = kind === "flashlight" ? "torch" : kind === "phone" ? "held-phone" : assetH && inp.has(assetH) ? assetH : null;
+      if (!source) { notes.push(`prop "${o.object}" has no art: skipped`); continue; }
+      const id = `obj-${key}`;
+      propLayerId.set(normName(o.object), id);
+      heldIds.set(id, { kind });
+      layers.push({
+        id, type: "prop", source, x: 0, y: 0, scale: 1, opacity: 1, zIndex: 21, parent: { layerId: who, hand: "near" },
+        grip: kind === "flashlight" ? { x: 0.22, y: 0.5, axis: 0, size: 0.17 } : kind === "phone" ? { x: 0.5, y: 0.8, axis: -90, size: 0.12 } : { x: 0.5, y: 0.5, axis: 0, size: 0.14 },
+        ...(kind === "flashlight" ? { beam: { color: warmWords.test(loc.lighting) ? "#fff1c4" : "#eef6ff", length: 1500, spread: 13 } } : {}),
+      });
+      continue;
+    }
     const asset = manifest.props.find((p) => p.id === key)?.assetId;
     if (!asset || !inp.has(asset)) { notes.push(`prop "${o.object}" has no art: skipped`); continue; }
     const id = `obj-${key}`;
@@ -162,7 +186,12 @@ export function composeShot(inp: ComposeInput): ComposedShot {
       id: who, type: "character", source: who, x: startX, y: startY, scale: startScale, opacity: 1, zIndex: 20, height: charH, shadow: true, tint, tintAmount: warm ? 0.3 : 0.26,
       rim: { color: rimColor, side: warm ? -1 : 1, amount: 0.45 }, ...(c ? {} : {}),
     });
-    const sceneActs: ShotAnimAction[] = actions;
+    // a raised hand "toward the flashlight" is the torch being raised; in a close-up big arm gestures happen out of frame and only
+    // show a flap of sleeve at the edge, so they are left out (the face and the head carry the reaction)
+    const ARM_GESTURES = new Set(["raise-hand", "wave", "reach", "push", "pull", "hand-gesture", "point", "raise-object", "lower-object"]);
+    const sceneActs: ShotAnimAction[] = actions
+      .map((a) => (puppet && a.action === "raise-hand" && /(flashlight|torch|lantern|light)/i.test(a.toward ?? "") ? { ...a, action: "raise-object" as ShotAnimAction["action"] } : a))
+      .filter((a) => !(puppet && (frame.kind === "close" || frame.kind === "extreme") && ARM_GESTURES.has(a.action)));
     for (const a of sceneActs) {
       const base = DEFAULT_DURATION[a.action] ?? 0.8;
       const isMove = a === mover;
@@ -198,9 +227,31 @@ export function composeShot(inp: ComposeInput): ComposedShot {
   }
 
   // object events
+  const holding = new Set<string>();
   for (const o of objects) {
     const id = propLayerId.get(normName(o.object));
     const kind = classifyProp(o.object);
+    if (id && heldIds.has(id) && who) {
+      const { start, duration } = placeAction(o.when, o.duration ?? 0.8, D);
+      const inFrame = layers.some((l) => l.id === id);
+      if (!holding.has(id) && inFrame) { holding.add(id); ev(who, kind === "phone" ? "hold-phone" : "hold", 0, 0.01); }
+      const close = frame.kind === "close" || frame.kind === "extreme";
+      if (kind === "flashlight" && close && (o.action === "glow" || o.action === "move" || o.action === "appear" || o.action === "flicker")) {
+        // in a close-up the torch is below the frame: its light on the face tells the story
+        ev(who, "glow", start, Math.max(0.6, D - start), { color: "#fff1c4", amount: 0.85 });
+      } else if (kind === "flashlight" && (o.action === "glow" || o.action === "move" || o.action === "appear" || o.action === "flicker")) {
+        // raise the torch, switch it on, aim it into the dark
+        ev(who, "raise-object", start, 0.45);
+        ev(id, "glow", start + 0.2, Math.max(0.6, D - start - 0.2), { amount: 1, in: 0.08, out: 0.15 });
+        if (o.action === "flicker") ev(id, "flicker", start + 0.5, Math.max(0.4, D - start - 0.6), { rate: 9, depth: 0.85 });
+      } else if (kind === "phone") {
+        if (inFrame && (o.action === "shake" || o.action === "glow" || o.action === "appear")) ev(id, "shake", start, Math.min(0.9, D - start), { amount: 3 });
+        ev(who, "glow", start, Math.max(0.5, D - start), { color: "#8fd0ff", amount: 0.8, ...(o.action === "shake" || o.action === "glow" ? { sfx: "ping" } : {}) });
+      } else if (o.action === "hold") {
+        // already held from the start
+      } else if (inFrame) ev(id, o.action as EventType, start, duration);
+      continue;
+    }
     if (!id) {
       // a phone in a wide shot has no sprite: its light falls on the character instead
       if (kind === "phone" && who) { const { start, duration } = placeAction(o.when, 1.6, D); ev(who, "glow", start, duration, { color: "#8fd0ff", amount: 0.9, sfx: "ping" }); notes.push("phone light on the character"); }
@@ -208,6 +259,7 @@ export function composeShot(inp: ComposeInput): ComposedShot {
     }
     const dur = o.duration ?? (o.action === "open" || o.action === "close" ? 0.9 : o.action === "drive" ? Math.max(1.4, D * 0.55) : 0.7);
     const { start, duration } = placeAction(o.when, dur, D);
+    if (puppet && who && kind === "door" && (o.action === "open" || o.action === "close")) ev(who, o.action === "open" ? "push" : "pull", Math.max(0, start - 0.15), Math.min(0.9, D - start + 0.1));
     if (kind === "phone" && phoneLayered) {
       if (o.action === "appear" || o.action === "move" || o.action === "glow") {
         ev(id, "move", Math.max(0, start - 0.2), 0.85, { x: 680, y: 1520, ease: "out" });
@@ -277,5 +329,5 @@ export function composeShot(inp: ComposeInput): ComposedShot {
   if (shot.effects?.flash) cam(0, 0.5, { mode: "flash", amount: 0.5 });
 
   const spec: AnimShotSpec = { id: shot.id, duration: D, width: STAGE.W, height: STAGE.H, fps: inp.fps, layers, events: events.sort((a, b) => a.start - b.start), effects, camera, seed: inp.seed };
-  return { spec, captionY: frame.kind === "close" || frame.kind === "extreme" ? 0.8 : 0.72, phoneMessage, notes };
+  return { spec, captionY: 0.83, phoneMessage, notes };
 }

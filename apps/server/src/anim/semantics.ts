@@ -14,9 +14,10 @@ export function normName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-export type PropKind = "phone" | "door" | "car" | "package" | "picture" | "generic";
+export type PropKind = "phone" | "door" | "car" | "package" | "picture" | "flashlight" | "generic";
 export function classifyProp(name: string): PropKind {
   const n = normName(name);
+  if (/(flashlight|torch|lantern)/.test(n)) return "flashlight";
   if (/(phone|mobile|smartphone|cell|screen|message|notification)/.test(n)) return "phone";
   if (/(door|gate|entrance|doorway|hatch)/.test(n)) return "door";
   if (/(drawing|painting|picture|photo|photograph|poster|portrait|sketch|note|map|sign)/.test(n)) return "picture";
@@ -108,4 +109,11 @@ export function neededForCharacter(shots: Shot[], characterId: string): { views:
     }
   }
   return { views, variants };
+}
+
+/** Small things a character carries in the hand (drawn in the hand, they move with the arm). */
+export function isHandheld(name: string): boolean {
+  const k = classifyProp(name);
+  if (k === "flashlight" || k === "phone") return true;
+  return /(key|keys|knife|letter|envelope|note|cup|mug|book|bottle|tool|wrench|gun|map|photo|ticket|parcel|candle|umbrella|bag)/.test(normName(name));
 }

@@ -3,8 +3,10 @@ import path from "node:path";
 import type { AssetKind } from "@studio/shared";
 import { CancelledError, StageOrderError } from "../../../errors";
 import { AssetCache, animPaths, makeCutout, makeHeadCrop, matteBox, readRgba, residualImage, unionMatte } from "../../../anim/assets";
-import { diffManifest, planAssets, type AssetManifest, type ManifestAsset } from "../../../anim/manifest";
-import { assessMatte } from "../../../lib/matte";
+import { MANNEQUIN_INIT, diffManifest, planAssets, type AssetManifest, type ManifestAsset } from "../../../anim/manifest";
+import { assessMatte, figureInBackground } from "../../../lib/matte";
+import { mannequinPng } from "../../../anim/mannequin";
+import { buildPuppet, puppetHeadCrop } from "../../../anim/puppet";
 import { encodePng } from "../../../lib/png";
 import type { ImageRequest } from "../../../providers/image/ImageProvider";
 import { findAsset, upsertAsset } from "../../assets";
@@ -105,7 +107,7 @@ export const generateAnimAssets: StageFn = async (svc, ctx) => {
         if (!qc.ok) { failures.set(a.id, qc.reason ?? "bad cut-out"); ctx.log.event({ stage, asset: a.id }, "warning", { quality: qc.reason, round }); return; }
         await fs.writeFile(rel(animPaths.final(a.id)), encodePng(cut));
         const primary = mattes.length > 1 ? matteBox(mattes[0]!) : null;
-        const meta: Record<string, unknown> = { attempt: (baseAttempt.get(a.id) ?? 0) + round, seed: seedOf(a), qc: { coverage: qc.coverage, components: qc.components }, label: a.label, ...(primary ? { primaryBox: { x: primary.x - box.x, y: primary.y - box.y, w: primary.w, h: primary.h } } : {}) };
+        const meta: Record<string, unknown> = { attempt: (baseAttempt.get(a.id) ?? 0) + round, seed: seedOf(a), qc: { coverage: qc.coverage, components: qc.components }, label: a.label, box, ...(primary ? { primaryBox: { x: primary.x - box.x, y: primary.y - box.y, w: primary.w, h: primary.h } } : {}) };
         await register(a, meta);
         if (cache) await cache.put(a.hash, rel(animPaths.final(a.id)), meta);
         failures.delete(a.id);
@@ -117,13 +119,21 @@ export const generateAnimAssets: StageFn = async (svc, ctx) => {
         const gen: ImageRequest = {
           id: a.id, prompt: a.prompt, negativePrompt: a.negative, width: a.width, height: a.height, seed: seedOf(a), outPath: rel(raw), model: a.model, steps: a.steps, cfg: a.cfg, maxAttempts: 1,
         };
-        if (a.init) {
+        if (a.init?.assetId === MANNEQUIN_INIT) {
+          // every character is drawn over the same mannequin pose, so it can be cut into a puppet
+          const mq = "images/anim/mannequin.png";
+          await fs.mkdir(path.dirname(rel(mq)), { recursive: true });
+          await fs.writeFile(rel(mq), mannequinPng(a.width, a.height));
+          gen.initImage = { path: rel(mq), denoise: a.init.denoise };
+        } else if (a.init) {
           const initAsset = byId.get(a.init.assetId)!;
           const denoise = a.init.denoise;
           if (a.kind === "head_variant") {
             gen.prepare = async () => {
-              if (!svc.store.exists(project.id, animPaths.final(initAsset.id))) return null; // the front view is not available (yet)
-              const { png } = await makeHeadCrop(await finalOf(initAsset.id));
+              if (!svc.store.exists(project.id, animPaths.final(initAsset.id))) return null; // the body is not available (yet)
+              const cut = await finalOf(initAsset.id);
+              const box = (findAsset(await svc.store.require(project.id), initAsset.id)?.meta.box ?? undefined) as { x: number; y: number; w: number; h: number } | undefined;
+              const { png } = await makeHeadCrop(cut, puppetHeadCrop(await buildPuppet(initAsset.ownerId, cut, { box })));
               await fs.mkdir(path.dirname(rel(animPaths.headCrop(a.ownerId))), { recursive: true });
               await fs.writeFile(rel(animPaths.headCrop(a.ownerId)), png);
               return { initImage: { path: rel(animPaths.headCrop(a.ownerId)), denoise } };
@@ -163,7 +173,7 @@ export const generateAnimAssets: StageFn = async (svc, ctx) => {
           if (!m) {
             const a = byId.get(r.id)!;
             rawReady.add(a.id);
-            if (a.kind === "location") {
+            if (a.matte === "none") {
               await fs.copyFile(r.path, rel(animPaths.final(a.id)));
               const meta = { attempt: (baseAttempt.get(a.id) ?? 0) + round, seed: r.seed, durationMs: r.durationMs, label: a.label };
               await register(a, meta);
@@ -174,6 +184,19 @@ export const generateAnimAssets: StageFn = async (svc, ctx) => {
           }
           const a = byId.get(m[1]!)!;
           const matte = await readRgba(r.path);
+          if (a.matte === "check") {
+            // a background with an unrequested person/creature is regenerated (the last round keeps it, with a warning)
+            const why = figureInBackground(matte);
+            if (why && round < MAX_ROUNDS - 1) { failures.set(a.id, why); ctx.log.event({ stage, asset: a.id }, "warning", { rejected: why, round }); return; }
+            if (why) ctx.log.event({ stage, asset: a.id }, "warning", { kept: why });
+            await fs.copyFile(rel(animPaths.raw(a.id)), rel(animPaths.final(a.id)));
+            const meta = { attempt: (baseAttempt.get(a.id) ?? 0) + round, seed: seedOf(a), label: a.label, ...(why ? { warning: why } : {}) };
+            await register(a, meta);
+            if (cache) await cache.put(a.hash, rel(animPaths.final(a.id)), meta);
+            failures.delete(a.id);
+            done.add(a.id);
+            return;
+          }
           if (m[2] === "1") {
             matte1.set(a.id, matte);
             if (a.matte === "single") await finish(a, animPaths.raw(a.id), [matte]);

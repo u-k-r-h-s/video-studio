@@ -74,8 +74,8 @@ export function makeCutout(raw: Rgba, matte: Rgba, crop: boolean): { cut: Rgba; 
 }
 
 /** The square picture of a character's head, on white, that the image model redraws with other looks and expressions. */
-export async function makeHeadCrop(frontCutout: Rgba): Promise<{ png: Buffer; rect: { x: number; y: number; w: number; h: number } }> {
-  const rect = headCropRect(analyzeFigure(frontCutout));
+export async function makeHeadCrop(frontCutout: Rgba, at?: { x: number; y: number; w: number; h: number }): Promise<{ png: Buffer; rect: { x: number; y: number; w: number; h: number } }> {
+  const rect = at ?? headCropRect(analyzeFigure(frontCutout));
   const img = await loadImage(encodePng(frontCutout));
   const c = createCanvas(512, 512), g = c.getContext("2d");
   g.fillStyle = "#ececec";

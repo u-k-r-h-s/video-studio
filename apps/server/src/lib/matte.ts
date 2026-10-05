@@ -60,3 +60,31 @@ export function assessMatte(cut: Rgba, kind: "character" | "prop" | "head" = "ch
   if (kind === "character" && contact > 0.08) return { ok: false, reason: "the figure touches the image border (cropped)", ...base };
   return { ok: true, ...base };
 }
+
+/**
+ * Validation of a background: BiRefNet marks the salient foreground of a picture. In an empty place that is architecture (a door,
+ * a doorway, a machine); a standing person, an animal or a ghost shows up as a compact upright blob. Returns a reason when the
+ * picture probably contains a figure nobody asked for.
+ */
+export function figureInBackground(matte: Rgba): string | null {
+  const { width: w, height: h } = matte;
+  const on = (i: number): boolean => matte.data[i * 4]! > 128;
+  const seen = new Uint8Array(w * h);
+  const stack: number[] = [];
+  for (let s = 0; s < w * h; s++) {
+    if (seen[s] || !on(s)) continue;
+    let n = 0, x0 = w, x1 = 0, y0 = h, y1 = 0;
+    stack.push(s); seen[s] = 1;
+    while (stack.length) {
+      const p = stack.pop()!; n++;
+      const x = p % w, y = (p / w) | 0;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) if (q >= 0 && !seen[q] && on(q)) { seen[q] = 1; stack.push(q); }
+    }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1, fill = n / (bw * bh);
+    if (n < w * h * 0.004) continue;
+    const upright = bh / bw >= 1.5, sized = bh > h * 0.1 && bh < h * 0.72, compact = fill > 0.28 && fill < 0.82, notEdge = x0 > 2 && x1 < w - 3;
+    if (upright && sized && compact && notEdge) return `an upright figure (${bw}x${bh} px) stands in the background`;
+  }
+  return null;
+}

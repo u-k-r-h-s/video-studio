@@ -16,7 +16,9 @@ export const buildAnimTimeline: StageFn = (svc, ctx) =>
   runTimelineStage(svc, ctx, {
     timeline: (p, story) => animTimelineOf(p, story),
     style: (p, s) => animationOf(s.profiles.get(p.formatProfile)).captions as CaptionStyle,
-    recipe: "-anim-v1",
+    recipe: "-anim-v2-small-captions",
+    // smaller captions in the lower third: up to two short lines, the animation stays the main thing on screen
+    chunk: { maxWords: 6, maxChars: 34 },
     rain: (p) => {
       const text = (p.story?.locations ?? []).map((l) => `${l.visualIdentity} ${l.lighting}`).join(" ").toLowerCase();
       return /(rain|wet|storm|drizzle)/.test(text);

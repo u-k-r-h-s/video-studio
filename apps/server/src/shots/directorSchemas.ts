@@ -36,6 +36,9 @@ export const DirectedShotSchema = z.object({
   action: z.string().min(3).max(200).describe("what we SEE in this shot, one sentence, present tense"),
   line: z.object({ speaker: Id.describe("a character id or 'narrator'"), text: z.string().min(1).max(140) }).optional().describe("at most one short spoken line; omit for silent shots"),
   onScreenText: z.string().max(40).optional().describe("only for a phone/message/screen close-up: the text shown"),
+  move: z.string().max(60).optional().describe("how the visible character travels in this shot, a few words: 'walk to the door', 'run away', 'enter from the left', or 'none'"),
+  gesture: z.string().max(60).optional().describe("what the character's hands do: 'raise the flashlight', 'push the door open', 'check the phone', 'point at the window', or 'none'"),
+  reaction: z.string().max(60).optional().describe("how the character reacts at the end of the shot: 'stop and listen', 'turn head toward the sound', 'step back in fear', or 'none'"),
   actions: z.array(z.object({ action: z.enum(ANIM_ACTIONS), when: z.enum(ANIM_WHEN), toward: z.string().max(40).optional() })).max(3).optional().describe("what the visible character physically does in this shot, in order"),
   objects: z.array(z.object({ object: z.string().min(1).max(30), action: z.enum(OBJECT_ACTIONS), when: z.enum(ANIM_WHEN) })).max(2).optional().describe("what a visible object does (a door opens, a phone lights up)"),
 });
@@ -126,6 +129,7 @@ export function normalizeShots(raw: unknown, outline: DirectorOutline): unknown 
       return {
         beat: BEAT_SYNONYMS[be] ?? be, shotType: SHOT_SYNONYMS[st] ?? st, location, character, emotion: EMOTION_SYNONYMS[em] ?? em,
         action: typeof s.action === "string" ? s.action.trim() : s.action,
+        ...Object.fromEntries((["move", "gesture", "reaction"] as const).filter((k) => typeof s[k] === "string" && (s[k] as string).trim()).map((k) => [k, (s[k] as string).trim().slice(0, 60)])),
         // junk lines ("-", "...") are dropped: a caption must be words
         ...(Array.isArray(s.actions) ? { actions: s.actions.map(normAction).filter(Boolean) } : {}),
         ...(Array.isArray(s.objects) ? { objects: s.objects.filter(isRecord).map((o) => ({ object: slugify(String(o.object ?? "")), action: key(o.action), when: WHEN_SYN[key(o.when)] ?? (key(o.when) || "mid") })) } : {}),

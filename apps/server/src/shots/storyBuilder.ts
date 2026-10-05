@@ -1,6 +1,6 @@
 import { dialogueId, sceneId, shotId, StorySchema, type Beat, type Character, type FormatProfile, type Location, type Shot, type Story } from "@studio/shared";
 import { slugify } from "@studio/shared";
-import { enrichAnimation } from "./animationRules";
+import { enrichAnimation, slotsToAnimation } from "./animationRules";
 import { characterIdentity, planKeyVisuals } from "./keyVisuals";
 import { defaultFocus, planCamera } from "./cameraLanguage";
 import type { DirectedShots, DirectorOutline } from "./directorSchemas";
@@ -71,8 +71,13 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
     const insert: Shot["insert"] = phone ? { kind: "phone", text: d.onScreenText!.toUpperCase() } : i === n - 1 ? { kind: "title", text: title.toUpperCase().slice(0, 60) } : undefined;
     const effects: Shot["effects"] = intense && beat !== "hook" ? { impact: true } : beat === "payoff" && i === n - 2 ? { flash: true } : undefined;
     if (effects?.impact && !sfx.some((x) => x.kind === "impact")) sfx.push({ kind: "impact", at: 0, volume: 0.6 });
-    const animation = subject.length || d.objects?.length
-      ? { actions: (d.actions ?? []).filter((x) => subject.length > 0).map((x) => ({ character: subject[0]!, action: x.action, when: x.when, ...(x.toward ? { toward: x.toward } : {}) })), objects: (d.objects ?? []).map((o) => ({ object: o.object, action: o.action, when: o.when })) }
+    // action-first: the director's slots (travel / hands / reaction) come first, then its explicit action list
+    const slots = slotsToAnimation({ move: d.move, gesture: d.gesture, reaction: d.reaction });
+    const modelActs = (d.actions ?? []).map((x) => ({ action: x.action, when: x.when, ...(x.toward ? { toward: x.toward } : {}) }));
+    const acts = [...slots.actions, ...modelActs.filter((x) => !slots.actions.some((y) => y.action === x.action))].slice(0, 3);
+    const objs = [...slots.objects, ...(d.objects ?? []).map((o) => ({ object: o.object, action: o.action, when: o.when })).filter((o) => !slots.objects.some((y) => y.object === o.object && y.action === o.action))].slice(0, 3);
+    const animation = subject.length || objs.length
+      ? { actions: subject.length ? acts.map((x) => ({ ...x, character: subject[0]! })) : [], objects: objs }
       : undefined;
     return {
       id, sceneId: "", order, beat, duration, shotType: d.shotType, subjectIds: subject, locationId: locations.some((l) => l.id === d.location) ? d.location : locations[0]!.id, emotion: d.emotion, action: d.action, visualPrompt: d.action, visualKey: "",

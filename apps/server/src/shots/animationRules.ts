@@ -8,6 +8,15 @@ import type { Shot, ShotAnimAction, ShotObjectAction } from "@studio/shared";
 const LOCOMOTION = new Set(["walk", "run", "enter", "exit"]);
 
 const VERBS: [RegExp, ShotAnimAction["action"]][] = [
+  [/\b(raises?|raising|lifts?|holds? up|shines?|shining|aims?|aiming|points?|pointing|sweeps?|switch(?:es)? on|turns? on) (?:up )?(?:the |his |her |their |a )?(?:flashlight|torch|lantern|lamp|light beam|beam)\b/i, "raise-object"],
+  [/\b(lowers?|lowering|drops?) (?:the |his |her |their )?(?:flashlight|torch|lantern)\b/i, "lower-object"],
+  [/\b(raises?|lifts?|throws? up) (?:a |his |her |their |both )?(?:hand|hands|arm|arms)\b/i, "raise-hand"],
+  [/\b(waves?|waving)\b/i, "wave"],
+  [/\b(reach(?:es|ing)? (?:for|toward|towards|out)|grabs?|picks? up)\b/i, "reach"],
+  [/\b(push(?:es|ing)?|shoves?|forces?) (?:open )?(?:the |a )?(?:heavy |old |wooden |metal |iron )?(?:door|gate|hatch)\b/i, "push"],
+  [/\b(pulls?|pulling|yanks?) (?:open )?(?:the |a )?(?:heavy |old |wooden |metal |iron )?(?:door|gate|hatch)\b/i, "pull"],
+  [/\b(checks?|checking|looks? at|stares? at|reads?|reading|glances? at) (?:his |her |their |the |a )?(?:phone|screen|message|watch)\b/i, "hold-phone"],
+  [/\b(listens?|listening|stops? to listen|freezes? to listen)\b/i, "listen"],
   [/\b(run|runs|running|sprint|sprints|sprinting|dash|dashes|rush|rushes|flee|flees|fleeing|bolts?|races|racing)\b/i, "run"],
   [/\b(walk|walks|walking|stride|strides|stroll|strolls|creep|creeps|creeping|tiptoe|tiptoes|sneak|sneaks|follows?|following|heads? (?:down|toward|towards|into|along|for)|approach(?:es|ing)?|advances?|marches|steps? (?:into|toward|towards|down|through|inside)|moves? (?:down|toward|towards|into|along|through)|makes? (?:his|her|their) way|heading)\b/i, "walk"],
   [/\b(enters?|entering|steps? in(?:side)?|comes? in)\b/i, "enter"],
@@ -59,7 +68,8 @@ export function actionsFromText(text: string): ShotAnimAction[] {
 const OBJECTS: { noun: RegExp; name: string; verbs: [RegExp, ShotObjectAction["action"][]][] }[] = [
   { noun: /\b(door|doors|doorway|gate|hatch)\b/i, name: "door", verbs: [[/\b(opens?|opened|opening|ajar|swings? open|creaks? open|pushes? open|slides? open|unlocks?|cracks? open|flung open)\b/i, ["open"]], [/\b(slams?|closes?|closed behind|shuts?|slammed|locks?)\b/i, ["close"]]] },
   { noun: /\b(phone|smartphone|screen|message|notification)\b/i, name: "phone", verbs: [[/\b(buzz(?:es|ing)?|rings?|ringing|vibrat\w+)\b/i, ["shake", "glow"]], [/\b(lights? up|glow(?:s|ing)?|flashes|shows?|displays?|flickers?)\b/i, ["glow"]]] },
-  { noun: /\b(lamp|light|lantern|bulb|candle|flashlight|torch)\b/i, name: "light", verbs: [[/\b(flicker(?:s|ing)?|buzz(?:es|ing)?|dims?|flashes)\b/i, ["flicker"]]] },
+  { noun: /\b(flashlight|torch)\b/i, name: "flashlight", verbs: [[/\b(raises?|lifts?|shines?|aims?|points?|sweeps?|switch(?:es)? on|turns? on|flickers?|glows?|beam)\b/i, ["glow"]], [/\b(holds?|holding|carries|carrying|grips?)\b/i, ["hold"]]] },
+  { noun: /\b(lamp|light|lantern|bulb|candle)\b/i, name: "light", verbs: [[/\b(flicker(?:s|ing)?|buzz(?:es|ing)?|dims?|flashes)\b/i, ["flicker"]]] },
 ];
 
 /** Objects that move according to the sentence ("the door creaks open" -> door: open). */
@@ -129,4 +139,23 @@ function mergeObjects(a: ShotObjectAction[], b: ShotObjectAction[]): ShotObjectA
   const out = [...a];
   for (const o of b) if (!out.some((x) => x.object === o.object && x.action === o.action)) out.push(o);
   return out;
+}
+
+/**
+ * The director's action-first slots, each a few plain words: what the character does to travel ("walk to the door"), what the hands
+ * do ("raise the flashlight", "push the door open", "check the phone") and how they react ("stop and listen", "step back in fear").
+ * Turned into semantic actions/objects with the same verb rules; slots are timed in order: travel early, hands in the middle, reaction late.
+ */
+export function slotsToAnimation(slots: { move?: string; gesture?: string; reaction?: string }): { actions: ShotAnimAction[]; objects: ShotObjectAction[] } {
+  const actions: ShotAnimAction[] = [], objects: ShotObjectAction[] = [];
+  const none = (t?: string): boolean => !t || /^(none|no|nothing|n\/a|-|stands? still|idle)$/i.test(t.trim());
+  const take = (text: string | undefined, when: ShotAnimAction["when"]): void => {
+    if (none(text)) return;
+    for (const a of actionsFromText(text!).slice(0, 2)) if (!actions.some((x) => x.action === a.action)) actions.push({ ...a, when: actions.length && when === "start" ? "early" : when });
+    for (const o of objectsFromText(text!)) if (!objects.some((x) => x.object === o.object && x.action === o.action)) objects.push({ ...o, when: when === "start" ? "early" : when });
+  };
+  take(slots.move, "start");
+  take(slots.gesture, "mid");
+  take(slots.reaction, "late");
+  return { actions: actions.slice(0, 3), objects: objects.slice(0, 3) };
 }

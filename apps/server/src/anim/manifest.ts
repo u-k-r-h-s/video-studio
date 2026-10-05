@@ -4,7 +4,9 @@ import { classifyProp, neededForCharacter, normName, type PropKind } from "./sem
 import { VIEW_NAMES, type ViewName } from "./types";
 
 /** Bump when prompts or processing change so cached assets are regenerated. */
-export const ASSET_RECIPE_VERSION = "anim-assets-v1";
+export const ASSET_RECIPE_VERSION = "anim-assets-v2-puppet";
+/** img2img start picture for every character: the procedural mannequin (mannequin.ts), not a generated asset. */
+export const MANNEQUIN_INIT = "@mannequin";
 
 export type ManifestKind = "location" | "character_view" | "head_variant" | "prop";
 export interface ManifestAsset {
@@ -22,8 +24,9 @@ export interface ManifestAsset {
   steps: number;
   cfg: number;
   model: string;
-  /** Cut-out: none (backgrounds), one BiRefNet pass, or several passes (a hand and the phone it holds). */
-  matte: "none" | "single" | "multi";
+  /** Cut-out: none, one BiRefNet pass, several passes (a hand and the phone it holds), or `check` (backgrounds: the matte is only used to
+   *  reject a picture with an unrequested person/creature in it). */
+  matte: "none" | "single" | "multi" | "check";
   /** img2img source (another manifest asset) and strength: identity carries over from the front view / the head crop. */
   init?: { assetId: string; denoise: number };
   /** Assets with the same key are generated from the same seed (the camera views of one character keep one identity). */
@@ -43,6 +46,15 @@ export interface AssetManifest {
   assets: ManifestAsset[];
 }
 
+const FACE_VARIANTS = new Set(["smile", "surprised", "worried", "angry"]);
+const POSE_NEG = "hands in pockets, arms crossed, holding anything, mannequin, statue, grey skin, multiple people";
+/** Backgrounds must be empty: nobody and nothing that was not asked for. */
+const EMPTY_NEG = "person, people, man, woman, child, figure, silhouette, crowd, animal, fox, dog, cat, bird, creature, monster, ghost, statue, car, vehicle, text, sign, letters";
+const BEINGS = /\b(person|people|man|men|woman|women|child|children|kid|boy|girl|figure|figures|stranger|guard|keeper|fox|dog|cat|bird|animal|creature|monster|ghost|spirit|shadowy figure|someone|crowd)\b/i;
+/** Drops the parts of a place description that would paint a being into an empty background ("light from the glowing fox"). */
+export function withoutBeings(text: string): string {
+  return text.split(/,|;|\band\b/).map((x) => x.trim()).filter((x) => x && !BEINGS.test(x)).join(", ");
+}
 const GREY = "plain flat light grey studio background, nothing else in the picture";
 const WHITE = "plain flat pure white studio background, soft even lighting";
 const VIEW_WORDS: Record<ViewName, string> = {
@@ -70,6 +82,7 @@ const PROP_PROMPTS: Record<PropKind, (label: string) => string> = {
   door: () => `a closed heavy wooden door with panels, seen straight from the front, flat even lighting, filling the picture, ${GREY}`,
   car: () => `a dark sedan car seen exactly from the side, perfect side profile view, both wheels visible, headlights glowing, ${GREY}`,
   package: () => `a cardboard delivery package wrapped with tape, three-quarter view, ${GREY}`,
+  flashlight: () => `a flashlight, ${GREY}`,
   picture: (label) => `a ${label}, a single flat sheet seen straight from the front, filling the picture, ${GREY}`,
   generic: (label) => `a ${label}, a single object, ${GREY}`,
 };
@@ -113,8 +126,8 @@ export function planAssets(story: Story, characters: Character[], s: AnimationSe
   const locations = usedLocs.map((id) => {
     const l = story.locations.find((x) => x.id === id) ?? story.locations[0]!;
     const asset = add({
-      id: `loc-${l.id}`, kind: "location", ownerId: l.id, label: l.name, width: s.location.width, height: s.location.height, steps: s.location.steps, cfg: s.location.cfg, model: s.imageModel, negative: s.negativePrompt, matte: "none",
-      prompt: `${s.stylePrefix}, wide cinematic view of ${l.visualIdentity}, ${l.lighting}, empty, no people, no cars`, shots: story.shots.filter((x) => x.locationId === id).map((x) => x.id),
+      id: `loc-${l.id}`, kind: "location", ownerId: l.id, label: l.name, width: s.location.width, height: s.location.height, steps: s.location.steps, cfg: s.location.cfg, model: s.imageModel, negative: `${s.negativePrompt}, ${EMPTY_NEG}`, matte: "check",
+      prompt: `${s.stylePrefix}, wide cinematic view of ${withoutBeings(l.visualIdentity)}, ${withoutBeings(l.lighting)}, empty place, nobody there`, shots: story.shots.filter((x) => x.locationId === id).map((x) => x.id),
     });
     return { id: l.id, name: l.name, assetId: asset.id };
   });
@@ -124,26 +137,26 @@ export function planAssets(story: Story, characters: Character[], s: AnimationSe
     const identity = characterIdentityText(c);
     const need = neededForCharacter(story.shots, cid);
     const shotsOf = story.shots.filter((x) => x.subjectIds[0] === cid).map((x) => x.id);
-    const views = VIEW_NAMES.filter((v) => need.views.has(v));
     const ids: string[] = [];
-    const base = (view: ViewName): ManifestAsset => add({
-      id: `char-${cid}-${view}`, kind: "character_view", ownerId: cid, view, label: `${c.name} (${view})`, width: s.character.width, height: s.character.height, steps: view === "front" ? s.character.steps : Math.max(s.character.steps, 8), cfg: view === "front" ? s.character.cfg : Math.max(s.character.cfg, 3), model: s.imageModel, negative: s.negativePrompt, matte: "single",
-      // other camera views are text-to-image: img2img from the front view only ever gives the front view again (measured, even at denoise 0.85)
-      prompt: `${s.stylePrefix}, full body shot of ${identity}, ${VIEW_WORDS[view]}, ${GREY}`, seedKey: `char-${cid}`, shots: shotsOf,
+    // ONE body picture per character, drawn over the mannequin so it can be cut into a puppet; every view of the film is this one
+    // picture (mirrored when the character faces the other way), so face, hair, clothes and proportions never change
+    const body = add({
+      id: `char-${cid}-puppet`, kind: "character_view", ownerId: cid, view: "three-quarter", label: `${c.name} (puppet)`, width: s.character.width, height: s.character.height,
+      steps: Math.max(s.character.steps, 8), cfg: Math.max(s.character.cfg, 2.6), model: s.imageModel, negative: `${s.negativePrompt}, ${POSE_NEG}`, matte: "single",
+      prompt: `${s.stylePrefix}, full body shot of ${identity}, three-quarter view, standing with arms held away from the body, legs apart, ${GREY}`,
+      init: { assetId: MANNEQUIN_INIT, denoise: 0.78 }, shots: shotsOf,
     });
-    const front = base("front");
-    ids.push(front.id);
-    for (const v of views.filter((x) => x !== "front")) ids.push(base(v).id);
-    const variants = [...need.variants].filter((v) => v !== "front").sort();
-    if (need.variants.size) variants.unshift("front"); // the redrawn neutral head is the base of the rig whenever any variant exists
+    ids.push(body.id);
+    // expressions redraw only the face (img2img of the head crop, low denoise so it stays the same person)
+    const variants = [...need.variants].filter((v) => FACE_VARIANTS.has(v)).sort();
     for (const v of variants) {
       const w = variantSettings(v);
       ids.push(add({
-        id: `head-${cid}-${v}`, kind: "head_variant", ownerId: cid, variant: v, label: `${c.name} head (${v})`, width: s.head.size, height: s.head.size, steps: s.head.steps, cfg: w.cfg, model: s.imageModel, negative: s.negativePrompt, matte: "single",
-        prompt: `${s.stylePrefix}, close portrait of ${c.appearance}${c.clothing ? `, wearing ${c.clothing}` : ""}, ${WHITE}, ${w.words}`, init: { assetId: front.id, denoise: w.denoise }, shots: shotsOf,
+        id: `head-${cid}-${v}`, kind: "head_variant", ownerId: cid, variant: v, label: `${c.name} face (${v})`, width: s.head.size, height: s.head.size, steps: Math.max(s.head.steps, 8), cfg: w.cfg, model: s.imageModel, negative: `${s.negativePrompt}, ${/(old|elderly|beard|mustache|moustache|wrinkle)/i.test(identity) ? "" : "old, elderly, wrinkles, beard, mustache, "}different person`, matte: "none",
+        prompt: `${s.stylePrefix}, close portrait of the same ${c.appearance}${c.clothing ? `, wearing ${c.clothing}` : ""}, plain light grey background, ${w.words}`, init: { assetId: body.id, denoise: Math.min(0.46, w.denoise) }, shots: shotsOf,
       }).id);
     }
-    return { id: cid, name: c.name, identity, views, variants, assetIds: ids };
+    return { id: cid, name: c.name, identity, views: ["three-quarter" as ViewName], variants, assetIds: ids };
   });
 
   const propMap = new Map<string, { label: string; kind: PropKind; shots: Set<string> }>();
@@ -155,7 +168,8 @@ export function planAssets(story: Story, characters: Character[], s: AnimationSe
     propMap.set(key, p);
   };
   for (const sh of story.shots) {
-    for (const o of sh.animation?.objects ?? []) note(o.object, sh.id);
+    // a torch is drawn procedurally (it must fit the hand and cast the beam): nothing to generate
+    for (const o of sh.animation?.objects ?? []) if (classifyProp(o.object) !== "flashlight") note(o.object, sh.id);
     if (sh.insert?.kind === "phone") note("phone", sh.id);
   }
   const props = [...propMap.entries()].slice(0, s.maxPropKinds).map(([key, p]) => {

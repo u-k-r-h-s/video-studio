@@ -32,7 +32,7 @@ export const animatedShort: FormatProfile = {
     minShots: 6,
     maxShots: 12,
     maxPropKinds: 4,
-    captions: { font: "Impact", size: 112, maxWidth: 960, stroke: 7, highlight: "FFD23F", emphasisColour: "FF4D3D" },
+    captions: { font: "HelveticaNeue-Bold", size: 60, maxWidth: 820, stroke: 4, highlight: "FFFFFF", emphasisColour: "FFD23F" },
   },
   cinematic: { ...cinematicAnimatedShort.cinematic!, minShots: 6, maxShots: 12, stylePrefix: STYLE, negativePrompt: NEG },
 };

@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import type { Asset } from "@studio/shared";
 import { AssetLibrary } from "./engine";
 import { animPaths, readRgba } from "./assets";
-import { makeLitPhone } from "./loader";
+import { makeFlashlight, makeHeldPhone, makeLitPhone } from "./loader";
+import { addPuppetFace, buildPuppet, puppetHeadCrop } from "./puppet";
 import type { AssetManifest } from "./manifest";
 import { addHeadVariant, analyzeFigure, buildRig, headCropRect, type Rig, type RigSet } from "./rig";
 import { VIEW_NAMES } from "./types";
@@ -14,12 +15,14 @@ export interface LibraryReport {
   missing: string[];
   /** Where the lit screen is on each phone asset (so a shot can draw its own message there). */
   phoneQuads: Record<string, [number, number][]>;
+  /** How each puppet was segmented (arms/legs separated from the body?). */
+  puppets: Record<string, { armsSeparated: boolean; legsSeparated: boolean }>;
 }
 
 /** Everything the renderer needs, loaded once from the project's generated assets (cut-outs become rigs). */
 export async function loadAnimLibrary(opts: { resolve: (rel: string) => string; exists: (rel: string) => boolean; manifest: AssetManifest; assets: Asset[] }): Promise<{ lib: AssetLibrary; report: LibraryReport }> {
   const lib = new AssetLibrary();
-  const report: LibraryReport = { locations: [], characters: {}, props: [], missing: [], phoneQuads: {} };
+  const report: LibraryReport = { locations: [], characters: {}, props: [], missing: [], phoneQuads: {}, puppets: {} };
   const byId = new Map(opts.assets.map((a) => [a.id, a]));
   const have = (id: string): boolean => { const a = byId.get(id); return !!a && a.status === "ready" && opts.exists(animPaths.final(id)); };
 
@@ -31,7 +34,29 @@ export async function loadAnimLibrary(opts: { resolve: (rel: string) => string; 
     report.locations.push(l.id);
   }
 
+  // procedural hand props: a torch and a phone that a puppet can hold (drawn, so they always fit the hand and the beam)
+  lib.images.set("torch", makeFlashlight());
+  lib.images.set("held-phone", makeHeldPhone());
+
   for (const c of opts.manifest.characters) {
+    const puppetId = `char-${c.id}-puppet`;
+    if (c.assetIds.includes(puppetId)) {
+      if (!have(puppetId)) { report.missing.push(puppetId); continue; }
+      const cut = await readRgba(opts.resolve(animPaths.final(puppetId)));
+      const box = byId.get(puppetId)?.meta?.box as { x: number; y: number; w: number; h: number } | undefined;
+      const pup = await buildPuppet(c.id, cut, { box });
+      const variants: string[] = [];
+      for (const id of c.assetIds.filter((x) => x.startsWith("head-"))) {
+        if (!have(id)) { report.missing.push(id); continue; }
+        const name = id.slice(`head-${c.id}-`.length);
+        await addPuppetFace(pup, name, await readRgba(opts.resolve(animPaths.final(id))), puppetHeadCrop(pup));
+        variants.push(name);
+      }
+      lib.addPuppet(pup);
+      report.characters[c.id] = { views: ["puppet"], variants };
+      report.puppets[c.id] = pup.report;
+      continue;
+    }
     const views: RigSet["views"] = {};
     let frontCut: Awaited<ReturnType<typeof readRgba>> | null = null;
     for (const v of VIEW_NAMES) {

@@ -74,7 +74,7 @@ export const renderAnimShots: StageFn = async (svc, ctx) => {
       const current = await svc.store.require(project.id);
       const index = story.shots.findIndex((s) => s.id === shot.id);
       const st = tl.shots[index]!;
-      const composed = composeShot({ shot, story, characters: current.characters, manifest, anim, duration: st.duration, fps: profile.video.fps, seed: index + 1, has: (id) => lib.images.has(id) || lib.rigs.has(id) });
+      const composed = composeShot({ shot, story, characters: current.characters, manifest, anim, duration: st.duration, fps: profile.video.fps, seed: index + 1, has: (id) => lib.images.has(id) || lib.rigs.has(id) || lib.puppets.has(id) });
       const { captions, hash: capHash } = await readShotCaptions(async (rel) => JSON.parse(await fs.readFile(svc.store.resolve(project.id, rel), "utf8")), current, shot.id);
       const insert = shot.insert && shot.insert.kind !== "phone" ? captions.insert : undefined; // a phone message is drawn on the phone itself
       const id = shotVideoAssetId(shot.id), rel = `shots/${shot.id}.mp4`;
