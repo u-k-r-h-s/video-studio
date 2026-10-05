@@ -19,7 +19,7 @@ const manifest = planAssets(project.story, project.characters, anim);
 const { lib } = await loadAnimLibrary({ resolve: (r) => path.join(dir, r), exists: (r) => fs.existsSync(path.join(dir, r)), manifest, assets: project.assets });
 const tl = animTimelineOf(project, project.story);
 const i = project.story.shots.findIndex((s: any) => s.id === shotId);
-const composed = composeShot({ shot: project.story.shots[i], story: project.story, characters: project.characters, manifest, anim, duration: tl.shots[i]!.duration, fps: 30, seed: i + 1, has: (a) => lib.images.has(a) || lib.rigs.has(a) });
+const composed = composeShot({ shot: project.story.shots[i], story: project.story, characters: project.characters, manifest, anim, duration: tl.shots[i]!.duration, fps: 30, seed: i + 1, has: (a) => lib.images.has(a) || lib.rigs.has(a) || lib.puppets.has(a) });
 const engine = new AnimEngine(composed.spec, lib);
 const times = ts.length ? ts.map(Number) : [0.1, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4];
 const W = 270, H = 480, sheet = createCanvas(W * times.length, H), sg = sheet.getContext("2d");

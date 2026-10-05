@@ -47,6 +47,49 @@ project has and with a content-addressed cache shared by all projects (`projects
 generated twice. Other camera views are **text-to-image** with the same costume text and the same seed as the front view
 (measured: img2img from the front view returns the front view again, even at denoise 0.85).
 
+### Characters are puppets, not moving pictures (`anim/mannequin.ts`, `anim/puppet.ts`)
+
+Each character is ONE generated picture, drawn img2img over a procedural grey **mannequin** in a relaxed A-pose (denoise 0.78).
+The image model keeps the start picture's composition (measured), so every character comes out with the arms held clear of the
+body and the legs apart, and the mannequin's joint positions are known in advance. Prompting for an A-pose or for a two-view
+character sheet did not work with DreamShaper (arms stay against the body; the "sheet" gave two different front views).
+
+`segmentFigure` labels the cut-out (head, torso, near/far arm, near/far leg) row by row from the mannequin's bone priors and the
+gaps between limbs; where an arm touches the body, its real width is measured where it hangs free. `buildPuppet` cuts:
+
+| part | pivot | notes |
+|---|---|---|
+| coat / hips | waist | lags 80 ms behind the body, swings with the stride |
+| torso | hips | leans (more when running), rocks with the steps |
+| head (hair, cap) | neck | lags 120 ms (hair bounce); the face area underneath is plain skin |
+| face | neck | slides over the head for looks/turns; expressions replace only this ellipse |
+| upper arm / lower arm + hand | shoulder / elbow | hand frame drives held props |
+| thigh / shin + foot | hip / knee | the lowest foot is kept on the floor (grounding), so the body drops when the legs spread |
+
+There is no second view: the same picture is mirrored when the character faces the other way, so face, hair, costume and
+proportions never change between shots (consistency over view variety). A turn is a quick squash-and-flip hidden by the hair and
+coat swing. Expressions (smile, surprised, worried, angry) are img2img redraws of the head crop at denoise <= 0.56 and only their face
+ellipse is used, so the cap and the hair never pop.
+
+**Motion** (`CharacterTimeline.puppetPose`): a walk/run cycle derived from distance (legs alternate, arms counter-swing, knees bend
+on the swing, torso leans and rocks, coat and hair lag); gestures as shoulder/elbow targets (`point`, `raise-hand`, `wave`, `reach`,
+`push`, `pull`, `hold`, `raise-object`, `lower-object`, `hold-phone`, `react`/`surprise`, `fear`, `hand-gesture`); looks turn the head
+and slide the face (no picture swap).
+
+**Held props** (`VisualLayer.parent = { layerId, hand }`): drawn in the hand's frame right after that arm, so they move and are
+occluded with it. A torch is procedural (`makeFlashlight`) and casts a beam along the forearm while its `glow` event is on; a phone
+is procedural too. Doors are pushed (`push`) when they open.
+
+**Director**: action-first slots per shot (`move`, `gesture`, `reaction`, a few plain words each, e.g. "walk to the door" / "raise the
+flashlight" / "stop and listen"), turned into semantic actions by fixed verb rules (`shots/animationRules.ts`).
+
+**Backgrounds** are prompted empty (beings are removed from the place text; a strong negative list), and each one is matted once as a
+check: an upright compact figure in the matte rejects the picture and it is regenerated (`figureInBackground`).
+
+**Quality test**: `npx tsx scripts/lab/anim-quality-test.ts` (walk 4 steps, stop and listen, raise an arm, raise a torch and aim it,
+react, run away; rain, fog, flickering lamp) -> `~/Desktop/animation-quality-test.mp4`. `scripts/lab/puppet-debug.ts` shows the
+segmentation and a row of poses.
+
 ### Cut-outs: matte, not colour heuristics (`lib/matte.ts`, `anim/assets.ts`)
 
 BiRefNet runs in the same ComfyUI session (`LoadBackgroundRemovalModel` -> `RemoveBackground`), and its foreground matte is the
