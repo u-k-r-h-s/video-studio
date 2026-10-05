@@ -1,5 +1,6 @@
 import { Track, ease, envelope, noise1 } from "./ease";
 import type { AnimationEvent, ViewName, VisualLayer } from "./types";
+import { restPose, type PuppetPose } from "./puppet";
 
 /**
  * Character animation by procedural pose: body-part transforms (bob, sway, leg swing, head turn/nod/shake, lean, pop,
@@ -80,6 +81,8 @@ export class CharacterTimeline {
   private readonly look = {} as Record<Look, Track>;
   private readonly expr = {} as Record<Expr, Track>;
   private readonly events: AnimationEvent[];
+  /** Persistent arm poses (holding / aiming an object) in degrees, and how much the arm still swings when walking. */
+  private readonly arm = { N: { sh: new Track(0), el: new Track(0), swing: new Track(1) }, F: { sh: new Track(0), el: new Track(0), swing: new Track(1) } };
   readonly H: number;
   private readonly baseH: number;
 
@@ -108,6 +111,10 @@ export class CharacterTimeline {
   }
   private setExpr(t: number, ramp: number, to: Expr): void {
     for (const x of EXPRS) this.expr[x].moveTo(t, ramp, x === to ? 1 : 0, "inOut");
+  }
+  private setArm(p: AnimationEvent["params"], t: number, ramp: number, sh: number, el: number, swing: number): void {
+    const a = this.arm[str(p, "hand", "near") === "far" ? "F" : "N"];
+    a.sh.moveTo(t, ramp, sh, "inOut"); a.el.moveTo(t, ramp, el, "inOut"); a.swing.moveTo(t, ramp, swing, "inOut");
   }
   private faceTo(t: number, dur: number, dir: number): void {
     if (Math.sign(this.facing.at(t)) !== Math.sign(dir) || Math.abs(this.facing.at(t)) < 0.99) this.facing.moveTo(t, dur, dir, "inOut");
@@ -171,6 +178,11 @@ export class CharacterTimeline {
           for (const v of VIEW_ORDER) this.viewT[v].moveTo(s, Math.max(0.05, d), v === use ? 1 : 0, "inOut");
           break;
         }
+        case "hold": case "lower-object": this.setArm(p, s, Math.min(0.35, Math.max(0.12, d)), 18, 58, 0.3); break;
+        case "raise-object": this.setArm(p, s, Math.max(0.2, Math.min(0.5, d)), 82, 6, 0.03); break;
+        case "hold-phone": this.setArm(p, s, Math.max(0.2, Math.min(0.45, d)), 18, 122, 0.05); this.setLook(s, 0.25, "down"); break;
+        case "release": this.setArm(p, s, Math.max(0.15, d), 0, 0, 1); break;
+        case "listen": this.setLook(s, 0.2, str(p, "to", "right") === "left" ? "left" : "right"); this.setLook(s + Math.max(0.6, d), 0.3, "center"); break;
         case "fade": this.opacityT.moveTo(s, d, num(p, "to", 0), "inOut"); break;
         case "appear": this.opacityT.moveTo(s, Math.min(d, 0.3), this.layer.opacity, "out"); break;
         case "disappear": this.opacityT.moveTo(s, d, 0, "in"); break;
@@ -371,6 +383,104 @@ export class CharacterTimeline {
           p.armL.rot += (8 + 3 * Math.sin(local * 40)) * env; p.armR.rot += (8 + 3 * Math.sin(local * 37)) * env;
           p.trembleX += 0.0035 * env * Math.sin(local * 67); p.trembleY += 0.0025 * env * Math.sin(local * 81 + 1); break;
         }
+        default: break;
+      }
+    }
+    return p;
+  }
+
+  /** Facing as a sign (screen: -1 left, +1 right). */
+  facingSign(t: number): number { return Math.sign(this.facing.at(t)) || 1; }
+
+  /**
+   * Pose of a cut-out puppet (puppet.ts) at time t. Angles are in the puppet's native frame: + = forward. The walk/run cycle is
+   * derived from the distance travelled; arms counter-swing the legs; the torso leans and rocks; the coat and the hair follow the
+   * body 80 / 120 ms late. Gestures (point, raise, reach, push, pull, wave, react) move the shoulders and elbows; held objects
+   * keep the arm in a holding pose.
+   */
+  puppetPose(t: number, nativeFacing: -1 | 1 = -1): PuppetPose {
+    const p = restPose();
+    const gaitAt = (tt: number): { move: number; run: number; phase: number } => {
+      const run = this.runBlend.at(tt), v = this.speedN(tt);
+      return { run, move: ease("inOut", Math.min(1, v / (0.19 + 0.1 * run))), phase: (Math.PI * this.dist.at(tt)) / (0.3 + 0.1 * run) };
+    };
+    const { move, run, phase } = gaitAt(t);
+    const lagC = gaitAt(t - 0.08), lagH = gaitAt(t - 0.12);
+    const sn = Math.sin(phase), cs = Math.cos(phase);
+    const A = (21 + 25 * run) * move;
+    const K = (26 + 62 * run) * move;
+    p.hipN = A * sn; p.hipF = -A * sn;
+    p.kneeN = K * Math.pow(Math.max(0, cs), 1.2) + 4 * move; p.kneeF = K * Math.pow(Math.max(0, -cs), 1.2) + 4 * move;
+    p.liftN = move * (0.008 + 0.012 * run) * Math.max(0, cs); p.liftF = move * (0.008 + 0.012 * run) * Math.max(0, -cs);
+    const B = (17 + 33 * run) * move;
+    const swN = this.arm.N.swing.at(t), swF = this.arm.F.swing.at(t);
+    p.shoulderN = -B * sn * swN + this.arm.N.sh.at(t); p.shoulderF = B * sn * swF + this.arm.F.sh.at(t);
+    const elBase = (10 + 62 * run) * move;
+    p.elbowN = this.arm.N.el.at(t) + swN * (elBase + 12 * move * Math.max(0, -sn)); p.elbowF = this.arm.F.el.at(t) + swF * (elBase + 12 * move * Math.max(0, sn));
+    p.bob = move * (0.009 + 0.018 * run) * Math.abs(sn);
+    p.lean = move * (2.5 + 13 * run) + 1.3 * move * Math.sin(2 * phase);
+    p.coat = -move * (2 + 5 * run) * 0.6 + 2.4 * lagC.move * Math.sin(lagC.phase) - 1.2 * lagC.move * Math.sin(2 * lagC.phase - 0.6);
+    p.hair = -move * (1.5 + 3 * run) + 1.6 * lagH.move * Math.sin(2 * lagH.phase - 1);
+    p.headRot = -0.8 * move * Math.sin(2 * phase);
+
+    // idle life: breathing, weight shift, small head drift; arms breathe a little
+    const idle = 1 - move;
+    p.pop += idle * 0.004 * Math.sin((2 * Math.PI * t) / 3.3);
+    p.lean += idle * 0.6 * Math.sin((2 * Math.PI * t) / 5.1 + 1);
+    p.coat += idle * 0.5 * Math.sin((2 * Math.PI * t) / 5.1 + 0.4);
+    p.headRot += idle * 1.2 * Math.sin((2 * Math.PI * t) / 4.3);
+    p.hair += idle * 0.8 * Math.sin((2 * Math.PI * t) / 4.3 - 0.9);
+    p.shoulderN += idle * 1.5 * Math.sin((2 * Math.PI * t) / 3.3); p.shoulderF -= idle * 1.5 * Math.sin((2 * Math.PI * t) / 3.3 + 0.3);
+
+    // looks: the head turns and the face slides over it (no picture swap)
+    const f = this.facingSign(t);
+    const toNative = (screen: number): number => screen * (f === nativeFacing ? 1 : -1) * (nativeFacing === -1 ? -1 : 1) * -1;
+    const lw = Object.fromEntries(LOOKS.map((l) => [l, this.look[l].at(t)])) as Record<Look, number>;
+    p.look += toNative(-1) * lw.left + toNative(1) * lw.right;
+    p.headRot += 6 * (toNative(-1) * lw.left + toNative(1) * lw.right) * -1;
+    p.headDx += 0.004 * (toNative(-1) * lw.left + toNative(1) * lw.right);
+    p.headRot -= 7 * lw.up; p.headDy -= 0.006 * lw.up; p.lookUp -= lw.up;
+    p.headRot += 9 * lw.down; p.headDy += 0.012 * lw.down; p.lookUp += lw.down;
+    p.look *= 1 - lw.camera;
+
+    // expressions: only the face changes
+    const ew = Object.fromEntries(EXPRS.map((x) => [x, this.expr[x].at(t)])) as Record<Expr, number>;
+    if (ew.smile > 0.002) p.face.smile = ew.smile;
+    if (ew.surprised > 0.002) { p.face.surprised = ew.surprised; p.headRot -= 4 * ew.surprised; }
+    if (ew.fear > 0.002) { p.face.worried = ew.fear; p.lean -= 3 * ew.fear; p.trembleX += 0.0012 * ew.fear * Math.sin(t * 61); }
+    if (ew.anger > 0.002) { p.face.angry = ew.anger; p.lean += 4 * ew.anger; }
+
+    // transient gestures
+    const blendArm = (limb: "N" | "F", sh: number, el: number, w: number): void => {
+      if (limb === "N") { p.shoulderN += (sh - p.shoulderN) * w; p.elbowN += (el - p.elbowN) * w; }
+      else { p.shoulderF += (sh - p.shoulderF) * w; p.elbowF += (el - p.elbowF) * w; }
+    };
+    for (const e of this.events) {
+      const local = t - e.start;
+      if (local < 0 || local > e.duration + 0.6) continue;
+      const q = e.params;
+      const hand: "N" | "F" = str(q, "hand", "near") === "far" ? "F" : "N";
+      const env = envelope(local, e.duration, Math.min(0.25, e.duration * 0.3), 0.3);
+      switch (e.type) {
+        case "point": blendArm(hand, 86, 4, env); p.lean += 3 * env; p.headDx += 0.004 * env; break;
+        case "raise-hand": blendArm(hand, hand === "N" ? 158 : -150, hand === "N" ? 18 : -14, env); p.lean -= 2 * env; p.headRot -= 3 * env; break;
+        case "wave": blendArm(hand, 150, 30 + 28 * Math.sin(2 * Math.PI * 2.6 * local), env); break;
+        case "reach": blendArm(hand, 68, 12, env); p.lean += 6 * env; break;
+        case "push": blendArm("N", 78, 14, env); blendArm("F", 74, 18, env); p.lean += 8 * env; break;
+        case "pull": blendArm("N", 55, 80, env); blendArm("F", 50, 85, env); p.lean -= 6 * env; break;
+        case "hand-gesture": blendArm(hand, 34 + 10 * Math.sin(2 * Math.PI * 2.2 * local), 72, env); p.headRot += 2 * Math.sin(2 * Math.PI * 2.2 * local) * env; break;
+        case "surprise": case "react": {
+          const k = Math.exp(-local * 3.5) * Math.min(1, local / 0.07);
+          blendArm("N", 48, 96, k); blendArm("F", 40, 100, k);
+          p.pop += num(q, "strength", 0.05) * Math.exp(-local * 6); p.lean -= 7 * k; p.headRot -= 5 * k; p.hair -= 5 * k; p.coat -= 3 * k;
+          break;
+        }
+        case "fear": blendArm("N", 26, 112, env); blendArm("F", 22, 116, env); p.trembleX += 0.003 * env * Math.sin(local * 67); break;
+        case "nod": { const w = Math.sin((2 * Math.PI * Math.round(num(q, "count", 2)) * local) / Math.max(0.1, e.duration)); p.headRot += 7 * envelope(local, e.duration, 0.05, 0.12) * Math.max(0, w); p.hair += 3 * Math.max(0, w); break; }
+        case "shake-head": { const w = Math.sin((2 * Math.PI * Math.round(num(q, "count", 3)) * local) / Math.max(0.1, e.duration)); const en = envelope(local, e.duration, 0.05, 0.15); p.look += 0.8 * w * en; p.headDx += 0.004 * w * en; break; }
+        case "lean": p.lean += num(q, "angle", 8) * envelope(local, e.duration, 0.2, 0.25); break;
+        case "shake": { const a = num(q, "amount", 0.006); p.trembleX += a * env * noise1(local * 9, 1); p.trembleY += a * 0.8 * env * noise1(local * 9, 2); break; }
+        case "turn": { const k = Math.sin(Math.min(1, local / Math.max(0.15, e.duration)) * Math.PI); p.hair -= 6 * k; p.coat -= 5 * k; break; }
         default: break;
       }
     }

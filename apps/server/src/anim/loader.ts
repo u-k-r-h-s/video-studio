@@ -108,3 +108,32 @@ export async function makeLitPhone(src: Drawable, quad: [number, number][], mess
   g.restore();
   return c;
 }
+
+/** A hand torch, drawn: handle on the left, lens on the right (grip at x 0.3, pointing along +x). */
+export function makeFlashlight(w = 320, h = 90): Canvas {
+  const c = createCanvas(w, h), g = c.getContext("2d");
+  const body = g.createLinearGradient(0, h * 0.25, 0, h * 0.75);
+  body.addColorStop(0, "#5b5f66"); body.addColorStop(0.45, "#2a2d33"); body.addColorStop(1, "#141518");
+  g.fillStyle = body;
+  g.beginPath(); g.roundRect(4, h * 0.3, w * 0.62, h * 0.4, h * 0.12); g.fill();
+  // head flares out toward the lens
+  g.beginPath(); g.moveTo(w * 0.6, h * 0.28); g.lineTo(w * 0.86, h * 0.08); g.lineTo(w * 0.94, h * 0.08); g.lineTo(w * 0.94, h * 0.92); g.lineTo(w * 0.86, h * 0.92); g.lineTo(w * 0.6, h * 0.72); g.closePath(); g.fill();
+  g.fillStyle = "#c9a54a"; g.fillRect(w * 0.28, h * 0.3, w * 0.03, h * 0.4); // switch ring
+  const lens = g.createLinearGradient(w * 0.94, 0, w, 0);
+  lens.addColorStop(0, "#fff6d8"); lens.addColorStop(1, "#ffe9a8");
+  g.fillStyle = lens; g.fillRect(w * 0.94, h * 0.1, w * 0.06, h * 0.8);
+  g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = 2; g.beginPath(); g.moveTo(10, h * 0.36); g.lineTo(w * 0.6, h * 0.36); g.stroke();
+  return c;
+}
+
+/** A phone held in the hand, screen lit (portrait; grip at the lower middle, pointing up along -y = axis -90). */
+export function makeHeldPhone(w = 120, h = 230): Canvas {
+  const c = createCanvas(w, h), g = c.getContext("2d");
+  g.fillStyle = "#16181c"; g.beginPath(); g.roundRect(0, 0, w, h, 16); g.fill();
+  const gr = g.createLinearGradient(0, 10, 0, h - 10);
+  gr.addColorStop(0, "#e8f6ff"); gr.addColorStop(0.5, "#8fd0ff"); gr.addColorStop(1, "#3d8fe8");
+  g.fillStyle = gr; g.beginPath(); g.roundRect(7, 12, w - 14, h - 24, 9); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.9)"; g.fillRect(16, h * 0.42, w - 32, h * 0.12);
+  g.fillStyle = "rgba(20,60,120,0.55)"; for (const y of [0.2, 0.26, 0.32]) g.fillRect(16, h * y, (w - 32) * 0.8, h * 0.025);
+  return c;
+}

@@ -6,6 +6,7 @@ import { audioCuesFor } from "./cues";
 import { drawDoor, hexa } from "./props";
 import { composeFigure, glowsAt, type FigureLight } from "./figure";
 import type { Rig, RigSet } from "./rig";
+import { composePuppet, type HeldItem, type Puppet } from "./puppet";
 import type { AnimShotSpec, AnimationEvent, AudioCue, CameraState, VisualLayer } from "./types";
 
 export type Drawable = Image | Canvas;
@@ -14,6 +15,9 @@ export type Drawable = Image | Canvas;
 export class AssetLibrary {
   readonly images = new Map<string, Drawable>();
   readonly rigs = new Map<string, RigSet>();
+  /** Cut-out puppets (puppet.ts), by character id: preferred over a rig set when both exist. */
+  readonly puppets = new Map<string, Puppet>();
+  addPuppet(p: Puppet): void { this.puppets.set(p.id, p); }
   async addImage(id: string, src: string | Buffer, opts: { blur?: number } = {}): Promise<Drawable> {
     const img = await loadImage(src);
     let out: Drawable = img;
@@ -66,6 +70,7 @@ class ObjectTimeline {
       }
     }
   }
+  hasGlowEvents(): boolean { return this.events.some((e) => e.type === "glow"); }
   /** Offsets and multipliers from transient events at time t. */
   mods(t: number): { dx: number; dy: number; rot: number; alpha: number; glow: { color: string; radius: number; amount: number } | null } {
     let dx = 0, dy = 0, rot = 0, alpha = 1, glow: { color: string; radius: number; amount: number } | null = null;
@@ -88,7 +93,7 @@ class ObjectTimeline {
   }
 }
 
-interface CharEntry { layer: VisualLayer; set: RigSet; tl: CharacterTimeline; lights: AnimationEvent[] }
+interface CharEntry { layer: VisualLayer; set: RigSet; puppet?: Puppet; tl: CharacterTimeline; lights: AnimationEvent[]; held: ObjectTimeline[] }
 
 export interface FrameInfo { camera: CameraState }
 
@@ -108,15 +113,30 @@ export class AnimEngine {
     this.fx = new EffectPainter(this.W, this.H, spec.seed ?? 1);
     for (const l of spec.layers) {
       if (l.type === "character") {
-        const set = lib.rigs.get(l.rig ?? l.source);
-        if (!set) throw new Error(`character layer ${l.id}: no rig "${l.rig ?? l.source}" in the asset library`);
+        const id = l.rig ?? l.source;
+        const puppet = lib.puppets.get(id);
+        if (puppet) {
+          const info = { nativeFacing: puppet.nativeFacing, variants: new Set(Object.keys(puppet.faces)) };
+          const tl = new CharacterTimeline(l, spec.events, { ...info, views: { "three-quarter": info } }, spec.duration);
+          this.chars.set(l.id, { layer: l, set: { id, views: {} }, puppet, tl, lights: spec.events.filter((e) => e.type === "glow" && e.targetId === l.id), held: [] });
+          continue;
+        }
+        const set = lib.rigs.get(id);
+        if (!set) throw new Error(`character layer ${l.id}: no rig "${id}" in the asset library`);
         const views = Object.fromEntries(Object.entries(set.views).map(([v, r]) => [v, { nativeFacing: r!.nativeFacing, variants: new Set(Object.keys(r!.variants)) }]));
         const first = Object.values(set.views)[0]!;
         const tl = new CharacterTimeline(l, spec.events, { nativeFacing: first.nativeFacing, variants: new Set(Object.keys(first.variants)), views }, spec.duration);
-        this.chars.set(l.id, { layer: l, set, tl, lights: spec.events.filter((e) => e.type === "glow" && e.targetId === l.id) });
+        this.chars.set(l.id, { layer: l, set, tl, lights: spec.events.filter((e) => e.type === "glow" && e.targetId === l.id), held: [] });
       } else this.objs.set(l.id, new ObjectTimeline(l, spec.events));
     }
-    this.order = [...spec.layers].sort((a, b) => a.zIndex - b.zIndex);
+    // props held by a character are drawn by the character (in its hand), not as free layers
+    for (const l of spec.layers) {
+      if (!l.parent) continue;
+      const c = this.chars.get(l.parent.layerId), o = this.objs.get(l.id);
+      if (c?.puppet && o) c.held.push(o);
+    }
+    const heldIds = new Set([...this.chars.values()].flatMap((c) => c.held.map((o) => o.layer.id)));
+    this.order = [...spec.layers].filter((l) => !heldIds.has(l.id)).sort((a, b) => a.zIndex - b.zIndex);
     this.camX = new Track(spec.camera.x); this.camY = new Track(spec.camera.y); this.camZoom = new Track(spec.camera.zoom); this.camRot = new Track(spec.camera.rotation);
     this.camEvents = spec.events.filter((e) => e.targetId === "camera").sort((a, b) => a.start - b.start);
     this.compileCamera();
@@ -282,6 +302,7 @@ export class AnimEngine {
   }
 
   private drawCharacter(g: SKRSContext2D, c: CharEntry, t: number, cam: CameraState): void {
+    if (c.puppet) { this.drawPuppet(g, c, c.puppet, t, cam); return; }
     const l = c.layer, par = l.parallax ?? 1;
     const { project, zl } = this.project(cam, par);
     const root = c.tl.root(t);
@@ -344,6 +365,96 @@ export class AnimEngine {
       g.restore();
     }
     g.restore();
+  }
+
+  /** A cut-out puppet: posed part by part, held props in its hands, a light beam from a held flashlight. */
+  private drawPuppet(g: SKRSContext2D, c: CharEntry, pup: Puppet, t: number, cam: CameraState): void {
+    const l = c.layer, par = l.parallax ?? 1;
+    const { project, zl } = this.project(cam, par);
+    const root = c.tl.root(t);
+    const opacity = c.tl.alpha(t);
+    if (opacity < 0.003) return;
+    const pose = c.tl.puppetPose(t, pup.nativeFacing);
+    const stageH = (l.height ?? 900) * root.scale;
+    const rp = project(root.x + pose.trembleX * stageH, root.y + pose.trembleY * stageH);
+    const s = (stageH / pup.figH) * zl * (1 + pose.pop);
+    // facing: a quick squash-and-flip (never a sliver), hidden by the hair/coat swing of the turn
+    const fv = root.fv * (pup.nativeFacing === -1 ? -1 : 1);
+    const sx = (Math.sign(fv) || 1) * (0.6 + 0.4 * Math.min(1, Math.abs(fv)));
+    const held: HeldItem[] = [];
+    for (const o of c.held) {
+      const img = this.lib.images.get(o.layer.source);
+      if (!img) continue;
+      const m = o.mods(t);
+      const gr = o.layer.grip ?? { x: 0.15, y: 0.5 };
+      held.push({ hand: o.layer.parent?.hand === "far" ? "F" : "N", image: img, grip: { x: gr.x, y: gr.y }, axis: gr.axis ?? 0, size: gr.size ?? 0.16, opacity: o.opacity.at(t) * m.alpha });
+    }
+    const fig = composePuppet((k, cw, ch) => this.canvas(k, cw, ch), l.id, pup, pose, held);
+    const dx = -(fig.margin + pup.w / 2), dy = -(fig.margin + pup.groundY);
+    g.save();
+    if (l.shadow !== false) {
+      const sw = pup.w * 0.42 * s * (1 - pose.bob * 2), sh = sw * 0.16;
+      const gr = g.createRadialGradient(rp.x, rp.y, 0, rp.x, rp.y, sw);
+      gr.addColorStop(0, `rgba(0,0,0,${0.6 * opacity})`);
+      gr.addColorStop(0.55, `rgba(0,0,0,${0.25 * opacity})`);
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = gr;
+      g.save(); g.translate(rp.x, rp.y); g.scale(1, sh / sw); g.translate(-rp.x, -rp.y); g.fillRect(rp.x - sw, rp.y - sw, sw * 2, sw * 2); g.restore();
+    }
+    // lighting match on the posed figure: scene tint, rim light, glows (phone light on the face)
+    const fc = fig.canvas, fg2 = fc.getContext("2d");
+    fg2.save();
+    fg2.globalCompositeOperation = "source-atop";
+    if (l.tint && (l.tintAmount ?? 0) > 0) { fg2.globalAlpha = l.tintAmount!; fg2.fillStyle = l.tint; fg2.fillRect(0, 0, fc.width, fc.height); }
+    if (l.rim) {
+      fg2.globalAlpha = (l.rim.amount ?? 0.4) * 0.55;
+      const rx = (l.rim.side * (sx < 0 ? -1 : 1)) > 0 ? fc.width : 0;
+      const gr = fg2.createLinearGradient(rx, 0, fc.width / 2, 0);
+      gr.addColorStop(0, l.rim.color); gr.addColorStop(0.35, hexa(l.rim.color, 0)); gr.addColorStop(1, hexa(l.rim.color, 0));
+      fg2.fillStyle = gr; fg2.fillRect(0, 0, fc.width, fc.height);
+    }
+    for (const gl of glowsAt(c.lights, t)) {
+      fg2.globalAlpha = Math.min(1, gl.alpha);
+      const gy = fig.margin + pup.joints.neck.y, gx = fig.margin + pup.joints.neck.x;
+      const gr = fg2.createRadialGradient(gx, gy, 0, gx, gy, pup.figH * 0.5);
+      gr.addColorStop(0, hexa(gl.color, 0.55)); gr.addColorStop(1, hexa(gl.color, 0));
+      fg2.fillStyle = gr; fg2.fillRect(0, 0, fc.width, fc.height);
+    }
+    fg2.restore();
+    if (l.blur && l.blur > 0) g.filter = `blur(${(l.blur * zl).toFixed(1)}px)`;
+    g.globalAlpha = Math.min(1, opacity);
+    g.translate(rp.x, rp.y);
+    g.scale(sx * s, s);
+    g.drawImage(fc, dx, dy);
+    g.restore();
+    // beams from held lights: from the far end of the item, along the forearm
+    for (const o of c.held) {
+      const b = o.layer.beam;
+      if (!b) continue;
+      const hand = fig.hands[o.layer.parent?.hand === "far" ? "F" : "N"];
+      if (!hand) continue;
+      const m = o.mods(t);
+      const hasGlow = o.hasGlowEvents();
+      const amount = (b.intensity ?? 1) * o.opacity.at(t) * m.alpha * (hasGlow ? (m.glow?.amount ?? 0) : 1);
+      if (amount < 0.02) continue;
+      const len = (o.layer.grip?.size ?? 0.16) * pup.figH * (1 - (o.layer.grip?.x ?? 0.15));
+      const a = (hand.angle * Math.PI) / 180;
+      const tip = { x: hand.x + Math.cos(a) * len, y: hand.y + Math.sin(a) * len };
+      const toScreen = (q: { x: number; y: number }): { x: number; y: number } => ({ x: rp.x + sx * s * (q.x + dx), y: rp.y + s * (q.y + dy) });
+      const p0 = toScreen(tip), p1 = toScreen({ x: tip.x + Math.cos(a) * 10, y: tip.y + Math.sin(a) * 10 });
+      const ang = Math.atan2(p1.y - p0.y, p1.x - p0.x), L = (b.length ?? 1400) * zl, spread = ((b.spread ?? 16) * Math.PI) / 180;
+      g.save();
+      g.globalCompositeOperation = "screen";
+      g.translate(p0.x, p0.y); g.rotate(ang);
+      const gr = g.createLinearGradient(0, 0, L, 0);
+      gr.addColorStop(0, hexa(b.color, 0.75 * amount)); gr.addColorStop(0.25, hexa(b.color, 0.35 * amount)); gr.addColorStop(1, hexa(b.color, 0));
+      g.fillStyle = gr;
+      g.beginPath(); g.moveTo(0, -6 * zl); g.lineTo(L, -Math.tan(spread) * L); g.lineTo(L, Math.tan(spread) * L); g.lineTo(0, 6 * zl); g.closePath(); g.fill();
+      const hg = g.createRadialGradient(0, 0, 0, 0, 0, 90 * zl);
+      hg.addColorStop(0, hexa(b.color, 0.9 * amount)); hg.addColorStop(1, hexa(b.color, 0));
+      g.fillStyle = hg; g.fillRect(-90 * zl, -90 * zl, 180 * zl, 180 * zl);
+      g.restore();
+    }
   }
 }
 

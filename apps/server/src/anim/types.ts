@@ -45,6 +45,12 @@ export interface VisualLayer {
   rim?: { color: string; side: 1 | -1; amount?: number };
   /** Props that act as a door: hinge side and the colour of the light behind it. */
   door?: { hinge: "left" | "right"; glow: string };
+  /** Held props: the prop is carried by a character's hand (drawn in the hand's frame, occluded like the hand). */
+  parent?: { layerId: string; hand?: "near" | "far" };
+  /** Held props: grip point (fractions of the image), the image's own pointing axis (deg, 0 = image right) and length (fraction of figure height). */
+  grip?: { x: number; y: number; axis?: number; size?: number };
+  /** A light beam from the far end of a held prop (flashlight). */
+  beam?: { color: string; length?: number; spread?: number; intensity?: number };
   /** Drawn only inside this world rectangle (e.g. a door's interior). */
   hidden?: boolean;
 }
@@ -52,6 +58,7 @@ export interface VisualLayer {
 export const CHARACTER_PRIMITIVES = [
   "idle", "view", "walk", "run", "enter", "exit", "turn", "look-left", "look-right", "look-up", "look-down", "look-center", "head-turn", "nod", "shake-head",
   "lean", "step-forward", "step-back", "hand-gesture", "point", "react", "surprise", "fear", "anger", "smile", "neutral", "stop",
+  "raise-hand", "wave", "reach", "push", "pull", "hold", "raise-object", "lower-object", "release", "hold-phone", "listen",
 ] as const;
 export const OBJECT_PRIMITIVES = ["move", "scale", "rotate", "fade", "appear", "disappear", "shake", "flicker", "open", "close", "glow", "drive", "particle"] as const;
 export const CAMERA_PRIMITIVES = ["camera"] as const;
