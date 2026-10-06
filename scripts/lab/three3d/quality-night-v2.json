@@ -1,0 +1,117 @@
+{
+ "out": "/Users/apple/Desktop/three3d-quality-night-v2.mp4",
+ "seconds": 14.4,
+ "totalSeconds": 24.5,
+ "sizeMB": 25.1,
+ "cues": 59,
+ "shots": [
+  {
+   "shot": "shot-01",
+   "frames": 138,
+   "hostMs": 7562,
+   "setupMs": 195,
+   "renderMs": 358,
+   "triangles": 31484,
+   "drawCalls": 183,
+   "geometries": 84,
+   "textures": 29,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "0.30 idle->walk",
+      "4.10 walk->stop",
+      "4.47 stop->idle"
+     ]
+    }
+   ],
+   "hostSetupMs": 1110
+  },
+  {
+   "shot": "shot-02",
+   "frames": 168,
+   "hostMs": 8788,
+   "setupMs": 84,
+   "renderMs": 390,
+   "triangles": 38498,
+   "drawCalls": 204,
+   "geometries": 88,
+   "textures": 56,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "1.23 idle->walk",
+      "5.07 walk->stop",
+      "5.43 stop->idle"
+     ]
+    }
+   ],
+   "hostSetupMs": 110
+  },
+  {
+   "shot": "shot-03",
+   "frames": 126,
+   "hostMs": 7101,
+   "setupMs": 81,
+   "renderMs": 310,
+   "triangles": 38364,
+   "drawCalls": 216,
+   "geometries": 88,
+   "textures": 84,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "2.30 idle->walk",
+      "3.20 walk->stop",
+      "3.57 stop->idle"
+     ]
+    }
+   ],
+   "hostSetupMs": 103
+  }
+ ]
+}

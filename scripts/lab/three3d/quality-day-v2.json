@@ -1,0 +1,149 @@
+{
+ "out": "/Users/apple/Desktop/three3d-quality-day-v2.mp4",
+ "seconds": 15.6,
+ "totalSeconds": 39.9,
+ "sizeMB": 27.3,
+ "cues": 95,
+ "shots": [
+  {
+   "shot": "shot-01",
+   "frames": 120,
+   "hostMs": 11232,
+   "setupMs": 188,
+   "renderMs": 254,
+   "triangles": 23650,
+   "drawCalls": 190,
+   "geometries": 128,
+   "textures": 28,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "0.27 idle->walk",
+      "3.53 walk->stop",
+      "3.90 stop->idle"
+     ]
+    }
+   ],
+   "hostSetupMs": 1003
+  },
+  {
+   "shot": "shot-02",
+   "frames": 132,
+   "hostMs": 11559,
+   "setupMs": 90,
+   "renderMs": 260,
+   "triangles": 24870,
+   "drawCalls": 209,
+   "geometries": 133,
+   "textures": 52,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "1.97 idle->walk"
+     ]
+    }
+   ],
+   "hostSetupMs": 92
+  },
+  {
+   "shot": "shot-03",
+   "frames": 114,
+   "hostMs": 7368,
+   "setupMs": 96,
+   "renderMs": 229,
+   "triangles": 24966,
+   "drawCalls": 210,
+   "geometries": 135,
+   "textures": 77,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "3.07 idle->walk"
+     ]
+    }
+   ],
+   "hostSetupMs": 98
+  },
+  {
+   "shot": "shot-04",
+   "frames": 102,
+   "hostMs": 8598,
+   "setupMs": 82,
+   "renderMs": 223,
+   "triangles": 25092,
+   "drawCalls": 216,
+   "geometries": 140,
+   "textures": 102,
+   "characters": [
+    {
+     "id": "rider",
+     "height": 1.82,
+     "walkSpeed": 1.31,
+     "runSpeed": 2.52,
+     "bones": 19,
+     "clips": [
+      "idle",
+      "walk",
+      "run",
+      "wave",
+      "interact",
+      "react",
+      "aim",
+      "death"
+     ],
+     "transitions": [
+      "1.23 idle->walk",
+      "2.13 walk->stop",
+      "2.50 stop->idle"
+     ]
+    }
+   ],
+   "hostSetupMs": 84
+  }
+ ]
+}
