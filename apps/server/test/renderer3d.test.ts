@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Character, Shot } from "@studio/shared";
-import { compileShot3D, lightingFor } from "../src/anim/renderers/three3d/compile";
+import { compileShot3D, kitFor, lightingFor } from "../src/anim/renderers/three3d/compile";
 import { DEFAULT_CHROME, Three3DRenderer } from "../src/anim/renderers/three3d";
 import { characterFile, castFor } from "../src/anim/renderers/three3d/library";
 import { CinematicCamera } from "../src/anim/renderers/three3d/runtime/camera";
@@ -84,6 +84,33 @@ describe.skipIf(!haveGlb)("3D character (GLB in Node, no browser)", () => {
     const g = await load();
     expect(() => new Character3D(spec([]), { scene: g.scene, animations: g.animations.filter((a) => !/walk/i.test(a.name)) }, world())).toThrow(/Walk clip/);
   });
+  it("acting: a hand action waits until the walk has ended and the body has settled (walk -> slow -> settle -> act)", async () => {
+    const c = new Character3D(spec([{ at: 0, action: "walk", target: { x: 0, z: 3 } }, { at: 0.5, action: "reach", target: "door", duration: 0.8 }]), await load(), world({ door: new THREE.Vector3(0.2, 1.2, 3.6) }));
+    let arrived = -1, reached = -1;
+    for (let i = 0; i <= 150; i++) {
+      const t = i / 30; c.update(t, i ? 1 / 30 : 0);
+      if (arrived < 0 && c.loco.state !== "walk" && t > 0.5) arrived = t;
+      if (reached < 0 && c.bones.handR!.getWorldPosition(new THREE.Vector3()).distanceTo(new THREE.Vector3(0.2, 1.2, 3.6)) < 0.25) reached = t;
+    }
+    expect(arrived).toBeGreaterThan(0.5);
+    expect(reached).toBeGreaterThan(arrived + 0.3); // not while still walking; a beat after stopping
+  });
+  it("IK: a raised torch bends the elbow (not a straight rod) and points at the target", async () => {
+    const target = new THREE.Vector3(1.5, 1.4, 5);
+    const c = new Character3D(spec([{ at: 0, action: "hold", prop: "f" }, { at: 0.2, action: "raise", prop: "f", target: { x: 1.5, y: 1.4, z: 5 } }], [{ id: "f", kind: "flashlight", socket: "rightHand" }]), await load(), world());
+    run(c, 1.6);
+    const S = c.bones.upperArmR!.getWorldPosition(new THREE.Vector3()), E = c.bones.lowerArmR!.getWorldPosition(new THREE.Vector3()), H = c.bones.handR!.getWorldPosition(new THREE.Vector3());
+    const elbowAngle = E.clone().sub(S).normalize().angleTo(H.clone().sub(E).normalize());
+    expect(elbowAngle).toBeGreaterThan(0.12); // bent
+    const axis = new THREE.Vector3(1, 0, 0).applyQuaternion(c.props[0]!.object.quaternion);
+    expect(axis.dot(target.clone().sub(c.props[0]!.object.position).normalize())).toBeGreaterThan(0.9); // the torch points at it
+  });
+  it("presentation: faceted low-poly meshes are smoothed and materials get a per-kind response", async () => {
+    const c = new Character3D(spec([]), await load(), world());
+    expect(c.presentation.smoothed).toBeGreaterThan(0);
+    expect(c.presentation.materials["Skin"]).toBe("skin");
+    expect(c.presentation.materials["Hair"]).toBe("hair");
+  });
   it("gestures play skeletal layers over the locomotion (wave / push / react change the arm pose)", async () => {
     const pose = async (events: CharacterSpec3D["events"]): Promise<THREE.Vector3[]> => { const c = new Character3D(spec(events), await load(), world({ door: new THREE.Vector3(0, 1.1, 1) })); run(c, 1.0); return [c.bones.handR!, c.bones.handL!].map((b) => b.getWorldPosition(new THREE.Vector3())); };
     const moved = (a: THREE.Vector3[], b: THREE.Vector3[]): number => Math.max(a[0]!.distanceTo(b[0]!), a[1]!.distanceTo(b[1]!));
@@ -126,15 +153,27 @@ describe("3D compiler: the Director's shot -> a 3D shot", () => {
     expect(spec.environment.objects.find((o) => o.kind === "door")!.events!.some((e) => e.action === "open")).toBe(true);
     expect(spec.camera).toMatchObject({ shot: "wide", target: "rider" });
     expect(["follow", "tracking"]).toContain(spec.camera.move);
-    expect(spec.lighting).toBe("rain");
+    expect(spec.lighting).toBe("rainy-night");
     expect(c.wardrobe).toMatchObject({ LightBrown: "#e0641c", LightBlue: "#22252b" }); // jacket and trousers from the costume words
     expect(JSON.stringify(compileShot3D({ shot, story: { locations: [loc] }, characters: [rider], duration: 5, width: 1080, height: 1920, fps: 30, seed: 1, cast: (x) => castFor(x, ["casual-man"]) }).spec)).toBe(JSON.stringify(spec)); // deterministic
     expect(JSON.stringify(spec)).not.toMatch(/quaternion|rotation"\s*:\s*\[/); // no bone angles anywhere in the shot data
   });
   it("picks lighting presets from the place", () => {
-    expect(lightingFor({ visualIdentity: "a sunny park", lighting: "bright midday", description: "" })).toBe("day");
-    expect(lightingFor({ visualIdentity: "old factory hall", lighting: "night", description: "industrial warehouse" })).toBe("warehouse");
-    expect(lightingFor({ visualIdentity: "cozy kitchen", lighting: "warm lamp light", description: "interior" })).toBe("warm-interior");
+    expect(lightingFor({ visualIdentity: "a sunny park", lighting: "bright midday", description: "" })).toBe("sunny-day");
+    expect(lightingFor({ visualIdentity: "old factory hall", lighting: "night", description: "industrial warehouse" })).toBe("cinematic-night");
+    expect(lightingFor({ visualIdentity: "cozy kitchen at night", lighting: "warm lamp light", description: "interior" })).toBe("warm-interior");
+    expect(lightingFor({ visualIdentity: "cozy kitchen", lighting: "window light", description: "interior" })).toBe("indoor-daylight");
+    // the Director's timeOfDay/weather win over the words: a dark-sounding place can still be a sunny day
+    const place = { visualIdentity: "abandoned warehouse", lighting: "harsh light", description: "industrial" };
+    expect(lightingFor({ ...place, timeOfDay: "day", weather: "sunny" })).toBe("sunny-day");
+    expect(lightingFor({ ...place, timeOfDay: "golden_hour" })).toBe("golden-hour");
+    expect(lightingFor({ ...place, timeOfDay: "sunset" })).toBe("sunset");
+    expect(lightingFor({ ...place, timeOfDay: "day", weather: "cloudy" })).toBe("cloudy-day");
+    expect(lightingFor({ ...place, timeOfDay: "day", weather: "overcast" })).toBe("overcast");
+    expect(lightingFor({ ...place, timeOfDay: "day", weather: "rain" })).toBe("rainy-day");
+    expect(lightingFor({ ...place, timeOfDay: "night", weather: "rain" })).toBe("rainy-night");
+    expect(kitFor({ name: "Maple Street", visualIdentity: "suburban houses", description: "" })).toBe("neighborhood");
+    expect(kitFor({ name: "Bay 13", visualIdentity: "industrial warehouse", description: "" })).toBe("warehouse-exterior");
   });
 });
 
