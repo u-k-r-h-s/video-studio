@@ -1,0 +1,11 @@
+import fs from "node:fs";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { findBones, findClips } from "../../../apps/server/src/anim/renderers/three3d/runtime/rig";
+const f = process.argv[2] ?? "assets/3d/characters/casual-man/character.glb";
+const b = fs.readFileSync(f);
+const gltf = await new GLTFLoader().parseAsync(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), "");
+const bones = findBones(gltf.scene);
+console.log(Object.fromEntries(Object.entries(bones).map(([k, v]) => [k, v!.name])));
+console.log(Object.fromEntries(Object.entries(findClips(gltf.animations)).map(([k, v]) => [k, v!.name])));
+const box = new (await import("three")).Box3().setFromObject(gltf.scene);
+console.log("size", box.getSize(new (await import("three")).Vector3()));

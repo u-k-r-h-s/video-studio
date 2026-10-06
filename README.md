@@ -9,6 +9,8 @@ machine with no paid API. A format is a data object (`FormatProfile`), not hard-
   ComfyUI locations, character views, faces and props (cut out with a BiRefNet matte) -> animation compiler -> layered 2D/2.5D
   renderer (walks, turns, doors, weather, camera) -> voices + sound locked to the motion -> MP4. See
   [docs/animation.md](docs/animation.md).
+* **`animated-short-3d`** (`npm run short -- "<idea>" --renderer=3d`): the same Director and pipeline, shots rendered with rigged
+  3D characters in Three.js (headless Chrome, WebGL). See [docs/renderer-3d.md](docs/renderer-3d.md).
 * **`cinematic-animated-short`** (Phase 2B, `--profile cinematic-animated-short`): story -> beats -> shots -> ~6-8 key images -> parallax camera ->
   SFX/music -> edit. Still images with a moving camera, not animation. See [docs/shots.md](docs/shots.md).
 * **`motion-comic`** (Phase 2A): still illustrations with sliding cut-out characters. Kept working; visibly cruder.
