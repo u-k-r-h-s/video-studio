@@ -39,7 +39,7 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
     id: c.id, name: c.name, description: c.role, appearance: c.appearance, clothing: c.clothing,
     visualIdentity: `${c.appearance}, wearing ${c.clothing}`,
   }));
-  const locations: Location[] = outline.locations.map((l) => ({ id: l.id, name: l.name, description: l.look, visualIdentity: l.look, lighting: l.lighting, importantObjects: [] }));
+  const locations: Location[] = outline.locations.map((l) => ({ id: l.id, name: l.name, description: l.look, visualIdentity: l.look, lighting: l.lighting, importantObjects: [], ...(l.timeOfDay ? { timeOfDay: l.timeOfDay } : {}), ...(l.weather ? { weather: l.weather } : {}) }));
   const known = new Set(characters.map((c) => c.id));
   const raw = directed.shots.slice(0, cin.maxShots);
   const n = raw.length;

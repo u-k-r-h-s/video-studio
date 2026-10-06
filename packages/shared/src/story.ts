@@ -29,6 +29,8 @@ export const ShotDialogueSchema = z.object({
 });
 
 /** Environments are established once and reused: every shot there derives its prompt from `visualIdentity`. */
+export const TIMES_OF_DAY = ["morning", "day", "golden_hour", "sunset", "night"] as const;
+export const WEATHERS = ["sunny", "clear", "cloudy", "overcast", "rain", "fog"] as const;
 export const LocationSchema = z.object({
   id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(48),
   name: z.string().min(1).max(80),
@@ -37,6 +39,9 @@ export const LocationSchema = z.object({
   visualIdentity: z.string().min(3).max(500),
   lighting: z.string().min(3).max(200),
   importantObjects: z.array(z.string().max(60)).max(6),
+  /** When and in what weather the story happens here (drives the renderer's lighting; optional for old projects). */
+  timeOfDay: z.enum(TIMES_OF_DAY).optional(),
+  weather: z.enum(WEATHERS).optional(),
 });
 export type Location = z.infer<typeof LocationSchema>;
 

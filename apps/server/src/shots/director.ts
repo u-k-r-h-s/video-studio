@@ -45,7 +45,7 @@ Write:
 - "title": a short original title.
 - "logline": one sentence (who wants what, what goes wrong, the twist).
 - "characters": 1 to ${profile.planning.maxCharacters}. The FIRST one is the hero. Each has a lowercase kebab-case "id", a "role", "appearance" (starting with age and gender as the story intends, e.g. "a young man", then face, hair and build: physical features only) and ONE distinctive "clothing" costume built from two strong colours (for example "yellow raincoat with a blue scarf") that also shows their job or role (a delivery rider wears a delivery backpack and a helmet). The costume is how viewers recognise the character in every shot, so make it simple and bold. Every character is a real person or creature that can be drawn, never a voice or an idea.
-- "locations": 2 to ${Math.min(3, profile.planning.maxLocations)}. Each has a kebab-case "id", a "look" (architecture, materials, mood; no people) and "lighting" (light colours and sources).
+- "locations": 2 to ${Math.min(3, profile.planning.maxLocations)}. Each has a kebab-case "id", a "look" (architecture, materials, mood; no people), "lighting" (light colours and sources), "timeOfDay" (morning, day, golden_hour, sunset, night) and "weather" (sunny, clear, cloudy, overcast, rain, fog). Pick what fits THIS story: a cheerful or everyday story is usually a sunny day; only a story that needs darkness happens at night.
 Everything is drawn as a cinematic 3D animated film frame, so describe things that look good in moody light.
 Image budget: the film is built from about ${c.maxKeyImages} generated pictures, so keep the cast and places few and distinctive.`;
 }

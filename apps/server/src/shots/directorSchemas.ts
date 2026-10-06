@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ANIM_ACTIONS, ANIM_WHEN, BEATS, OBJECT_ACTIONS, SHOT_TYPES, STORY_EMOTIONS, slugify } from "@studio/shared";
+import { ANIM_ACTIONS, ANIM_WHEN, BEATS, OBJECT_ACTIONS, SHOT_TYPES, STORY_EMOTIONS, TIMES_OF_DAY, WEATHERS, slugify } from "@studio/shared";
 
 /**
  * What the LLM is asked to return. Deliberately small: it chooses ENUMS and short TEXT only. Camera moves, durations,
@@ -23,6 +23,8 @@ export const DirectorOutlineSchema = z.object({
     name: z.string().min(1).max(40),
     look: z.string().min(3).max(200).describe("what the place looks like: architecture, materials, mood. No people."),
     lighting: z.string().min(3).max(120).describe("light colours and sources, e.g. 'warm lanterns against cold blue haze'"),
+    timeOfDay: z.enum(TIMES_OF_DAY).optional().describe("morning, day, golden_hour, sunset or night: whatever the story needs"),
+    weather: z.enum(WEATHERS).optional().describe("sunny, clear, cloudy, overcast, rain or fog"),
   })).min(1).max(3),
 });
 export type DirectorOutline = z.infer<typeof DirectorOutlineSchema>;
@@ -81,7 +83,15 @@ export function normalizeOutline(raw: unknown): unknown {
   if (!isRecord(raw)) return raw;
   const out: Record<string, unknown> = { ...raw };
   if (Array.isArray(raw.characters)) out.characters = raw.characters.map((c) => (isRecord(c) ? { ...c, id: slugify(String(c.id || c.name || "")) } : c));
-  if (Array.isArray(raw.locations)) out.locations = raw.locations.map((l) => (isRecord(l) ? { ...l, id: slugify(String(l.id || l.name || "")) } : l));
+  const TOD: Record<string, string> = { afternoon: "day", noon: "day", daytime: "day", midday: "day", dawn: "morning", sunrise: "morning", dusk: "sunset", evening: "sunset", "golden-hour": "golden_hour", golden: "golden_hour", midnight: "night", "late-night": "night" };
+  const WX: Record<string, string> = { sun: "sunny", bright: "sunny", rainy: "rain", raining: "rain", storm: "rain", stormy: "rain", drizzle: "rain", foggy: "fog", mist: "fog", misty: "fog", grey: "overcast", gray: "overcast", clouds: "cloudy" };
+  const pick = (v: unknown, allowed: readonly string[], syn: Record<string, string>): string | undefined => { const k = key(v).replace(/_/g, "-"); const x = syn[k] ?? k.replace(/-/g, "_"); return allowed.includes(x) ? x : undefined; };
+  if (Array.isArray(raw.locations)) out.locations = raw.locations.map((l) => {
+    if (!isRecord(l)) return l;
+    const { timeOfDay, weather, ...rest } = l as Record<string, unknown>;
+    const tod = pick(timeOfDay, TIMES_OF_DAY, TOD), wx = pick(weather, WEATHERS, WX);
+    return { ...rest, id: slugify(String(l.id || l.name || "")), ...(tod ? { timeOfDay: tod } : {}), ...(wx ? { weather: wx } : {}) };
+  });
   return out;
 }
 

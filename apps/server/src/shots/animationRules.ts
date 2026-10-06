@@ -17,6 +17,10 @@ const VERBS: [RegExp, ShotAnimAction["action"]][] = [
   [/\b(pulls?|pulling|yanks?) (?:open )?(?:the |a )?(?:heavy |old |wooden |metal |iron )?(?:door|gate|hatch)\b/i, "pull"],
   [/\b(checks?|checking|looks? at|stares? at|reads?|reading|glances? at) (?:his |her |their |the |a )?(?:phone|screen|message|watch)\b/i, "hold-phone"],
   [/\b(listens?|listening|stops? to listen|freezes? to listen)\b/i, "listen"],
+  [/\b(press(?:es|ing)?|rings?|ringing|pushes|buzz(?:es)?) (?:the |a )?(?:door ?bell|bell|buzzer|button|intercom)\b/i, "press"],
+  [/\b(adjusts?|adjusting|shifts?|hitches?|re-?grips?) (?:the |his |her |their |a )?(?:package|parcel|box|bag|grip)\b/i, "adjust"],
+  [/\b(hesitates?|hesitating|pauses?|pausing|waits?|waiting|holds? (?:his|her|their) breath)\b/i, "hesitate"],
+  [/\b(looks?|glances?|checks?|reads?|peers?) (?:at |up at )?(?:the |a )?(?:address|house number|number|sign|label|door number)\b/i, "head-turn"],
   [/\b(run|runs|running|sprint|sprints|sprinting|dash|dashes|rush|rushes|flee|flees|fleeing|bolts?|races|racing)\b/i, "run"],
   [/\b(walk|walks|walking|stride|strides|stroll|strolls|creep|creeps|creeping|tiptoe|tiptoes|sneak|sneaks|follows?|following|heads? (?:down|toward|towards|into|along|for)|approach(?:es|ing)?|advances?|marches|steps? (?:into|toward|towards|down|through|inside)|moves? (?:down|toward|towards|into|along|through)|makes? (?:his|her|their) way|heading)\b/i, "walk"],
   [/\b(enters?|entering|steps? in(?:side)?|comes? in)\b/i, "enter"],
@@ -60,7 +64,9 @@ export function actionsFromText(text: string): ShotAnimAction[] {
   const seen = new Set<string>();
   const ordered = hits.filter((h) => (seen.has(h.a) ? false : (seen.add(h.a), true))).slice(0, 3);
   return ordered.map((h, i) => {
-    const toward = LOCOMOTION.has(h.a) || h.a === "turn" || h.a === "look-up" || h.a === "point" ? targetOf(text.slice(h.at)) : undefined;
+    const after = text.slice(h.at);
+    const named = /(door ?bell|buzzer|button|intercom)/i.test(after) && h.a === "press" ? "the doorbell" : /(address|house number|door number|sign|label)/i.test(after) && h.a === "head-turn" ? "the address" : undefined;
+    const toward = named ?? (LOCOMOTION.has(h.a) || h.a === "turn" || h.a === "look-up" || h.a === "point" ? targetOf(after) : undefined);
     return { character: "", action: h.a, when: WHEN_ORDER[Math.min(4, Math.round((i * 4) / Math.max(1, ordered.length)))]!, ...(toward ? { toward } : {}) };
   });
 }
