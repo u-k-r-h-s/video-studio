@@ -7,7 +7,7 @@
 /** Semantic character actions the runtime knows how to perform (clips + layered procedural motion). */
 export const ACTIONS_3D = [
   "idle", "walk", "run", "stop", "turn", "look", "look-around", "wave", "point", "reach", "push", "pull",
-  "hold", "raise", "lower", "release", "react", "fear", "surprise", "nod", "shake-head", "step-back",
+  "hold", "raise", "lower", "release", "react", "fear", "surprise", "nod", "shake-head", "step-back", "press", "adjust", "hesitate",
 ] as const;
 export type Action3D = (typeof ACTIONS_3D)[number];
 
@@ -59,17 +59,24 @@ export interface CameraSpec3D {
   behind?: boolean;
   /** Camera angle around the subject, from its facing direction (rad): 0 = in front, PI/2 = profile, PI = behind. Overrides `behind`. */
   angle?: number;
+  /** Keep this named thing in the frame too (a door that opens, what the character looks at): the camera widens and re-centres. */
+  frameWith?: string;
   /** Timed changes: at `at` seconds blend to a new framing/target over `blend` seconds. */
   keys?: { at: number; shot?: CameraSpec3D["shot"]; target?: string; behind?: boolean; side?: number; blend?: number }[];
   handheld?: number;
 }
 
-export const LIGHTING_PRESETS = ["day", "night", "warehouse", "street", "rain", "horror", "warm-interior", "cold-interior"] as const;
+export const LIGHTING_PRESETS = [
+  "sunny-day", "cloudy-day", "overcast", "golden-hour", "sunset", "rainy-day", "night", "cinematic-night", "rainy-night",
+  "indoor-daylight", "warm-interior", "cold-interior",
+  // older names, kept as aliases
+  "day", "warehouse", "street", "rain", "horror",
+] as const;
 export type LightingPreset = (typeof LIGHTING_PRESETS)[number];
 
 export interface SetObject3D {
   id: string;
-  kind: "door" | "lamp" | "crate" | "barrel" | "pallet" | "dumpster" | "pipe" | "puddle" | "sign";
+  kind: "door" | "lamp" | "crate" | "barrel" | "pallet" | "dumpster" | "pipe" | "puddle" | "sign" | "tree" | "car" | "mailbox" | "hedge" | "streetlamp" | "bench" | "cable";
   x: number; z: number; y?: number; rotation?: number; scale?: number;
   /** door: width/height, hinge side and the light behind it; lamp: colour/intensity. */
   params?: Record<string, number | string | boolean>;
@@ -79,7 +86,7 @@ export interface SetObject3D {
 
 export interface EnvironmentSpec3D {
   /** Built-in set kit name ("warehouse-exterior") or "glb" with a path. */
-  kind: "warehouse-exterior" | "street" | "interior" | "glb" | "plate";
+  kind: "warehouse-exterior" | "neighborhood" | "street" | "interior" | "glb" | "plate";
   glb?: string;
   /** AI-painted plate placed behind the 3D set (hybrid 2.5D): a file path, resolved by the host. */
   backdrop?: string;
@@ -87,7 +94,9 @@ export interface EnvironmentSpec3D {
   wallTexture?: string;
   groundTexture?: string;
   objects: SetObject3D[];
-  weather?: { rain?: number; fog?: number };
+  weather?: { rain?: number; fog?: number; wind?: number };
+  /** House / building colours for kits that have them (neighbourhood siding, door). */
+  palette?: { wall?: string; door?: string; trim?: string; roof?: string };
 }
 
 export interface Shot3DSpec {

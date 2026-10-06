@@ -9,9 +9,9 @@ import type { CameraSpec3D } from "../spec";
 export interface Framing { distance: number; height: number; lookHeight: number; fov: number }
 export const FRAMINGS: Record<CameraSpec3D["shot"], Framing> = {
   wide: { distance: 6.5, height: 1.55, lookHeight: 1.1, fov: 42 },
-  medium: { distance: 3.2, height: 1.55, lookHeight: 1.3, fov: 36 },
-  closeup: { distance: 1.35, height: 1.62, lookHeight: 1.58, fov: 30 },
-  over_shoulder: { distance: 2.5, height: 1.78, lookHeight: 1.5, fov: 44 },
+  medium: { distance: 3.6, height: 1.5, lookHeight: 1.25, fov: 38 },
+  closeup: { distance: 2.0, height: 1.62, lookHeight: 1.5, fov: 32 },
+  over_shoulder: { distance: 3.0, height: 1.8, lookHeight: 1.5, fov: 44 },
 };
 
 export interface CameraSubject { position: THREE.Vector3; heading: number; height: number }
@@ -88,8 +88,28 @@ export class CinematicCamera {
       const tw = this.resolve(this.spec.toward);
       if (tw) lookAt.lerp(tw.position.clone().add(new THREE.Vector3(0, 1.4, 0)), (f.distance > 4 ? 0.35 : 0) * (this.spec.move === "push_in" ? ease : 0.5));
     }
-    const goal = ots
-      ? subj.position.clone().addScaledVector(fwd, -dist).addScaledVector(right, -0.6 * sideUse).setY(f.height * (subj.height / 1.8))
+    // two-shot: the subject AND what it deals with (a door, a doorbell) in one mobile frame: the camera stands off the line between
+    // them, on the open side, far enough that both fit the narrow 9:16 width, looking at a point weighted toward the subject
+    let twoShot: THREE.Vector3 | null = null;
+    if (this.spec.frameWith && !ots) {
+      const fw = this.resolve(this.spec.frameWith);
+      if (fw) {
+        const S = subj.position.clone().setY(0), T = fw.position.clone().setY(0);
+        const line = T.clone().sub(S); const sep = Math.max(0.3, line.length()); line.normalize();
+        let perp = new THREE.Vector3(line.z, 0, -line.x);
+        const test = (p: THREE.Vector3): number => { const q = p.clone(); this.clamp?.(q); return q.distanceTo(p); };
+        const mid = S.clone().lerp(T, 0.38);
+        if (test(mid.clone().addScaledVector(perp, 4)) > test(mid.clone().addScaledVector(perp, -4))) perp.negate();
+        // a little toward the subject's front, so the face reads
+        perp = perp.addScaledVector(fwd, 0.35).normalize();
+        const vfov = THREE.MathUtils.degToRad(fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
+        const d = Math.max(dist * 0.9, (sep + 1.3) / 2 / Math.tan(hfov / 2));
+        twoShot = mid.clone().addScaledVector(perp, d).setY(f.height * (subj.height / 1.8));
+        lookAt.copy(mid).setY(f.lookHeight * (subj.height / 1.8) + tilt);
+      }
+    }
+    const goal = twoShot ? twoShot : ots
+      ? subj.position.clone().addScaledVector(fwd, -dist).addScaledVector(right, -0.75 * sideUse).setY(f.height * (subj.height / 1.8))
       : subj.position.clone().add(new THREE.Vector3(Math.sin(ang) * dist, f.height * (subj.height / 1.8), Math.cos(ang) * dist));
     this.clamp?.(goal);
     if (this.spec.move === "static" && this.pos) goal.copy(this.pos.x);

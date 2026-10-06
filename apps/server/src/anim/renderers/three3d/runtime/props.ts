@@ -18,6 +18,9 @@ export interface Prop3D {
   on: number;
   /** Light the prop emits (for the beam's target/shadows). */
   light?: THREE.SpotLight;
+  /** When set, a hand prop points along this world direction (blended by aimWeight) instead of continuing the forearm. */
+  aimDir?: THREE.Vector3 | null;
+  aimWeight?: number;
 }
 
 const mat = (color: string, o: Partial<THREE.MeshStandardMaterialParameters> = {}): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2, ...o });
@@ -30,12 +33,12 @@ function flashlight(color = "#26292e"): { g: THREE.Group; light: THREE.SpotLight
   head.rotation.z = -Math.PI / 2; head.position.x = 0.14; g.add(head);
   const lensMat = new THREE.MeshBasicMaterial({ color: "#fff6dc" });
   const lens = new THREE.Mesh(new THREE.CircleGeometry(0.027, 20), lensMat); lens.position.x = 0.166; lens.rotation.y = Math.PI / 2; g.add(lens);
-  const light = new THREE.SpotLight("#fff2d6", 0, 22, 0.3, 0.45, 1.4);
+  const light = new THREE.SpotLight("#fff2d6", 0, 18, 0.34, 0.9, 2);
   light.position.set(0.17, 0, 0); light.castShadow = true; light.shadow.mapSize.set(1024, 1024); light.shadow.bias = -0.0005;
   const target = new THREE.Object3D(); target.position.set(6, 0, 0); g.add(target); light.target = target; g.add(light);
   const shaft = lightShaft("#fff1cf", 7, 1.15, 0); shaft.rotation.z = -Math.PI / 2; shaft.position.x = 0.17; g.add(shaft);
   const halo = glowSprite("#fff4dc", 0.12); halo.position.x = 0.19; g.add(halo);
-  const setOn = (v: number): void => { light.intensity = 160 * v; shaft.setIntensity(0.32 * v); halo.visible = v > 0.05; (halo.material as THREE.SpriteMaterial).opacity = v; lensMat.color.set(v > 0.05 ? "#fffbe8" : "#5d5a52"); };
+  const setOn = (v: number): void => { light.intensity = 45 * v; shaft.setIntensity(0.4 * v); halo.visible = v > 0.05; (halo.material as THREE.SpriteMaterial).opacity = v; lensMat.color.set(v > 0.05 ? "#fffbe8" : "#5d5a52"); };
   setOn(0);
   return { g, light, setOn };
 }
@@ -90,11 +93,18 @@ const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3
  */
 export function placeProp(p: Prop3D, sock: { hand?: THREE.Object3D; elbow?: THREE.Object3D; chest?: THREE.Object3D; hips?: THREE.Object3D; root: THREE.Object3D }, palmOffset = 0.06): void {
   const o = p.object;
-  if ((p.socket === "rightHand" || p.socket === "leftHand") && sock.hand && sock.elbow) {
+  if (p.kind === "box" && sock.hand && sock.chest) {
+    // a carried box stays upright, square to the body, resting on the forearm in front of the belly
+    sock.hand.getWorldPosition(v1); sock.chest.getWorldPosition(v2);
+    o.quaternion.copy(sock.root.getWorldQuaternion(new THREE.Quaternion()));
+    const centre = new THREE.Vector3(v2.x, v1.y + 0.04, v2.z).lerp(v1, 0.35);
+    o.position.copy(centre).add(new THREE.Vector3(-0.12, 0, 0.14).applyQuaternion(o.quaternion));
+  } else if ((p.socket === "rightHand" || p.socket === "leftHand") && sock.hand && sock.elbow) {
     sock.hand.getWorldPosition(v1); sock.elbow.getWorldPosition(v2);
-    const dir = v3.subVectors(v1, v2).normalize();
-    // the fist sits a little beyond the wrist bone
-    const grip = v1.clone().addScaledVector(dir, palmOffset);
+    const fore = v3.subVectors(v1, v2).normalize();
+    // the fist sits a little beyond the wrist bone; an aimed prop turns in the hand toward its target (the wrist does that)
+    const grip = v1.clone().addScaledVector(fore, palmOffset);
+    const dir = p.aimDir && (p.aimWeight ?? 0) > 0 ? fore.clone().lerp(p.aimDir, Math.min(1, p.aimWeight ?? 0)).normalize() : fore.clone();
     const up = new THREE.Vector3(0, 1, 0);
     if (Math.abs(dir.dot(up)) > 0.95) up.set(0, 0, 1);
     const z = new THREE.Vector3().crossVectors(dir, up).normalize();

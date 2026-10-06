@@ -1,7 +1,8 @@
 import * as THREE from "three";
-import type { CharacterEvent3D, CharacterSpec3D, Cue3D, Expression, Target } from "../spec";
+import type { Action3D, CharacterEvent3D, CharacterSpec3D, Cue3D, Expression, Target } from "../spec";
 import { LocomotionStateMachine, type LocoWeights } from "./locomotion";
 import { makeProp, placeProp, type Prop3D } from "./props";
+import { contactShadow, presentModel } from "./presentation";
 import { chainMotion, findBones, findClips, inPlace, maskClip, type BoneRole, type ClipRole } from "./rig";
 
 /**
@@ -34,6 +35,8 @@ export class Character3D {
   readonly loco: LocomotionStateMachine;
   readonly cues: Cue3D[] = [];
   readonly height: number;
+  readonly presentation: ReturnType<typeof presentModel>;
+  private readonly contact: THREE.Mesh;
   expression: Expression = "neutral";
   /** Calibrated ground speed of the walk / run clips (m/s): the feet do not slide. */
   readonly walkSpeed: number;
@@ -72,8 +75,11 @@ export class Character3D {
         if (Array.isArray(m.material)) (m.material as THREE.Material[])[i] = c; else m.material = c;
       });
     });
+    this.presentation = presentModel(this.model);
     this.root.add(this.model);
     this.root.name = `character:${spec.id}`;
+    this.contact = contactShadow(0.95);
+    this.root.add(this.contact);
     this.model.updateMatrixWorld(true);
     // make the root's +Z the character's forward (from the foot: the toe is in front of the ankle)
     const foot = this.bones.footR ?? this.bones.footL;
@@ -196,80 +202,125 @@ export class Character3D {
 
   private fwd(): THREE.Vector3 { return new THREE.Vector3(Math.sin(this.heading), 0, Math.cos(this.heading)); }
 
-  /** Start events whose time has come (once). */
-  private started = new Set<CharacterEvent3D>();
+  /** When each event actually starts. Hand actions wait until a walk has ended and the body has settled (walk -> slow ->
+   *  settle -> look -> pause -> act): the Director's `when` is a wish, the body decides the exact moment. */
+  private startAt = new Map<CharacterEvent3D, number>();
+  private arrivedAt: number | null = null;
+  private static readonly AFTER_ARRIVAL = new Set<Action3D>(["raise", "push", "pull", "reach", "wave", "point", "react", "surprise", "fear", "lower", "press", "adjust", "hesitate"]);
+  private holdUntil = -1;
+  private eventStart(e: CharacterEvent3D): number | undefined { return this.startAt.get(e); }
+
   private trigger(t: number): void {
+    const moving = this.moves.some((m) => !m.done && m.start <= t) || this.speed > 0.15;
     for (const e of this.events) {
-      if (e.at > t || this.started.has(e)) continue;
-      this.started.add(e);
+      if (e.at > t || this.startAt.has(e)) continue;
+      if (Character3D.AFTER_ARRIVAL.has(e.action) && moving && e.action !== "react" && e.action !== "surprise" && e.action !== "fear") continue; // wait for the stop
+      if (Character3D.AFTER_ARRIVAL.has(e.action) && this.arrivedAt !== null && t < this.arrivedAt + 0.38) continue; // settle + a beat
+      if (Character3D.AFTER_ARRIVAL.has(e.action) && t < this.holdUntil && e.action !== "react" && e.action !== "surprise" && e.action !== "fear") continue; // still hesitating
+      if ((e.action === "walk" || e.action === "run") && t < this.holdUntil) continue;
+      this.startAt.set(e, t);
       switch (e.action) {
         case "walk": case "run": {
           const p = e.target !== undefined ? this.world.resolve(e.target) : null;
-          if (p) this.moves.push({ start: e.at, to: new THREE.Vector3(p.x, 0, p.z), mode: e.action, done: false });
+          if (p) { this.moves.push({ start: t, to: new THREE.Vector3(p.x, 0, p.z), mode: e.action, done: false }); this.arrivedAt = null; }
           break;
         }
         case "step-back": {
-          const d = (e.duration ?? 0.9) * this.walkSpeed * 0.55;
-          this.moves.push({ start: e.at, to: this.root.position.clone().addScaledVector(this.fwd(), -d), mode: "back", done: false });
+          const d = (e.duration ?? 0.9) * this.walkSpeed * 0.5;
+          this.moves.push({ start: t + 0.12, to: this.root.position.clone().addScaledVector(this.fwd(), -d), mode: "back", done: false });
           break;
         }
         case "stop": for (const m of this.moves) m.done = true; break;
         case "turn": this.faceTarget = e.target !== undefined ? this.headingTo(e.target) : null; break;
-        case "look": this.lookAt = { target: e.target ?? "camera", from: e.at, until: e.at + (e.duration ?? 1.5) }; break;
-        case "look-around": this.lookAround = { from: e.at, until: e.at + (e.duration ?? 2) }; break;
-        case "hold": { const p = this.hold.get(e.prop ?? this.props[0]?.id ?? ""); if (p) p.rising = { from: p.raise, to: 0, t0: e.at, dur: 0.01 }; break; }
-        case "raise": { const k = e.prop ?? this.props.find((x) => x.socket === "rightHand")?.id ?? ""; const p = this.hold.get(k); if (p) p.rising = { from: p.raise, to: 1, t0: e.at, dur: e.duration ?? 0.55 }; if (e.target !== undefined) this.lookAt = { target: e.target, from: e.at, until: e.at + 30 }; break; }
-        case "lower": { const k = e.prop ?? this.props.find((x) => x.socket === "rightHand")?.id ?? ""; const p = this.hold.get(k); if (p) p.rising = { from: p.raise, to: 0, t0: e.at, dur: e.duration ?? 0.5 }; break; }
-        case "react": case "surprise": case "fear": this.expression = e.action === "react" ? "surprised" : e.action === "fear" ? "fear" : "surprised"; this.cues.push({ kind: "impact", at: e.at, volume: 0.5 }); break;
+        case "look": this.lookAt = { target: e.target ?? "camera", from: t, until: t + (e.duration ?? 1.5) }; break;
+        case "look-around": this.lookAround = { from: t, until: t + (e.duration ?? 2) }; break;
+        case "hold": { const p = this.hold.get(e.prop ?? this.props[0]?.id ?? ""); if (p) p.rising = { from: p.raise, to: 0, t0: t, dur: 0.01 }; break; }
+        case "raise": { const k = e.prop ?? this.props.find((x) => x.socket === "rightHand")?.id ?? ""; const p = this.hold.get(k); if (p) p.rising = { from: p.raise, to: 1, t0: t + 0.08, dur: e.duration ?? 0.6 }; if (e.target !== undefined) { this.lookAt = { target: e.target, from: t - 0.1, until: t + 30 }; this.aimAt = e.target; } break; }
+        case "lower": { const k = e.prop ?? this.props.find((x) => x.socket === "rightHand")?.id ?? ""; const p = this.hold.get(k); if (p) p.rising = { from: p.raise, to: 0, t0: t, dur: e.duration ?? 0.5 }; break; }
+        case "push": case "pull": case "reach": case "point": case "press": if (e.target !== undefined) this.lookAt = { target: e.target, from: t - 0.25, until: t + (e.duration ?? 1) + 0.7 }; break;
+        case "hesitate": this.holdUntil = t + (e.duration ?? 0.8); break;
+        case "react": case "surprise": case "fear": this.expression = e.action === "fear" ? "fear" : "surprised"; this.cues.push({ kind: "impact", at: t, volume: 0.5 }); break;
         default: break;
       }
     }
   }
 
+  /** The next thing the character will act on (to look at it while still approaching). */
+  private upcomingTarget(t: number): Target | null {
+    const next = this.events.find((e) => !this.startAt.has(e) && e.target !== undefined && Character3D.AFTER_ARRIVAL.has(e.action) && e.at < t + 3);
+    return next?.target ?? null;
+  }
+
+  private aimAt: Target | null = null;
   private aimTarget: THREE.Vector3 | null = null;
+  private wasMoving = false;
+  private lastSpeed = 0;
+
+  /** Two-bone IK: put the hand at `target` with the elbow bending toward `pole` (world space). Works for any bone axes. */
+  private ik(upper: THREE.Object3D | undefined, lower: THREE.Object3D | undefined, hand: THREE.Object3D | undefined, target: THREE.Vector3, pole: THREE.Vector3, w: number): void {
+    if (!upper || !lower || !hand || w <= 0.001) return;
+    upper.updateWorldMatrix(true, true);
+    const S = upper.getWorldPosition(new THREE.Vector3()), E = lower.getWorldPosition(new THREE.Vector3()), H = hand.getWorldPosition(new THREE.Vector3());
+    const a = S.distanceTo(E), b = E.distanceTo(H);
+    const toT = target.clone().sub(S);
+    const d = Math.min(a + b - 0.002, Math.max(Math.abs(a - b) + 0.002, toT.length()));
+    const u = toT.normalize();
+    const v = pole.clone().sub(u.clone().multiplyScalar(pole.dot(u))).normalize();
+    const cosA = (a * a + d * d - b * b) / (2 * a * d), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    const elbow = S.clone().addScaledVector(u, a * cosA).addScaledVector(v, a * sinA);
+    this.aim(upper, lower, elbow.clone().sub(S), w);
+    const E2 = lower.getWorldPosition(new THREE.Vector3());
+    this.aim(lower, hand, S.clone().addScaledVector(u, d).sub(E2), w);
+  }
+
   /** Advance to time t (call once per frame, in order). */
   update(t: number, dt: number): void {
     this.trigger(t);
-    // --- locomotion along the active move segment (accelerate, cruise, decelerate to arrive exactly)
+    // --- locomotion along the active move segment (accelerate, cruise, slow down early, arrive exactly)
     const seg = this.moves.find((m) => !m.done && m.start <= t);
-    let targetSpeed = 0, dir: THREE.Vector3 | null = null, backward = false;
+    let targetSpeed = 0, dir: THREE.Vector3 | null = null, backward = false, distLeft = 0;
     if (seg) {
       const to = seg.to.clone().sub(this.root.position); to.y = 0;
-      const dist = to.length();
-      if (dist < 0.03) { seg.done = true; }
+      distLeft = to.length();
+      if (distLeft < 0.03) { seg.done = true; }
       else {
         dir = to.normalize();
         backward = seg.mode === "back";
-        const cruise = seg.mode === "run" ? this.runSpeed : seg.mode === "back" ? this.walkSpeed * 0.55 : this.walkSpeed;
-        const decel = seg.mode === "run" ? 3.2 : 1.6;
-        targetSpeed = Math.min(cruise, Math.sqrt(2 * decel * dist) + 0.05);
+        const cruise = seg.mode === "run" ? this.runSpeed : seg.mode === "back" ? this.walkSpeed * 0.5 : this.walkSpeed;
+        // a person slows over the last metre or two (not a car braking at the line)
+        const decel = seg.mode === "run" ? 2.6 : 1.05;
+        targetSpeed = Math.min(cruise, Math.sqrt(2 * decel * distLeft) + 0.04);
       }
     }
-    const accel = targetSpeed > this.speed ? (seg?.mode === "run" ? 4 : 2.2) : 3.5;
+    const accel = targetSpeed > this.speed ? (seg?.mode === "run" ? 4 : 2.0) : 3.2;
     this.speed += Math.max(-accel * dt, Math.min(accel * dt, targetSpeed - this.speed));
     if (this.speed < 0.005 && !dir) this.speed = 0;
     if (dir && this.speed > 0) this.root.position.addScaledVector(dir, Math.min(this.speed * dt, this.root.position.distanceTo(seg!.to)));
+    const moving = this.speed > 0.12;
+    if (this.wasMoving && !moving && !backward) this.arrivedAt = t;
+    this.wasMoving = moving;
+    const accelNow = dt > 0 ? (this.speed - this.lastSpeed) / dt : 0;
+    this.lastSpeed = this.speed;
 
     // --- orientation: toward the movement (not when stepping back), else toward the turn target
     let want = this.heading;
     if (dir && !backward && this.speed > 0.05) want = Math.atan2(dir.x, dir.z);
     else if (this.faceTarget !== null) want = this.faceTarget;
     const err = wrap(want - this.heading);
-    const maxRate = this.speed > 0.4 ? 3.2 : 4.5; // rad/s
-    const rate = Math.max(-maxRate, Math.min(maxRate, err * 6));
-    this.turnRate += (rate - this.turnRate) * Math.min(1, dt * 12);
+    const maxRate = this.speed > 0.4 ? 3.0 : 4.0;
+    const rate = Math.max(-maxRate, Math.min(maxRate, err * 5));
+    this.turnRate += (rate - this.turnRate) * Math.min(1, dt * 10);
     this.heading = wrap(this.heading + this.turnRate * dt);
     this.root.rotation.y = this.heading;
 
-    // --- clips: locomotion state machine (cross-fades), upper-body layers
+    // --- clips: locomotion state machine (cross-fades) and layered one-shots
     const lw = this.loco.step(t, dt, this.speed, this.turnRate);
     this.lastLoco = lw;
     const A = this.act;
     A.idle?.setEffectiveWeight(lw.idle);
-    A.walk?.setEffectiveWeight(lw.walk); A.walk?.setEffectiveTimeScale(backward ? -0.8 : lw.walkRate);
+    A.walk?.setEffectiveWeight(lw.walk); A.walk?.setEffectiveTimeScale(backward ? -0.75 : lw.walkRate);
     if (A.run) { A.run.setEffectiveWeight(lw.run); A.run.setEffectiveTimeScale(lw.runRate); }
     else if (lw.run > 0 && A.walk) A.walk.setEffectiveWeight(lw.walk + lw.run);
-    // one-shot / layered clips (a layer's effect = w/(1+w) over the locomotion, so a big weight overrides it)
     const layer = (a: THREE.AnimationAction | undefined, influence: number, restartAt?: number): void => {
       if (!a) return;
       if (restartAt !== undefined && t >= restartAt && t - dt < restartAt) { a.reset(); a.play(); }
@@ -278,13 +329,15 @@ export class Character3D {
     };
     let wave = 0, interact = 0, react = 0, interactStart: number | undefined, reactStart: number | undefined;
     for (const e of this.events) {
-      if (e.action === "wave") wave = Math.max(wave, env(t, e.at, e.duration ?? 1.6));
-      if (e.action === "push" || e.action === "pull" || e.action === "reach") { const w = env(t, e.at, e.duration ?? 0.9, 0.2, 0.4); if (w > interact) { interact = w; interactStart = e.at; } }
-      if (e.action === "react" || e.action === "surprise") { const w = env(t, e.at, Math.max(0.5, e.duration ?? 0.6), 0.06, 0.55); if (w > react) { react = w; reactStart = e.at; } }
+      const s0 = this.eventStart(e);
+      if (s0 === undefined) continue;
+      if (e.action === "wave") wave = Math.max(wave, env(t, s0, e.duration ?? 1.6));
+      if (e.action === "pull") { const w = env(t, s0, e.duration ?? 0.9, 0.2, 0.4); if (w > interact) { interact = w; interactStart = s0; } }
+      if (e.action === "react" || e.action === "surprise") { const w = env(t, s0 + 0.12, Math.max(0.45, e.duration ?? 0.6), 0.08, 0.6); if (w > react) { react = w; reactStart = s0 + 0.12; } }
     }
     layer(A.wave, wave);
-    layer(A.interact, interact * 0.9, interactStart);
-    layer(A.react, react * 0.95, reactStart);
+    layer(A.interact, interact * 0.85, interactStart);
+    layer(A.react, react * 0.7, reactStart);
     for (const [b, q] of this.rest) b.quaternion.copy(q);
     this.mixer.update(dt);
     this.root.updateMatrixWorld(true);
@@ -293,7 +346,7 @@ export class Character3D {
     for (const kind of ["walk", "run"] as const) {
       const a = A[kind], w = kind === "walk" ? lw.walk : lw.run;
       if (!a) continue;
-      const ph = (a.time / a.getClip().duration) % 1;
+      const ph = ((a.time / a.getClip().duration) % 1 + 1) % 1;
       if (w > 0.35 && this.speed > 0.15) for (const c of this.contacts[kind]) {
         const prev = this.lastPhase[kind];
         if ((prev <= c && ph > c) || (prev > ph && (c >= prev || c < ph))) this.cues.push({ kind: "footsteps", at: t, volume: kind === "run" ? 0.6 : 0.45 });
@@ -301,73 +354,151 @@ export class Character3D {
       this.lastPhase[kind] = ph;
     }
 
-    // --- procedural layers (after the clips)
+    // ===== acting layer (procedural, over the clips) =====
     const B = this.bones;
-    // posture from the expression / reaction: shoulders up, weight back, head pulled in
-    const fear = this.expression === "fear" || this.expression === "worried" ? 1 : 0;
-    const startle = this.events.filter((e) => e.action === "react" || e.action === "surprise" || e.action === "fear").reduce((m, e) => Math.max(m, env(t, e.at, e.duration ?? 0.8, 0.08, 0.9)), 0);
-    this.turnBone(B.spine, 0, -0.1 * Math.max(fear * 0.5, startle), 0);
-    this.turnBone(B.chest, 0, -0.08 * startle, 0);
-    // leaning into a run / a push
-    const lean = 0.12 * lw.run + 0.05 * lw.walk + 0.14 * interact;
+    const idle = Math.max(0, lw.idle - lw.walk * 0.5);
+    // idle life: breathing, a slow weight shift from foot to foot, small head drift
+    const breath = Math.sin((2 * Math.PI * t) / 3.6);
+    this.turnBone(B.chest, 0, 0.018 * breath * idle, 0);
+    this.turnBone(B.hips, 0.03 * Math.sin(t * 0.55) * idle, 0, 0.035 * Math.sin(t * 0.55 + 0.4) * idle);
+    this.turnBone(B.spine, -0.02 * Math.sin(t * 0.55) * idle, 0, -0.03 * Math.sin(t * 0.55 + 0.4) * idle);
+    this.turnBone(B.head, 0.05 * Math.sin(t * 0.37 + 1) * idle, 0.02 * Math.sin(t * 0.29) * idle, 0);
+    // walking: a little lean into acceleration, back on braking; settle after the stop (hips dip, spine overshoots and returns)
+    const lean = 0.05 * lw.walk + 0.13 * lw.run + Math.max(-0.08, Math.min(0.08, accelNow * 0.035));
     this.turnBone(B.spine, 0, lean, 0);
+    if (this.arrivedAt !== null) {
+      const u = t - this.arrivedAt;
+      if (u >= 0 && u < 1.2) { const k = Math.exp(-u * 4.2) * Math.sin(u * 9); this.turnBone(B.spine, 0, 0.07 * k, 0); this.turnBone(B.head, 0, -0.05 * k, 0); }
+    }
 
-    // looking: at a target, or around (scanning), with the head leading the neck
+    // anticipation + action timing for hand actions
+    let push = 0, pushPre = 0, startle = 0, headJerk = 0, pullBack = 0, hesit = 0, adjust = 0, reachW = 0;
+    let reachTarget: Target | undefined, reachKind: Action3D = "reach";
+    for (const e of this.events) {
+      const s0 = this.eventStart(e);
+      if (s0 === undefined) continue;
+      const u = t - s0;
+      if (e.action === "push") { push = Math.max(push, env(t, s0 + 0.18, e.duration ?? 0.9, 0.22, 0.45)); pushPre = Math.max(pushPre, u >= 0 && u < 0.25 ? Math.sin((u / 0.25) * Math.PI) : 0); }
+      if (e.action === "hesitate") hesit = Math.max(hesit, env(t, s0, (e.duration ?? 0.8) - 0.2, 0.2, 0.3));
+      if (e.action === "adjust") adjust = Math.max(adjust, u >= 0 && u < 0.6 ? Math.sin((u / 0.6) * Math.PI) * (u < 0.3 ? 1 : 0.6) : 0);
+      if (e.action === "reach" || e.action === "press" || e.action === "point") { const w = env(t, s0 + 0.1, e.duration ?? (e.action === "press" ? 0.5 : 0.9), 0.3, 0.4); if (w > reachW) { reachW = w; reachTarget = e.target; reachKind = e.action; } }
+      if (e.action === "react" || e.action === "surprise" || e.action === "fear") {
+        // the head reacts first, then the torso pulls back, then the step (step-back event); it all settles over a second
+        headJerk = Math.max(headJerk, u >= 0 && u < 1.4 ? Math.min(1, u / 0.07) * Math.exp(-Math.max(0, u - 0.07) * 2.2) : 0);
+        pullBack = Math.max(pullBack, u >= 0.08 && u < 1.8 ? Math.min(1, (u - 0.08) / 0.18) * Math.exp(-Math.max(0, u - 0.26) * 1.3) : 0);
+        startle = Math.max(startle, env(t, s0, e.duration ?? 0.8, 0.08, 0.9));
+      }
+    }
+    this.turnBone(B.spine, 0, -0.05 * pushPre + 0.1 * push - 0.16 * pullBack - 0.05 * hesit + 0.04 * reachW, 0);
+    this.turnBone(B.head, 0, 0.08 * hesit, 0.05 * hesit); // a hesitation: weight back, head lowered and tilted
+    this.turnBone(B.chest, 0, -0.1 * pullBack, 0);
+    this.turnBone(B.head, 0, -0.22 * headJerk, 0);
+    const fearPosture = this.expression === "fear" || this.expression === "worried" ? 1 : 0;
+    this.turnBone(B.spine, 0, -0.05 * fearPosture * (1 - startle), 0);
+
+    // looking: at a target (incl. the next thing it will act on while approaching), or scanning around; head leads the chest
     let lookYaw = 0, lookPitch = 0, lookW = 0;
     if (this.lookAround && t >= this.lookAround.from && t <= this.lookAround.until + 0.5) {
       const u = t - this.lookAround.from, w = env(t, this.lookAround.from, this.lookAround.until - this.lookAround.from, 0.4, 0.5);
-      lookYaw = 0.75 * Math.sin(u * 1.7) * w; lookPitch = 0.08 * Math.sin(u * 0.9 + 1) * w; lookW = w;
+      // look one way, hold, look the other way: discrete glances read better than a smooth sweep
+      const glance = Math.tanh(Math.sin(u * 1.6) * 3);
+      lookYaw = 0.6 * glance * w; lookPitch = 0.06 * Math.sin(u * 0.9 + 1) * w; lookW = w;
     }
-    if (this.lookAt && t >= this.lookAt.from && t <= this.lookAt.until + 0.6) {
-      const p = this.world.resolve(this.lookAt.target);
+    let lookTarget: Target | null = this.lookAt && t >= this.lookAt.from && t <= this.lookAt.until + 0.6 ? this.lookAt.target : null;
+    let lw2 = lookTarget ? env(t, this.lookAt!.from, this.lookAt!.until - this.lookAt!.from, 0.3, 0.6) : 0;
+    const next = this.upcomingTarget(t);
+    if (!lookTarget && next && seg && distLeft < 3) { lookTarget = next; lw2 = Math.min(1, (3 - distLeft) / 1.5); }
+    if (lookTarget) {
+      const p = this.world.resolve(lookTarget);
       if (p) {
         const head = (B.head ?? this.root).getWorldPosition(new THREE.Vector3());
         const d = p.clone().sub(head);
         const yaw = wrap(Math.atan2(d.x, d.z) - this.heading), pitch = -Math.atan2(d.y, Math.hypot(d.x, d.z));
-        const w = env(t, this.lookAt.from, this.lookAt.until - this.lookAt.from, 0.35, 0.6);
-        lookYaw = lookYaw * (1 - w) + Math.max(-1.2, Math.min(1.2, yaw)) * w;
-        lookPitch = lookPitch * (1 - w) + Math.max(-0.5, Math.min(0.45, pitch)) * w; lookW = Math.max(lookW, w);
-        this.aimTarget = p;
+        lookYaw = lookYaw * (1 - lw2) + Math.max(-1.3, Math.min(1.3, yaw)) * lw2;
+        lookPitch = lookPitch * (1 - lw2) + Math.max(-0.5, Math.min(0.45, pitch)) * lw2; lookW = Math.max(lookW, lw2);
       }
     }
-    if (lookW > 0) {
-      this.turnBone(B.chest, lookYaw * 0.25, 0, 0);
-      this.turnBone(B.neck, lookYaw * 0.3, lookPitch * 0.4, 0);
+    if (this.aimAt !== null) this.aimTarget = this.world.resolve(this.aimAt);
+    // the head turns before the body: while turning, the neck already looks where the body is going
+    const lead = Math.max(-0.5, Math.min(0.5, err)) * 0.6;
+    lookYaw += lead * (1 - lookW);
+    if (lookW > 0 || Math.abs(lead) > 0.01) {
+      this.turnBone(B.chest, lookYaw * 0.22, 0, 0);
+      this.turnBone(B.neck, lookYaw * 0.33, lookPitch * 0.4, 0);
       this.turnBone(B.head, lookYaw * 0.45, lookPitch * 0.6, 0);
     }
 
-    // props: hold low in front / raise and aim along the line of sight, then place every prop at its socket
+    // hands: props are held and aimed with two-bone IK (elbow bent, hand where it should be); push puts both hands on the door
+    const up = new THREE.Vector3(0, 1, 0), f = this.fwd();
+    const right = new THREE.Vector3(Math.cos(this.heading), 0, -Math.sin(this.heading)).multiplyScalar(-1); // character's right
+    const chest = (B.chest ?? this.root).getWorldPosition(new THREE.Vector3());
+    const hipsP = (B.hips ?? this.root).getWorldPosition(new THREE.Vector3());
+    const H = this.height;
+    const swingDamp = 1 - Math.min(1, lw.walk + lw.run) * 0.55;
     for (const p of this.props) {
       const h = this.hold.get(p.id)!;
       if (h.rising) { const u = smooth((t - h.rising.t0) / h.rising.dur); h.raise = h.rising.from + (h.rising.to - h.rising.from) * u; if (u >= 1) h.rising = null; }
-      if (p.socket === "rightHand" || p.socket === "leftHand") {
-        const R = p.socket === "rightHand";
-        const upper = R ? B.upperArmR : B.upperArmL, lower = R ? B.lowerArmR : B.lowerArmL, hand = R ? B.handR : B.handL;
-        const f = this.fwd(), side = new THREE.Vector3(Math.cos(this.heading), 0, -Math.sin(this.heading)).multiplyScalar(R ? -1 : 1);
-        // holding: upper arm hangs slightly forward, forearm points forward-down (the torch lights the ground ahead)
-        const holdUpper = new THREE.Vector3(0, -1, 0).addScaledVector(f, 0.25).addScaledVector(side, 0.12);
-        const holdLower = new THREE.Vector3(0, -0.55, 0).add(f).addScaledVector(side, -0.15);
-        // raised: the whole arm points at the aim target (or straight ahead)
-        const shoulder = (upper ?? this.root).getWorldPosition(new THREE.Vector3());
-        const aimDir = this.aimTarget ? this.aimTarget.clone().sub(shoulder).normalize() : f.clone().add(new THREE.Vector3(0, -0.1, 0)).normalize();
-        const r = h.raise, swing = 1 - Math.min(1, lw.walk + lw.run) * 0.5;
-        // a raised arm is not a rod: the upper arm stays a little below the line of sight, the elbow bends slightly,
-        // the forearm carries the aim (that is how people hold a torch up)
-        const upAim = aimDir.clone().add(new THREE.Vector3(0, -0.42, 0)).addScaledVector(side, 0.18).normalize();
-        const uDir = holdUpper.clone().lerp(upAim, r);
-        const lDir = holdLower.clone().lerp(aimDir, r);
-        // the chest turns a little toward what the torch points at
-        if (r > 0.01) { const yaw = wrap(Math.atan2(aimDir.x, aimDir.z) - this.heading); this.turnBone(B.chest, Math.max(-0.5, Math.min(0.5, yaw)) * 0.35 * r, 0, 0); }
-        this.aim(upper, lower, uDir, 0.92 * swing + 0.08);
-        this.aim(lower, hand, lDir, 0.95);
+      if (p.socket !== "rightHand" && p.socket !== "leftHand") continue;
+      const R = p.socket === "rightHand", side = R ? right : right.clone().negate();
+      const upper = R ? B.upperArmR : B.upperArmL, lower = R ? B.lowerArmR : B.lowerArmL, hand = R ? B.handR : B.handL;
+      // carried: hand at the hip, a little forward, elbow relaxed; raised: hand in front of the chest toward the target, elbow bent
+      const holdPos = hipsP.clone().addScaledVector(side, 0.17 * H / 1.8).addScaledVector(f, 0.16 * H / 1.8).addScaledVector(up, 0.02);
+      const tgt = this.aimTarget ?? chest.clone().addScaledVector(f, 4);
+      const aimDir = tgt.clone().sub(chest).normalize();
+      const reach = 0.42 * H / 1.8; // a comfortable arm's length with the elbow bent
+      const raisePos = chest.clone().addScaledVector(side, 0.12 * H / 1.8).addScaledVector(up, -0.06).addScaledVector(aimDir, reach);
+      // a startle jolts the hand (the torch beam swings) and pulls it in
+      const jolt = new THREE.Vector3(Math.sin(t * 31) * 0.04, Math.sin(t * 23 + 1) * 0.05, 0).multiplyScalar(startle).addScaledVector(f, -0.12 * pullBack);
+      // a carried box sits in front of the belly; "adjust" hitches it up and it settles back
+      if (p.kind === "box") holdPos.addScaledVector(f, 0.2).addScaledVector(up, 0.3).addScaledVector(side, -0.14);
+      const pos = holdPos.lerp(raisePos, h.raise).add(jolt).addScaledVector(up, 0.07 * adjust);
+      const pole = new THREE.Vector3().addScaledVector(side, 0.8).addScaledVector(up, -0.6).addScaledVector(f, -0.25);
+      this.ik(upper, lower, hand, pos, pole, 0.95 * Math.max(swingDamp, h.raise));
+      p.aimDir = h.raise > 0.3 ? aimDir.clone().addScaledVector(new THREE.Vector3(Math.sin(t * 29), Math.sin(t * 19), 0), 0.12 * startle).normalize() : null;
+      p.aimWeight = h.raise;
+    }
+    // push: the free hand(s) on the door
+    if (push > 0.01) {
+      const door = this.lookAt ? this.world.resolve(this.lookAt.target) : null;
+      const handFree = this.props.some((p) => p.socket === "rightHand") ? "L" : "R";
+      const target = door ?? chest.clone().addScaledVector(f, 0.55);
+      const side = handFree === "R" ? right : right.clone().negate();
+      const pole = new THREE.Vector3().addScaledVector(side, 0.7).addScaledVector(up, -0.7);
+      if (handFree === "L") this.ik(B.upperArmL, B.lowerArmL, B.handL, target, pole, push);
+      else this.ik(B.upperArmR, B.lowerArmR, B.handR, target, pole, push);
+    }
+    // reach / press / point with the free hand: the hand goes to the target (press: the fingertip on the button)
+    if (reachW > 0.01 && reachTarget !== undefined) {
+      const tp = this.world.resolve(reachTarget);
+      const freeR = !this.props.some((p) => p.socket === "rightHand");
+      if (tp) {
+        const sh = ((freeR ? B.upperArmR : B.upperArmL) ?? this.root).getWorldPosition(new THREE.Vector3());
+        let goal = tp.clone();
+        if (reachKind === "point" || sh.distanceTo(tp) > 0.62 * H / 1.8) goal = sh.clone().addScaledVector(tp.clone().sub(sh).normalize(), Math.min(sh.distanceTo(tp), 0.6 * H / 1.8));
+        const side = freeR ? right : right.clone().negate();
+        const pole = new THREE.Vector3().addScaledVector(side, 0.8).addScaledVector(up, -0.7);
+        if (freeR) this.ik(B.upperArmR, B.lowerArmR, B.handR, goal, pole, reachW); else this.ik(B.upperArmL, B.lowerArmL, B.handL, goal, pole, reachW);
       }
-      placeProp(p, this.sockets(p.socket === "leftHand" ? "L" : "R"));
+    }
+    // a startle lifts the free arm defensively
+    if (pullBack > 0.01 && !this.props.some((p) => p.socket === "leftHand")) {
+      const target = chest.clone().addScaledVector(f, 0.25).addScaledVector(up, 0.12).addScaledVector(right, -0.15);
+      this.ik(B.upperArmL, B.lowerArmL, B.handL, target, new THREE.Vector3().addScaledVector(right, -0.8).addScaledVector(up, -0.5), 0.8 * pullBack);
+    }
+
+    for (const p of this.props) placeProp(p, this.sockets(p.socket === "leftHand" ? "L" : "R"));
+    // contact shadow between the feet, a little wider when the stride is long
+    if (B.footL && B.footR) {
+      const a = B.footL.getWorldPosition(new THREE.Vector3()), b2 = B.footR.getWorldPosition(new THREE.Vector3());
+      const mid = a.clone().add(b2).multiplyScalar(0.5);
+      this.contact.position.set(mid.x - this.root.position.x, 0.012, mid.z - this.root.position.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.heading);
+      const spread = a.distanceTo(b2);
+      this.contact.scale.set(1 + spread * 0.4, 1 + spread * 0.9, 1);
     }
     // a light prop switches on when raised (unless the shot says otherwise)
     for (const p of this.props) if (p.kind === "flashlight") {
-      const evOn = this.events.filter((e) => (e.action === "raise") && (e.prop === undefined || e.prop === p.id)).some((e) => t >= e.at + 0.2);
-      const flick = this.events.some((e) => e.action === "react" && t > e.at && t < e.at + 0.35) ? (Math.sin(t * 70) > 0 ? 1 : 0.35) : 1;
-      p.setOn(evOn ? flick : 0);
+      const on = [...this.startAt.entries()].some(([e, s0]) => e.action === "raise" && (e.prop === undefined || e.prop === p.id) && t >= s0 + 0.25);
+      p.setOn(on ? 1 - 0.25 * startle * (Math.sin(t * 60) > 0 ? 1 : 0) : 0);
     }
   }
 

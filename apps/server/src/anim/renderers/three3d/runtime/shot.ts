@@ -42,22 +42,20 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
   const scene = new THREE.Scene();
   const rig = applyLighting(scene, spec.lighting, { area: 16 });
   renderer.toneMappingExposure = rig.exposure;
-  // a dim sky-coloured environment for reflections (wet ground, metal), from a tiny gradient scene
+  // image-based ambient + reflections from the preset's sky (physical sky by day, gradient at night); at night a painted
+  // plate (city lights) is a better reflection source for wet ground
   const pm = new THREE.PMREMGenerator(renderer);
-  const envScene = new THREE.Scene();
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(10, 16, 8), new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: rig.background.clone().multiplyScalar(2) }));
-  envScene.add(sky);
-  let envTex = pm.fromScene(envScene, 0.04).texture;
+  let envTex = pm.fromScene(rig.envScene, 0.02).texture;
   const plateUrl = spec.environment.backdrop ? assets.images[spec.environment.backdrop] : undefined;
-  if (plateUrl) {
+  if (plateUrl && !rig.daylight) {
     const t = await new THREE.TextureLoader().loadAsync(plateUrl);
     t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
     envTex.dispose(); envTex = pm.fromEquirectangular(t).texture; t.dispose();
   }
   scene.environment = envTex;
-  scene.environmentIntensity = 0.45;
+  scene.environmentIntensity = rig.envIntensity;
 
-  const set = await buildSet(spec.environment, scene, assets.images, spec.seed);
+  const set = await buildSet(spec.environment, scene, assets.images, spec.seed, rig);
   if (spec.environment.weather?.fog !== undefined && scene.fog instanceof THREE.FogExp2) scene.fog.density = spec.environment.weather.fog;
 
   const chars = new Map<string, Character3D>();
@@ -101,6 +99,15 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
       const t = i * dt, step = i === 0 ? 0 : dt;
       for (const c of chars.values()) c.update(t, step);
       const camera = cam!.step(t, i === 0 ? 1 : dt);
+      // the sun's shadow box follows the action (crisper shadows from a small map); the rim light sits behind the main
+      // character as seen from the camera, so the silhouette always separates from the background
+      const lead = [...chars.values()][0];
+      if (lead) {
+        const c0 = lead.root.position;
+        rig.key.target.position.copy(c0); rig.key.position.copy(c0).addScaledVector(rig.sunDir, 40); rig.key.target.updateMatrixWorld();
+        const away = c0.clone().sub(camera.position).setY(0).normalize();
+        rig.rim.position.copy(c0).addScaledVector(away, 6).add(new THREE.Vector3(0, 4.5, 0)); rig.rim.target.position.copy(c0).setY(1.2); rig.rim.target.updateMatrixWorld();
+      }
       for (const r of reactions) cam!.kick(t, r, 1);
       set.update(t, step, camera.position);
       renderer.render(scene, camera);
