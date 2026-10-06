@@ -12,6 +12,9 @@ import { stableHash } from "../../hash";
 import type { PipelineServices, StageFn } from "../../types";
 import { readShotCaptions } from "../shots/buildShotTimeline";
 import { mediaOf, shotsInScope, storyOf } from "../shots/common";
+import { Three3DRenderer } from "../../../anim/renderers/three3d";
+import { characterFile } from "../../../anim/renderers/three3d/library";
+import { isThree3D, shot3dSpec } from "./plan3d";
 import { animationOf, animTimelineOf } from "./common";
 
 /** Bump when the layered renderer, the compiler or the post chain changes so cached clips are re-rendered. */
@@ -63,6 +66,7 @@ export const renderAnimShots: StageFn = async (svc, ctx) => {
   const stage = "scene_render";
   const encoders = await media.renderer.resolveEncoders(profile.video);
   const tl = animTimelineOf(project, story);
+  if (isThree3D(profile)) return renderThree3D(svc, ctx, project, story, tl, encoders);
   const { lib, report, manifest } = await loadProjectLibrary(svc, project);
   if (!report.locations.length) throw new StageOrderError("No background has been generated. Generate the assets first.");
   ctx.log.event({ stage }, "library", { locations: report.locations.length, characters: Object.keys(report.characters).length, props: report.props.length, missing: report.missing.length });
@@ -121,3 +125,53 @@ export const renderAnimShots: StageFn = async (svc, ctx) => {
     }
   });
 };
+
+/**
+ * The 3D branch: each shot is compiled to a Shot3DSpec (same Director JSON) and drawn by the Three.js renderer through the
+ * same FFmpeg post chain and caption overlays; clips are cached by a hash of the 3D spec and the files it uses.
+ */
+async function renderThree3D(svc: PipelineServices, ctx: Parameters<StageFn>[1], project: Project, story: NonNullable<Project["story"]>, tl: ReturnType<typeof animTimelineOf>, encoders: string[]): Promise<void> {
+  const profile = svc.profiles.get(project.formatProfile);
+  const anim = animationOf(profile);
+  const media = mediaOf(svc);
+  const stage = "scene_render";
+  const renderer = new Three3DRenderer({ characterFile, chrome: process.env.CHROME_PATH });
+  const shots = shotsInScope(story, ctx.scope);
+  let done = 0;
+  try {
+    await ctx.log.time({ stage }, async () => {
+      for (const shot of shots) {
+        const current = await svc.store.require(project.id);
+        const index = story.shots.findIndex((s) => s.id === shot.id);
+        const st = tl.shots[index]!;
+        const { spec, notes } = shot3dSpec(svc, current, story, index, st.duration);
+        const { captions, hash: capHash } = await readShotCaptions(async (rel) => JSON.parse(await fs.readFile(svc.store.resolve(project.id, rel), "utf8")), current, shot.id);
+        const id = shotVideoAssetId(shot.id), rel = `shots/${shot.id}.mp4`;
+        const files = [...spec.characters.map((c) => characterFile(c.asset)), spec.environment.backdrop].filter((f): f is string => !!f);
+        const stamps = await Promise.all(files.map(async (f) => [f, (await fs.stat(f).catch(() => null))?.size ?? 0]));
+        const hash = stableHash({ recipe: `${ANIM_RENDER_RECIPE_VERSION}-three3d-v1`, video: profile.video, bitrate: anim.bitrateKbps, grade: anim.grade, spec, files: stamps, captions: capHash, first: index === 0, last: index === story.shots.length - 1 });
+        const prev = findAsset(current, id);
+        if (prev && prev.status === "ready" && prev.inputHash === hash && svc.store.exists(project.id, rel) && !ctx.scope.force) { ctx.log.event({ stage, scene: shot.sceneId, asset: id }, "cached"); }
+        else {
+          await ctx.log.time({ stage, scene: shot.sceneId, asset: id }, async () => {
+            const insert = shot.insert && shot.insert.kind !== "phone" ? captions.insert : undefined;
+            const r = await renderer.render(spec, svc.store.resolve(project.id, rel), {
+              ffmpeg: media.ffmpeg, encoder: encoders[0] as "h264_videotoolbox" | "libx264", bitrateKbps: anim.bitrateKbps, grade: anim.grade, captions: captions.states, captionCenterY: 0.83, insert,
+              fadeIn: index === 0 ? 0.3 : 0, fadeOut: index === story.shots.length - 1 ? 0.6 : 0,
+            });
+            const probe = await media.renderer.probe(svc.store.resolve(project.id, rel));
+            await fs.writeFile(svc.store.resolve(project.id, `shots/${shot.id}.compiled.json`), JSON.stringify({ notes, spec, info: r.info }, null, 1));
+            await svc.store.update(project.id, (p) => upsertAsset(p, {
+              id, kind: "shot_video", sceneId: shot.sceneId, path: rel, status: "ready", inputHash: hash,
+              meta: { renderer: ANIM_RENDERER_ID, engine: "three3d", durationSec: probe.durationSec, encoder: encoders[0], renderMs: r.renderMs, frames: r.frames, width: probe.width, height: probe.height, fps: probe.fps, shotId: shot.id },
+              createdAt: new Date().toISOString(),
+            }));
+          });
+        }
+        ctx.progress(10 + (85 * ++done) / Math.max(1, shots.length), `Rendered 3D shot ${done}/${shots.length}`);
+      }
+    });
+  } finally {
+    await renderer.close();
+  }
+}

@@ -1,6 +1,7 @@
 import { FormatProfileSchema, type FormatProfile } from "@studio/shared";
 import { HttpError } from "../errors";
 import { animatedShort } from "./animatedShort";
+import { animatedShort3d } from "./animatedShort3d";
 import { cinematicAnimatedShort } from "./cinematicAnimatedShort";
 import { motionComic } from "./motionComic";
 
@@ -8,7 +9,7 @@ import { motionComic } from "./motionComic";
 export class ProfileRegistry {
   private readonly profiles = new Map<string, FormatProfile>();
 
-  constructor(profiles: FormatProfile[] = [motionComic, cinematicAnimatedShort, animatedShort]) {
+  constructor(profiles: FormatProfile[] = [motionComic, cinematicAnimatedShort, animatedShort, animatedShort3d]) {
     for (const p of profiles) this.register(p);
   }
 

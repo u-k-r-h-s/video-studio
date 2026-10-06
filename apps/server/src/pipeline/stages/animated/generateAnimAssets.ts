@@ -13,6 +13,7 @@ import { findAsset, upsertAsset } from "../../assets";
 import { seedFor } from "../../hash";
 import type { StageFn } from "../../types";
 import { animationOf, storyOf } from "./common";
+import { isThree3D } from "./plan3d";
 
 const KIND: Record<ManifestAsset["kind"], AssetKind> = { location: "anim_location", character_view: "anim_view", head_variant: "anim_head", prop: "anim_prop" };
 const MAX_ROUNDS = 3;
@@ -46,7 +47,9 @@ export const generateAnimAssets: StageFn = async (svc, ctx) => {
   for (const f of [...(svc.modelFiles?.[anim.imageModel] ?? []), ...(svc.modelFiles?.birefnet ?? [])]) if (!(await fs.stat(f).then(() => true, () => false))) missingFiles.push(path.basename(f));
   if (missingFiles.length) throw new StageOrderError(`Required image models are not installed (missing: ${[...new Set(missingFiles)].join(", ")}). See README "Model installation".`);
 
-  const manifest = planAssets(story, project.characters, anim);
+  const full = planAssets(story, project.characters, anim);
+  // the 3D renderer takes its characters from the local 3D library and draws its props: only the location plates are generated
+  const manifest = isThree3D(profile) ? { ...full, characters: [], props: [], assets: full.assets.filter((a) => a.kind === "location") } : full;
   await fs.writeFile(svc.store.resolve(project.id, "manifest.json"), JSON.stringify(manifest, null, 1));
   const sceneShots = ctx.scope.sceneIds ? new Set(story.shots.filter((s) => ctx.scope.sceneIds!.includes(s.sceneId)).map((s) => s.id)) : null;
   const scopeIds = inScopeIds(manifest, sceneShots);

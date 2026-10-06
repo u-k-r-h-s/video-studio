@@ -2,6 +2,7 @@
 // One command from an idea to a finished 1080x1920 MP4 (layered animated short).
 //   npm run short -- "Create a 25 second animated mystery short about a delivery rider."
 //   npm run short -- "<idea>" --out ~/Desktop/my-short.mp4 --seconds 25
+//   npm run short -- "<idea>" --renderer=3d                       (rigged 3D characters, Three.js renderer)
 //   npm run short -- "<idea>" --profile cinematic-animated-short   (the older still-image shots; not the default)
 //   npm run short -- --resume <project-id>      (continue a failed/interrupted run; finished work is cached)
 // Starts the local API itself when it is not running (and stops it afterwards), plans with Ollama, approves the plan
@@ -13,9 +14,11 @@ import path from "node:path";
 
 const args = process.argv.slice(2);
 const flag = (name, dflt) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : dflt; };
-const idea = args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--") && args[i - 1] !== "--review")) ?? "Create a 25 second animated mystery short about a delivery rider.";
+const idea = args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--") && !args[i - 1].includes("=") && args[i - 1] !== "--review")) ?? "Create a 25 second animated mystery short about a delivery rider.";
 const seconds = Number(flag("seconds", (/(\d+)[ -]?second/i.exec(idea)?.[1]) ?? 25));
-const profile = flag("profile", "animated-short");
+// --renderer=3d / --renderer 3d: rigged 3D characters (Three.js); --renderer=2d or nothing: the 2D puppet renderer (default)
+const rendererArg = args.find((a) => a.startsWith("--renderer="))?.split("=")[1] ?? flag("renderer");
+const profile = flag("profile", rendererArg === "3d" ? "animated-short-3d" : "animated-short");
 const reviewOnly = args.includes("--review");
 const API = process.env.STUDIO_API ?? "http://127.0.0.1:8787/api";
 const root = path.resolve(new URL("..", import.meta.url).pathname);
@@ -65,7 +68,7 @@ try {
 
   const story = project.story;
   console.log(`\nTITLE: ${project.title}\nLOGLINE: ${story.logline}\nCAST: ${project.characters.map((c) => `${c.name} (${c.visualIdentity})`).join("; ")}`);
-  const animated = profile === "animated-short" || project.formatProfile === "animated-short";
+  const animated = profile.startsWith("animated-short") || project.formatProfile.startsWith("animated-short");
   console.log(animated ? `${story.shots.length} shots, animated from generated assets:` : `${story.shots.length} shots from ${story.keyVisuals.length} generated images:`);
   const acts = (s) => (s.animation?.actions ?? []).map((a) => `${a.action}${a.toward ? ` ${a.toward}` : ""}`).concat((s.animation?.objects ?? []).map((o) => `${o.object}:${o.action}`)).join(", ");
   for (const s of story.shots) console.log(`  ${s.id} ${s.beat.padEnd(10)} ${s.shotType.padEnd(16)} ${animated ? "" : s.motion.type.padEnd(9)} ${s.duration.toFixed(1)}s  ${s.action}${animated && acts(s) ? `  [${acts(s)}]` : ""}${s.dialogue[0] ? `  — ${s.dialogue[0].characterId}: "${s.dialogue[0].text}"` : ""}`);

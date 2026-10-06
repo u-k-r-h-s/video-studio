@@ -47,6 +47,8 @@ export const AnimationSettingsSchema = z.object({
   minShots: z.number().int().min(3),
   maxShots: z.number().int().max(24),
   maxPropKinds: z.number().int().min(0).max(8),
+  /** Shot renderer: the 2D puppet engine (default) or rigged 3D characters in Three.js (`npm run short -- --renderer=3d`). */
+  renderer: z.enum(["canvas2d", "three3d"]).optional(),
   captions: z.object({ font: z.string(), size: z.number().int().min(20), maxWidth: z.number().int().min(200), stroke: z.number().min(0).max(20), highlight: z.string().regex(/^[0-9A-Fa-f]{6}$/), emphasisColour: z.string().regex(/^[0-9A-Fa-f]{6}$/) }),
   grade: z.object({ contrast: z.number(), saturation: z.number(), vignette: z.number(), grain: z.number(), bloom: z.number(), haze: z.number(), gamma: z.number() }).partial().optional(),
 });
