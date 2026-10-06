@@ -102,3 +102,40 @@ describe.skipIf(!ready)("animated pipeline end to end (fake Ollama/ComfyUI/Piper
     await expect(h.runner.runStage(id, "assembly", assembleAnimShots, { force: true })).rejects.toThrow(/animation renderer/);
   });
 });
+
+import { animatedShort3d } from "../src/profiles/animatedShort3d";
+import { DEFAULT_CHROME, Three3DRenderer } from "../src/anim/renderers/three3d";
+import { characterFile as glbFile } from "../src/anim/renderers/three3d/library";
+import { existsSync as exists3d } from "node:fs";
+
+const small3d: FormatProfile = { ...animatedShort3d, video: { ...animatedShort3d.video, width: 216, height: 384, fps: 10, videoEncoder: "libx264" } };
+const ready3d = ready && Three3DRenderer.available(process.env.CHROME_PATH ?? DEFAULT_CHROME) && exists3d(glbFile("casual-man"));
+describe.skipIf(!ready3d)("animated pipeline with the 3D renderer (--renderer=3d): same Director/timeline/assembly, Three.js shots", () => {
+  let h: Harness;
+  let id = "";
+  beforeAll(async () => {
+    const runner = new ExecFileRunner([FFMPEG!, FFPROBE!, HELPER]);
+    const renderer = new FFmpegMotionRenderer(runner, { ffmpeg: FFMPEG!, ffprobe: FFPROBE!, timeoutMs: 120_000, encoderOverride: "libx264" });
+    h = await makeHarness({ profile: small3d, llm: new FakeLLM((req) => directorResponder(req)), media: { runner, ffmpeg: FFMPEG!, ffprobe: FFPROBE!, captionHelper: HELPER, renderer } });
+    id = await h.newProject({ inputText: "Create a 25 second animated mystery short about a delivery rider.", formatProfile: small3d.id, targetDurationSeconds: 25 });
+  }, 60_000);
+  afterAll(async () => { await h.close(); });
+  it("renders every shot with Three.js, generates only location plates (characters come from the 3D library), and assembles a video", async () => {
+    await h.studio.plan(id);
+    await h.studio.approve(id);
+    h.events.length = 0;
+    await h.studio.produce(id);
+    const p = await h.store.require(id);
+    expect(p.status).toBe("completed");
+    expect(p.assets.filter((a) => a.kind === "anim_view" || a.kind === "anim_head")).toHaveLength(0);
+    expect(p.assets.filter((a) => a.kind === "anim_location").length).toBeGreaterThan(0);
+    const clips = p.assets.filter((a) => a.kind === "shot_video");
+    expect(clips).toHaveLength(p.story!.shots.length);
+    expect(clips.every((c) => c.meta.engine === "three3d" && c.meta.renderer === "anim")).toBe(true);
+    const fin = p.assets.find((a) => a.kind === "final_video")!;
+    expect([fin.meta.width, fin.meta.height]).toEqual([216, 384]);
+    // footsteps simulated headless for the soundtrack, from the same character code the browser runs
+    const mix = p.assets.find((a) => a.id === "soundtrack-mix")!;
+    expect(mix.status).toBe("ready");
+  }, 400_000);
+});
