@@ -94,7 +94,7 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
   scene.environment = envTex;
   scene.environmentIntensity = rig.envIntensity;
 
-  const set = await buildSet(spec.environment, scene, assets.images, spec.seed, rig, spec.duration);
+  const set = await buildSet(spec.environment, scene, assets.images, spec.seed, rig, spec.duration, spec.height);
   if (spec.environment.weather?.fog !== undefined && scene.fog instanceof THREE.FogExp2) scene.fog.density = spec.environment.weather.fog;
 
   const chars = new Map<string, Character3D>();
@@ -168,7 +168,9 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
       const c0 = lead.root.position;
       rig.key.target.position.copy(c0); rig.key.position.copy(c0).addScaledVector(rig.sunDir, 40); rig.key.target.updateMatrixWorld();
       const away = c0.clone().sub(camera.position).setY(0).normalize();
-      rig.rim.position.copy(c0).addScaledVector(away, 6).add(new THREE.Vector3(0, 4.5, 0)); rig.rim.target.position.copy(c0).setY(1.2); rig.rim.target.updateMatrixWorld();
+      // high behind the actor (~65 degrees): it still edges the hair and shoulders, but its mirror glare on a glossy floor
+      // lands under the camera, out of frame (at ~37 degrees it flooded the pavement in front of the camera with white)
+      rig.rim.position.copy(c0).addScaledVector(away, 2.6).add(new THREE.Vector3(0, 5.6, 0)); rig.rim.target.position.copy(c0).setY(1.2); rig.rim.target.updateMatrixWorld();
     }
     for (const r of reactions) cam!.kick(t, r, 1);
     // a soft, shadowless face light from the camera side on the shot's subject: faces read at night and in dark rooms
@@ -176,7 +178,10 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
     const subject = chars.get(spec.camera.target) ?? lead;
     if (subject) {
       const head = subject.headPosition();
-      faceLight.position.copy(camera.position).lerp(head, 0.35).add(new THREE.Vector3(0, 0.35, 0));
+      // 1.6 m from the face on the camera's side, whatever the shot size: in a wide shot a light placed "35% of the way
+      // from the camera" sat 4 m from the actor, never reached the face (a silhouette) and flooded the pavement instead
+      const toCam = camera.position.clone().sub(head).setY(0); if (toCam.lengthSq() < 1e-6) toCam.set(0, 0, 1);
+      faceLight.position.copy(head).addScaledVector(toCam.normalize(), 1.6).add(new THREE.Vector3(0, 0.35, 0));
       faceLight.target.position.copy(head); faceLight.target.updateMatrixWorld();
     }
     set.update(t, step, camera.position);
@@ -190,6 +195,7 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
       const s = performance.now();
       const camera = simulate(i);
       renderer.render(scene, camera);
+      if (spec.trace) { const v: number[] = []; scene.traverse((o) => { if (o.name.startsWith("vehicle:") && o.visible) v.push(...o.position.toArray(), o.rotation.y); const pt = o as THREE.Points; if (pt.isPoints && pt.geometry.attributes.aAlpha) { let h = 0; const a = pt.geometry.attributes.position!.array as Float32Array, al = pt.geometry.attributes.aAlpha.array as Float32Array; for (let i = 0; i < a.length; i++) h = (h * 31 + Math.round(a[i]! * 1e4)) % 1000000007; for (let i = 0; i < al.length; i++) h = (h * 31 + Math.round(al[i]! * 1e4)) % 1000000007; v.push(h); } }); (trace["~vehicles"] ??= []).push({ t: i * dt, root: v, heading: 0, speed: 0, loco: [0, 0, 0], q: {}, feet: [] }); }
       if (spec.trace) (trace["~camera"] ??= []).push({ t: i * dt, root: camera.position.toArray(), heading: 0, speed: 0, loco: [0, 0, 0], q: { cam: camera.quaternion.toArray() }, feet: [] });
       if (spec.trace) for (const c of [...chars.values(), ...extras]) {
         const q: Record<string, number[]> = {};
@@ -209,6 +215,10 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
       geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
       ...(spec.trace ? { trace } : {}),
       world: { ...set.info, pedestrians: extras.length },
+      ...(spec.trace ? { particles: (() => { const out: string[] = []; scene.traverse((o) => { const pt = o as THREE.Points; if (pt.isPoints && pt.geometry.attributes.aAlpha) { const a = pt.geometry.attributes.aAlpha.array as Float32Array, p = pt.geometry.attributes.position!.array as Float32Array; let n = 0, mx = 0, k = -1; for (let i = 0; i < a.length; i++) if (a[i]! > 0.001) { n++; if (a[i]! > mx) { mx = a[i]!; k = i; } } let near = 0, nearMax = 0, ex = ""; for (let i = 0; i < a.length; i++) if (a[i]! > 0.001 && Math.abs(p[i * 3]! - cam!.camera.position.x) < 15) { near++; if (a[i]! > nearMax) { nearMax = a[i]!; ex = `${p[i * 3]!.toFixed(1)},${p[i * 3 + 1]!.toFixed(2)},${p[i * 3 + 2]!.toFixed(1)} size ${(pt.geometry.attributes.aSize!.array as Float32Array)[i]!.toFixed(2)}`; } }
+              out.push(`near camera: ${near} visible, max alpha ${nearMax.toFixed(2)} at ${ex}`);
+              out.push(`${a.length} pts, ${n} visible, max alpha ${mx.toFixed(2)}${k >= 0 ? ` at ${p[k * 3]!.toFixed(1)},${p[k * 3 + 1]!.toFixed(2)},${p[k * 3 + 2]!.toFixed(1)} size ${(pt.geometry.attributes.aSize!.array as Float32Array)[k]!.toFixed(2)}` : ""} visible=${pt.visible} parentVisible=${pt.parent?.visible}`); } }); return out; })() } : {}),
+      ...(spec.trace ? { lights: (() => { const out: string[] = []; scene.traverse((o) => { const l = o as THREE.Light; if (l.isLight && l.intensity > 0) { const p = l.getWorldPosition(new THREE.Vector3()); out.push(`${l.type} i${l.intensity.toFixed(1)} @${p.toArray().map((x) => x.toFixed(1)).join(",")}${(l as THREE.SpotLight).distance ? ` d${(l as THREE.SpotLight).distance}` : ""}`); } }); return out; })() } : {}),
       characters: [...chars.values()].map((c) => ({ id: c.spec.id, height: +c.height.toFixed(2), walkSpeed: +c.walkSpeed.toFixed(2), runSpeed: +c.runSpeed.toFixed(2), bones: Object.keys(c.bones).length, clips: Object.keys(c.clips), face: c.face.capabilities, lipSyncFrames: c.faceStats.talkingFrames, mouthMaxOpen: +c.faceStats.maxOpen.toFixed(2), transitions: c.loco.history.map((h) => `${h.t.toFixed(2)} ${h.from}->${h.to}`) })),
     }),
     dispose(): void {

@@ -98,7 +98,9 @@ export function planWorld(t: string, kit: Kit, s: { tod: SceneDirection["timeOfD
     if (kit === "city" && named.length === 1) mix.push("car", "scooter", "auto");
     if (kit === "road" && !named.includes("bicycle")) mix.push("bicycle");
     const busy = /\b(busy|traffic|rush|crowded|honking)\b/.test(t);
-    w.traffic = { mix, rate: busy ? 10 : kit === "city" ? 6 : 3, lanes: kit === "city" ? 4 : 2, ...(/\b(bus stop|bus stand|bus stops)\b/.test(t) ? { stop: { kind: "bus" as const, dwell: 6 } } : {}) };
+    const dirt = kit === "road" && /\b(dirt road|kachcha|kaccha|unpaved|dusty|mud road|earth road|gravel)\b/.test(t);
+    const electric = (/\b(e-?rickshaw|electric auto|electric)\b/.test(t) ? ["auto"] : []) as VehicleKind3D[];
+    w.traffic = { mix, rate: busy ? 10 : kit === "city" ? 6 : 3, lanes: kit === "city" ? 4 : 2, surface: dirt ? "dirt" : "tarmac", ...(electric.length ? { electric } : {}), ...(/\b(bus stop|bus stand|bus stops)\b/.test(t) ? { stop: { kind: "bus" as const, dwell: 6 } } : {}) };
     why.push(`traffic: ${mix.join("/")} at ${w.traffic.rate}/min/lane (${kit === "city" ? "a city street" : `the road names ${named.join(", ") || "traffic"}`})${w.traffic.stop ? "; the bus stops at the stop" : ""}`);
   } else why.push(kit === "road" ? "no traffic: the road's description names no vehicle" : `no traffic: ${kit} is not a road`);
   if (kit === "city") {

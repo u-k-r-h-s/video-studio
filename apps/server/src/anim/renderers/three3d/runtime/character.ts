@@ -65,6 +65,8 @@ export class Character3D {
   private feet: { side: "L" | "R"; restY: number; lock: THREE.Vector3 | null; w: Damp }[] = [];
   private lastPhase = { walk: 0, run: 0 };
   private readonly rest: [THREE.Object3D, THREE.Quaternion][] = [];
+  /** The mixer's output last frame (the animated pose under the procedural layers). */
+  private base: [THREE.Object3D, THREE.Quaternion][] = [];
   private hold = new Map<string, { raise: number; rising: { from: number; to: number; t0: number; dur: number } | null }>();
   /** When each prop went into the hand (-Infinity: from the start; null: still resting in the world, see PropSpec3D.restAt). */
   private attachedAt = new Map<string, number | null>();
@@ -117,6 +119,7 @@ export class Character3D {
     // rest pose of every bone: procedural layers are applied on top of the clips each frame, and a bone no clip animates
     // must go back to rest first, or the layers would accumulate from frame to frame
     this.model.traverse((o) => { if ((o as THREE.Bone).isBone) this.rest.push([o, o.quaternion.clone()]); });
+    this.base = this.rest.map(([b, q]) => [b, q.clone()]);
     this.mixer = new THREE.AnimationMixer(this.model);
     const hips = this.bones.hips;
     // a clip that repeats must actually loop: a trimmed performance (its last pose far from its first) is cross-faded into
@@ -465,8 +468,12 @@ export class Character3D {
     layer(A.wave, wave);
     layer(A.interact, interact * 0.85, interactStart);
     layer(A.react, react * 0.7, reactStart);
-    for (const [b, q] of this.rest) b.quaternion.copy(q);
+    // start from the pose the mixer produced last frame (not the rest pose): three.js only writes a bone when its blended
+    // value changed since the previous frame, so a bone a clip holds perfectly still would otherwise be left at rest for a
+    // frame (measured: the low-poly walk's Body bone snapped 27 degrees). Procedural offsets never accumulate either way.
+    for (const [b, q] of this.base) b.quaternion.copy(q);
     this.mixer.update(dt);
+    for (const [b, q] of this.base) q.copy(b.quaternion);
     this.root.updateMatrixWorld(true);
 
     // footsteps: a cue whenever a locomotion clip passes a foot-contact phase

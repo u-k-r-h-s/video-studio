@@ -57,6 +57,12 @@ export class CinematicCamera {
   }
 
   step(t: number, dt: number): THREE.PerspectiveCamera {
+    const fx = this.spec.fixed;
+    if (fx) {
+      this.camera.position.set(...fx.position); this.camera.lookAt(new THREE.Vector3(...fx.lookAt));
+      this.camera.fov = fx.fov ?? FRAMINGS[this.spec.shot].fov; this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld(true);
+      return this.camera;
+    }
     const { f, target, behind, frameWith } = this.framingAt(t);
     const subj = this.resolve(target);
     if (!subj) return this.camera;

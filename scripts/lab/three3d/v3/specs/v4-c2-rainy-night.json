@@ -1,0 +1,96 @@
+{
+ "id": "v4c2",
+ "duration": 10,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "seed": 52,
+ "lighting": "rainy-night",
+ "environment": {
+  "kind": "city",
+  "objects": [
+   {
+    "id": "door",
+    "kind": "door",
+    "x": 0,
+    "z": -8
+   }
+  ],
+  "weather": {
+   "rain": 0.9,
+   "wind": 0.8
+  },
+  "world": {
+   "traffic": {
+    "mix": [
+     "car",
+     "auto",
+     "motorcycle",
+     "scooter",
+     "car",
+     "bus"
+    ],
+    "rate": 11,
+    "lanes": 4
+   },
+   "streetlights": true,
+   "pedestrians": {
+    "assets": [
+     "casual-man",
+     "woman-casual"
+    ],
+    "count": 3
+   }
+  }
+ },
+ "characters": [
+  {
+   "id": "arjun",
+   "asset": "rb-young-man",
+   "start": {
+    "x": -2.0,
+    "z": 2.9,
+    "heading": 0.5
+   },
+   "expression": "worried",
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": {
+      "x": -12,
+      "y": 1.2,
+      "z": -4
+     },
+     "duration": 4
+    },
+    {
+     "at": 4.2,
+     "action": "look",
+     "target": "camera",
+     "duration": 5.8
+    }
+   ]
+  }
+ ],
+ "camera": {
+  "shot": "wide",
+  "move": "static",
+  "target": "arjun",
+  "front": {
+   "x": 0,
+   "z": 1
+  },
+  "angle": 0.45,
+  "heightOffset": 0.5,
+  "fovScale": 1.15
+ },
+ "_voice": [
+  {
+   "character": "arjun",
+   "voice": "hi-rohan-young",
+   "text": "इतनी बारिश में भी शहर रुकता नहीं।",
+   "at": 4.6
+  }
+ ]
+}

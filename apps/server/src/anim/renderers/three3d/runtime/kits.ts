@@ -307,13 +307,14 @@ export function interiorKit(ctx: KitCtx, opts: { outage?: boolean } = {}): Clamp
 /** A country road: the road along the front, fields, electric poles and wires, trees, a roadside tea shack (the facade), far hills. */
 /** The country road. With traffic, the road is laid BEHIND the action (between the people and the tea stall), so
  *  vehicles pass behind the actors and never through the camera; `lanes` then receives its two lanes. */
-export function roadKit(ctx: KitCtx, o: { traffic?: boolean; lanes?: { z: number; dir: 1 | -1 }[] } = {}): Clamp {
+export function roadKit(ctx: KitCtx, o: { traffic?: boolean; lanes?: { z: number; dir: 1 | -1 }[]; dirt?: boolean } = {}): Clamp {
   const { DX, DZ, r, day, add, wet } = ctx;
   const roadZ = o.traffic ? -2.9 : 6.5;
   if (o.traffic && o.lanes) o.lanes.push({ z: roadZ + 1.5, dir: 1 }, { z: roadZ - 1.5, dir: -1 });
   const dirtTex = dirt(r, wet); dirtTex.repeat.set(10, 10);
   (ctx.ground.material as THREE.MeshStandardMaterial).map = dirtTex; (ctx.ground.material as THREE.MeshStandardMaterial).color.set("#ffffff");
-  const road = tex(1024, 256, (g) => { g.fillStyle = wet > 0.4 ? "#3a3c40" : "#55575b"; g.fillRect(0, 0, 1024, 256); for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "30,30,30" : "120,120,120"},0.15)`; g.fillRect(r() * 1024, r() * 256, 3, 3); } g.fillStyle = "#e8e2c8"; for (let x = 0; x < 1024; x += 128) g.fillRect(x, 124, 64, 8); }); road.repeat.set(10, 1);
+  // a kachcha road: packed earth with wheel ruts (no tarmac, no centre line)
+  const road = o.dirt ? tex(1024, 256, (g) => { g.fillStyle = wet > 0.4 ? "#5a4636" : "#a98a62"; g.fillRect(0, 0, 1024, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "80,60,40" : "210,185,150"},${0.08 + r() * 0.12})`; g.fillRect(r() * 1024, r() * 256, 2 + r() * 6, 2 + r() * 4); } for (const y of [70, 100, 156, 186]) { g.fillStyle = "rgba(90,68,45,0.35)"; g.fillRect(0, y, 1024, 10); } }) : tex(1024, 256, (g) => { g.fillStyle = wet > 0.4 ? "#3a3c40" : "#55575b"; g.fillRect(0, 0, 1024, 256); for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "30,30,30" : "120,120,120"},0.15)`; g.fillRect(r() * 1024, r() * 256, 3, 3); } g.fillStyle = "#e8e2c8"; for (let x = 0; x < 1024; x += 128) g.fillRect(x, 124, 64, 8); }); road.repeat.set(10, 1);
   add(new THREE.Mesh(new THREE.BoxGeometry(160, 0.04, 6), std({ map: road, roughness: wet > 0.4 ? 0.35 : 0.85, metalness: wet > 0.4 ? 0.2 : 0 })), false).position.set(0, 0.03, roadZ);
   const field = (z: number, d: number, c: string): void => { const t = tex(512, 512, (g) => { g.fillStyle = c; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 512; i += 12) { g.fillStyle = "rgba(30,45,15,0.35)"; g.fillRect(0, i, 512, 4); } }); t.repeat.set(16, d / 3); add(new THREE.Mesh(new THREE.BoxGeometry(160, 0.06, d), std({ map: t, roughness: 1 })), false).position.set(0, 0.03, z); };
   if (o.traffic) { field(-17, 12, day ? "#9aa64a" : "#2a3020"); field(12, 14, day ? "#c2a94a" : "#30301e"); }

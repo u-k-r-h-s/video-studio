@@ -61,6 +61,8 @@ export interface PropSpec3D {
 export const CAMERA_SHOTS = ["wide", "medium", "closeup", "over_shoulder"] as const;
 export const CAMERA_MOVES = ["static", "follow", "tracking", "push_in", "pull_out", "pan", "tilt", "handheld"] as const;
 export interface CameraSpec3D {
+  /** A locked-off camera at an exact position looking at a point (inspection and test shots); overrides the framing. */
+  fixed?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number };
   shot: (typeof CAMERA_SHOTS)[number];
   move: (typeof CAMERA_MOVES)[number];
   /** Character id the camera frames, or a named set point ("door"). */
@@ -130,7 +132,9 @@ export interface WorldSpec3D {
   /** Clouds (count, drift in m/s) and birds (flocks of a few). */
   sky?: { clouds: number; cloudSpeed: number; birds: number };
   /** Vehicles on the kit's road (behind the action, never through the camera). rate = vehicles per minute per lane. */
-  traffic?: { mix: VehicleKind3D[]; rate: number; lanes: 1 | 2 | 4; stop?: { kind: VehicleKind3D; dwell: number } };
+  traffic?: { mix: VehicleKind3D[]; rate: number; lanes: 1 | 2 | 4; stop?: { kind: VehicleKind3D; dwell: number; x?: number };
+    /** The road is packed earth (dust behind vehicles when dry); electric vehicles make no exhaust; parked vehicles. */
+    surface?: "dirt" | "tarmac"; electric?: VehicleKind3D[]; parked?: { kind: VehicleKind3D; x: number; z: number; heading: number }[] };
   /** Background walkers on the far sidewalk (models from the character library). */
   pedestrians?: { assets: string[]; count: number };
   streetlights?: boolean;

@@ -65,6 +65,51 @@ describe("traffic: road-following vehicles", () => {
   });
 });
 
+describe("vehicle models and effects (V4)", () => {
+  it("every wheel rolls forward: the tread at the bottom moves backward relative to the vehicle, on both sides", () => {
+    const tr = run(["car", "auto", "bus", "motorcycle", "scooter", "bicycle"], { rate: 20 });
+    let checked = 0;
+    tr.update(5);
+    for (const [k, v] of tr.vehicles.entries()) {
+      const root = tr.group.children[k]!; if (!root.visible) continue;
+      const wheels: THREE.Object3D[] = []; root.traverse((o) => { if (o.name === "wheel") wheels.push(o); });
+      for (const w of wheels) {
+        // the material point of the tyre that is at the bottom now, followed one frame later, in the vehicle's frame
+        tr.update(5); root.updateMatrixWorld(true);
+        const hub = new THREE.Vector3().setFromMatrixPosition(w.matrixWorld), r = 0.2;
+        const local = w.worldToLocal(hub.clone().add(new THREE.Vector3(0, -r, 0)));
+        const x0 = root.worldToLocal(local.clone().applyMatrix4(w.matrixWorld)).x;
+        tr.update(5 + 1 / 30); root.updateMatrixWorld(true);
+        const x1 = root.worldToLocal(local.clone().applyMatrix4(w.matrixWorld)).x;
+        expect(x1 - x0, `${v.kind} wheel`).toBeLessThan(1e-4); // the contact patch sweeps backward when rolling forward
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(8);
+  });
+  it("wheels sit on the road (the lowest tyre point at road level)", () => {
+    const tr = run(["car", "auto", "bus", "motorcycle", "scooter", "bicycle"], { rate: 20 }); tr.update(6);
+    for (const root of tr.group.children) {
+      if (!root.visible || !root.name.startsWith("vehicle:")) continue;
+      const wheels: THREE.Object3D[] = []; root.traverse((o) => { if (o.name === "wheel") wheels.push(o); });
+      root.updateMatrixWorld(true);
+      for (const w of wheels) { const box = new THREE.Box3().setFromObject(w, true); expect(Math.abs(box.min.y - 0.04), root.name).toBeLessThan(0.03); }
+    }
+  });
+  it("effects: deterministic in t (same particles in any frame order), only the allowed ones, none from bicycles", () => {
+    const fx = { exhaust: true, dust: true, spray: false, night: false, wet: 0, viewportHeight: 1920 };
+    const a = run(["bus", "auto", "bicycle"], { fx, rate: 15 }), b = run(["bus", "auto", "bicycle"], { fx, rate: 15 });
+    const pts = (tr: ReturnType<typeof traffic>) => { const out: number[] = []; tr.group.traverse((o) => { if ((o as THREE.Points).isPoints) { const g = (o as THREE.Points).geometry; out.push(...Array.from(g.attributes.position!.array as Float32Array), ...Array.from(g.attributes.aAlpha!.array as Float32Array)); } }); return out; };
+    a.update(6.4); const pa = pts(a);
+    b.update(1); b.update(9); b.update(6.4); const pb = pts(b);
+    expect(pa.length).toBeGreaterThan(100);
+    expect(pa).toEqual(pb);
+    // no spray on a dry road; exhaust exists for the bus and the auto but not the bicycle
+    const kinds: string[] = []; a.group.traverse((o) => { if ((o as THREE.Points).isPoints) kinds.push(String((o as THREE.Points).geometry.attributes.aAlpha!.count)); });
+    expect(kinds.length).toBe(2); // exhaust + dust pools only
+  });
+});
+
 describe("story-driven world: elements appear only where the story puts them", () => {
   const pal = { wall: "", door: "", trim: "", roof: "" };
   const loc = (look: string, timeOfDay: string, weather?: string) => directLocation({ id: "x", name: "x", visualIdentity: look, description: "", lighting: "", timeOfDay, weather } as never, pal);

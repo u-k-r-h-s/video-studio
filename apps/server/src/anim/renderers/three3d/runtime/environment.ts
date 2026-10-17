@@ -103,7 +103,7 @@ function concrete(r: () => number): THREE.CanvasTexture {
   });
 }
 
-export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, images: Record<string, string>, seed: number, rig?: LightingRig, duration = 10): Promise<SetInstance> {
+export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, images: Record<string, string>, seed: number, rig?: LightingRig, duration = 10, viewportHeight = 1920): Promise<SetInstance> {
   const r = rand(seed);
   const group = new THREE.Group();
   scene.add(group);
@@ -187,7 +187,7 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   else if (spec.kind === "village") kitClamp = villageKit(kit);
   else if (spec.kind === "market") kitClamp = marketKit(kit);
   else if (spec.kind === "interior") kitClamp = interiorKit(kit, { outage: spec.lightsOut });
-  else if (spec.kind === "road") { const ls: { z: number; dir: 1 | -1 }[] = []; kitClamp = roadKit(kit, { traffic: !!W?.traffic, lanes: ls }); lanes = ls.map((l) => (l.dir > 0 ? straightLane(-75, 75, l.z) : straightLane(75, -75, l.z))); }
+  else if (spec.kind === "road") { const ls: { z: number; dir: 1 | -1 }[] = []; kitClamp = roadKit(kit, { traffic: !!W?.traffic, lanes: ls, dirt: W?.traffic?.surface === "dirt" }); lanes = ls.map((l) => (l.dir > 0 ? straightLane(-75, 75, l.z) : straightLane(75, -75, l.z))); }
   else if (spec.kind === "warehouse-exterior") {
     const dw = Number(door?.params?.width ?? 2.6), dh = Number(door?.params?.height ?? 3.3);
     const wallTex = await img(spec.wallTexture);
@@ -286,9 +286,12 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   }
   if (W?.traffic && lanes.length) {
     const lane0 = lanes[0]!;
-    const tr = traffic({ lanes, mix: W.traffic.mix, rate: W.traffic.rate, duration, seed: seed + 5, night: !day, wet,
-      ...(W.traffic.stop ? { stop: { lane: 0, kind: W.traffic.stop.kind, s: Math.min(lane0.length - 10, 75 + DX + 5), dwell: W.traffic.stop.dwell } } : {}) });
-    group.add(tr.group); updates.push((t) => tr.update(t));
+    // effects only where they belong: dust on a dry dirt road, spray on a wet road, lights and beams at night
+    const fx = { exhaust: true, dust: spec.kind === "road" && W.traffic.surface === "dirt" && wet < 0.2, spray: wet >= 0.4, night: !day, wet, electric: W.traffic.electric ?? [], viewportHeight };
+    const tr = traffic({ lanes, mix: W.traffic.mix, rate: W.traffic.rate, duration, seed: seed + 5, night: !day, wet, fx, ...(W.traffic.parked ? { parked: W.traffic.parked } : {}),
+      ...(W.traffic.stop ? { stop: { lane: 0, kind: W.traffic.stop.kind, s: Math.min(lane0.length - 10, 75 + (W.traffic.stop.x ?? DX + 5)), dwell: W.traffic.stop.dwell } } : {}) });
+    group.add(tr.group); updates.push((t, _dt, cam) => tr.update(t, cam));
+    info.vehicleFx = Object.entries(fx).filter(([k, v]) => v === true && k !== "night").map(([k]) => k).concat(!day ? ["headlights"] : []);
     info.vehicles = tr.vehicles.reduce<Record<string, number>>((a, v) => ({ ...a, [v.kind]: (a[v.kind] ?? 0) + 1 }), {});
     info.lanes = lanes.length;
   }
