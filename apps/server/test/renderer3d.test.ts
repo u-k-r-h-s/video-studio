@@ -48,6 +48,13 @@ describe.skipIf(!haveGlb)("3D character (GLB in Node, no browser)", () => {
     for (const r of ["idle", "walk", "run", "wave", "interact", "react"] as const) expect(clips[r], r).toBeTruthy();
   });
   const spec = (events: CharacterSpec3D["events"], props: CharacterSpec3D["props"] = []): CharacterSpec3D => ({ id: "a", asset: "casual-man", start: { x: 0, z: 0, heading: 0 }, props, events });
+  it("a model exported in other units (4.6 m tall) is scaled to a human height; a correctly sized one is untouched", async () => {
+    const big = await load();
+    big.scene.scale.multiplyScalar(2.55); // like the Quaternius 'Woman Casual' export
+    const c = new Character3D(spec([]), big, world());
+    expect(c.height).toBeGreaterThan(1.65); expect(c.height).toBeLessThan(1.8);
+    expect(new Character3D(spec([]), await load(), world()).height).toBeCloseTo(1.82, 2);
+  });
   it("walks to a target and stops there, facing the way it walked; the feet do not slide (clip speed is calibrated)", async () => {
     const c = new Character3D(spec([{ at: 0.2, action: "walk", target: { x: 3, z: 0 } }]), await load(), world());
     expect(c.walkSpeed).toBeGreaterThan(0.8); expect(c.walkSpeed).toBeLessThan(2.2);
@@ -120,6 +127,32 @@ describe.skipIf(!haveGlb)("3D character (GLB in Node, no browser)", () => {
   });
 });
 
+describe("rig discovery: any common skeleton naming (asset-agnostic)", () => {
+  const SCHEMES: Record<string, string[]> = {
+    mixamo: ["mixamorigHips", "mixamorigSpine", "mixamorigSpine2", "mixamorigNeck", "mixamorigHead", "mixamorigRightShoulder", "mixamorigRightArm", "mixamorigRightForeArm", "mixamorigRightHand", "mixamorigLeftShoulder", "mixamorigLeftArm", "mixamorigLeftForeArm", "mixamorigLeftHand", "mixamorigRightUpLeg", "mixamorigRightLeg", "mixamorigRightFoot", "mixamorigLeftUpLeg", "mixamorigLeftLeg", "mixamorigLeftFoot"],
+    "mixamo without prefix, Spine01/02": ["Hips", "Spine", "Spine02", "neck", "Head", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "RightUpLeg", "RightLeg", "RightFoot", "LeftUpLeg", "LeftLeg", "LeftFoot"],
+    "L_/R_ prefixes": ["Hips", "Spine", "Chest", "Neck", "Head", "R_Shoulder", "R_UpperArm", "R_ForeArm", "R_Hand", "L_Shoulder", "L_UpperArm", "L_ForeArm", "L_Hand", "R_Thigh", "R_Calf", "R_Foot", "L_Thigh", "L_Calf", "L_Foot"],
+    "side first": ["Hips", "Spine", "Spine2", "Neck", "Head", "RightShoulder", "RightUpperArm", "RightLowerArm", "RightHand", "LeftShoulder", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot"],
+    unreal: ["pelvis", "spine_01", "spine_03", "neck_01", "head", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "thigh_r", "calf_r", "foot_r", "thigh_l", "calf_l", "foot_l"],
+    // Quaternius "Ultimate Animated Character" rigs call the hand bone Palm (MiddleHand.L is a finger)
+    "quaternius palm": ["Hips", "Abdomen", "Torso", "Neck", "Head", "Shoulder.R", "UpperArm.R", "LowerArm.R", "Palm.R", "Shoulder.L", "UpperArm.L", "LowerArm.L", "Palm.L", "UpperLeg.R", "LowerLeg.R", "Foot.R", "UpperLeg.L", "LowerLeg.L", "Foot.L", "MiddleHand.R", "MiddleHand.L"],
+    // 3ds Max Biped (Microsoft Rocketbox): the side sits between underscores, "...Nub" end bones are not joints
+    "biped": ["Bip01_Pelvis", "Bip01_Spine", "Bip01_Spine2", "Bip01_Neck", "Bip01_Head", "Bip01_R_Clavicle", "Bip01_R_UpperArm", "Bip01_R_Forearm", "Bip01_R_Hand", "Bip01_L_Clavicle", "Bip01_L_UpperArm", "Bip01_L_Forearm", "Bip01_L_Hand", "Bip01_R_Thigh", "Bip01_R_Calf", "Bip01_R_Foot", "Bip01_L_Thigh", "Bip01_L_Calf", "Bip01_L_Foot", "Bip01_HeadNub", "Bip01_R_Finger0", "Bip01_LEye", "Bip01_MJaw"],
+    "blender .L/.R": ["hips", "spine", "chest", "neck", "head", "shoulder.R", "upper_arm.R", "forearm.R", "hand.R", "shoulder.L", "upper_arm.L", "forearm.L", "hand.L", "thigh.R", "shin.R", "foot.R", "thigh.L", "shin.L", "foot.L"],
+  };
+  for (const [name, bones] of Object.entries(SCHEMES)) {
+    it(`finds every role in a "${name}" skeleton, each on the right bone`, () => {
+      const root = new THREE.Group();
+      // plus the in-between spine bones real rigs have, which must not be taken for the spine or the chest
+      for (const n of [...bones, "Spine1", "Spine01", "spine_02", "mixamorigSpine1"]) { const b = new THREE.Bone(); b.name = THREE.PropertyBinding.sanitizeNodeName(n); root.add(b); }
+      const r = findBones(root);
+      // listed in BONE_ROLES order, so role i is bone i
+      const roles = ["hips", "spine", "chest", "neck", "head", "shoulderR", "upperArmR", "lowerArmR", "handR", "shoulderL", "upperArmL", "lowerArmL", "handL", "upperLegR", "lowerLegR", "footR", "upperLegL", "lowerLegL", "footL"] as const;
+      expect(Object.fromEntries(roles.map((k) => [k, r[k]?.name]))).toEqual(Object.fromEntries(roles.map((k, i) => [k, THREE.PropertyBinding.sanitizeNodeName(bones[i]!)])));
+    });
+  }
+});
+
 describe("cinematic camera", () => {
   const subj = { position: new THREE.Vector3(0, 0, 0), heading: 0, height: 1.8 };
   it("frames by shot size, pushes in over the shot, and moves smoothly (no jumps)", () => {
@@ -180,7 +213,8 @@ describe("3D compiler: the Director's shot -> a 3D shot", () => {
 const haveChrome = Three3DRenderer.available(process.env.CHROME_PATH ?? DEFAULT_CHROME) && haveGlb && process.platform === "darwin";
 describe.skipIf(!haveChrome)("Three.js renderer (headless Chrome, WebGL)", () => {
   const r = new Three3DRenderer({ characterFile, chrome: process.env.CHROME_PATH });
-  afterAll(async () => { await r.close(); });
+  // closing headless Chrome can take longer than the default 10 s hook timeout while the rest of the suite runs in parallel
+  afterAll(async () => { await r.close(); }, 60_000);
   it("initialises, loads the GLB in the browser, renders frames in order, and reports transitions and cues", async () => {
     const spec = {
       id: "t", duration: 1.2, width: 180, height: 320, fps: 15, seed: 1, lighting: "night" as const,
@@ -195,6 +229,20 @@ describe.skipIf(!haveChrome)("Three.js renderer (headless Chrome, WebGL)", () =>
     const ch = (res.info.characters as { transitions: string[] }[])[0]!;
     expect(ch.transitions.some((x) => x.includes("idle->walk"))).toBe(true);
     expect(res.cues.some((q) => q.kind === "door")).toBe(true);
+  }, 60_000);
+  it("a chunk rendered on its own (fast-forwarded, not drawn, up to its first frame) equals the same frames of a full render", async () => {
+    // a walk, a turn, a wave and a door: every stateful system (locomotion, damped look, camera spring, door) is mid-motion
+    // at the chunk boundary
+    const spec = {
+      id: "chunk", duration: 1.6, width: 120, height: 214, fps: 15, seed: 3, lighting: "day" as const,
+      environment: { kind: "warehouse-exterior" as const, objects: [{ id: "door", kind: "door" as const, x: 0, z: -6, events: [{ at: 0.4, action: "open" as const }] }] },
+      characters: [{ id: "a", asset: "casual-man", start: { x: -2, z: -1, heading: Math.PI / 2 }, events: [{ at: 0, action: "walk" as const, target: "door-front" }, { at: 0.9, action: "look" as const, target: "camera", duration: 1 }, { at: 1.1, action: "wave" as const }] }],
+      camera: { shot: "medium" as const, move: "follow" as const, target: "a" },
+    };
+    const full = await r.stills(spec, [10, 11, 12, 13]);
+    const chunk = await r.renderRange(spec, 10, 14);
+    expect(chunk).toHaveLength(4);
+    chunk.forEach((png, k) => expect(png.equals(full.frames.get(10 + k)!), `frame ${10 + k}`).toBe(true));
   }, 60_000);
   it("renders a clip through the shared FFmpeg post chain", async () => {
     const ffmpeg = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].find((f) => fs.existsSync(f));

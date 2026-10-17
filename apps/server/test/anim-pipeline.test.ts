@@ -101,6 +101,15 @@ describe.skipIf(!ready)("animated pipeline end to end (fake Ollama/ComfyUI/Piper
     });
     await expect(h.runner.runStage(id, "assembly", assembleAnimShots, { force: true })).rejects.toThrow(/animation renderer/);
   });
+
+  it("assembly FAILS if a clip was drawn by another engine than the project's renderer (no mixed or fallback clips)", async () => {
+    await h.store.update(id, (p) => {
+      const shot = p.story!.shots[0]!;
+      const a = p.assets.find((x) => x.id === shotVideoAssetId(shot.id))!;
+      upsertAsset(p, { ...a, meta: { ...a.meta, renderer: "anim", engine: "three3d" } });
+    });
+    await expect(h.runner.runStage(id, "assembly", assembleAnimShots, { force: true })).rejects.toThrow(/not drawn by canvas2d/);
+  });
 });
 
 import { animatedShort3d } from "../src/profiles/animatedShort3d";
@@ -132,7 +141,10 @@ describe.skipIf(!ready3d)("animated pipeline with the 3D renderer (--renderer=3d
     const clips = p.assets.filter((a) => a.kind === "shot_video");
     expect(clips).toHaveLength(p.story!.shots.length);
     expect(clips.every((c) => c.meta.engine === "three3d" && c.meta.renderer === "anim")).toBe(true);
+    // proof the frames came from Three.js on the GPU: the runtime reports its build and the WebGL renderer
+    expect(clips.every((c) => /^\d+$/.test(String(c.meta.three)) && String(c.meta.gl).length > 0)).toBe(true);
     const fin = p.assets.find((a) => a.kind === "final_video")!;
+    expect(fin.meta.engine).toBe("three3d");
     expect([fin.meta.width, fin.meta.height]).toEqual([216, 384]);
     // footsteps simulated headless for the soundtrack, from the same character code the browser runs
     const mix = p.assets.find((a) => a.id === "soundtrack-mix")!;

@@ -1,0 +1,144 @@
+{
+ "id": "t3",
+ "duration": 10,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "seed": 33,
+ "lighting": "sunny-day",
+ "environment": {
+  "kind": "nature",
+  "objects": [
+   {
+    "id": "door",
+    "kind": "door",
+    "x": 0,
+    "z": -8
+   }
+  ],
+  "weather": {
+   "wind": 0.6
+  },
+  "world": {
+   "landscape": {
+    "relief": "mountains",
+    "water": "river",
+    "forest": 0.7,
+    "grass": 0.8,
+    "snow": true
+   },
+   "sky": {
+    "clouds": 10,
+    "cloudSpeed": 4,
+    "birds": 10
+   }
+  }
+ },
+ "characters": [
+  {
+   "id": "meera",
+   "asset": "rb-girl",
+   "start": {
+    "x": -1.6,
+    "z": 3.0,
+    "heading": 1.25
+   },
+   "expression": "happy",
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "dadaji",
+     "duration": 2.4
+    },
+    {
+     "at": 2.4,
+     "action": "look",
+     "target": {
+      "x": -30,
+      "y": 40,
+      "z": -200
+     },
+     "duration": 2.0
+    },
+    {
+     "at": 4.4,
+     "action": "look",
+     "target": "dadaji",
+     "duration": 5.6
+    },
+    {
+     "at": 2.6,
+     "action": "point",
+     "target": {
+      "x": -30,
+      "y": 40,
+      "z": -200
+     },
+     "duration": 1.4
+    }
+   ]
+  },
+  {
+   "id": "dadaji",
+   "asset": "rb-elder-man",
+   "start": {
+    "x": 0.2,
+    "z": 2.8,
+    "heading": -1.6
+   },
+   "expression": "neutral",
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "meera",
+     "duration": 2.6
+    },
+    {
+     "at": 2.6,
+     "action": "look",
+     "target": {
+      "x": -30,
+      "y": 40,
+      "z": -200
+     },
+     "duration": 1.8
+    },
+    {
+     "at": 4.4,
+     "action": "look",
+     "target": "meera",
+     "duration": 5.6
+    },
+    {
+     "at": 7.4,
+     "action": "nod",
+     "duration": 1.0
+    }
+   ]
+  }
+ ],
+ "camera": {
+  "shot": "wide",
+  "move": "pull_out",
+  "target": "meera",
+  "front": {
+   "x": 0,
+   "z": 1
+  },
+  "frameWith": "dadaji",
+  "angle": 0.2,
+  "heightOffset": 0.1,
+  "fovScale": 1.15
+ },
+ "_voice": [
+  {
+   "character": "meera",
+   "voice": "hi-priyamvada",
+   "text": "दादाजी, देखिए! पहाड़ों पर बर्फ़, और नदी कितनी साफ़ है।",
+   "at": 4.3
+  }
+ ],
+ "sunAzimuth": 30
+}

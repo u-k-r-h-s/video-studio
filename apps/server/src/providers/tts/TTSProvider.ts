@@ -7,6 +7,9 @@ export interface VoiceInfo {
   model: string;
   speaker?: number;
   license?: string;
+  /** Multiplies the requested length scale: one model voiced at two speaking rates reads as two people (and corrects
+   * a language's natural pace against a profile tuned for another language). */
+  lengthScale?: number;
 }
 
 export interface SpeechRequest {

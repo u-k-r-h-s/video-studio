@@ -29,6 +29,8 @@ export const CharacterSchema = z.object({
   appearance: z.string().min(3).max(400),
   /** Optional id from config/voices.json. Assigned automatically when absent. */
   voiceId: z.string().optional(),
+  /** Optional 3D model key (assets/3d/characters/<key>) for the Three.js renderer. Chosen from the words when absent. */
+  asset3d: z.string().max(64).optional(),
   /** Optional user-supplied art (project-relative path). NOT used as model conditioning in this version. */
   referenceImage: z.string().optional(),
   // --- character bible (shot-based stories). All optional so older projects stay valid.
@@ -168,6 +170,11 @@ export const CreateProjectInputSchema = z.object({
   formatProfile: z.string().default("motion-comic"),
   language: z.enum(LANGUAGE_IDS).default("en"),
   targetDurationSeconds: z.number().min(5).max(180).default(20),
+  /** An authored story bible + shot list in the shot director's own output format ({ outline, shots }). When present, the
+   * director's LLM step is skipped; everything after it (derivation, assets, voices, render) is unchanged. */
+  directorPlan: z.unknown().optional(),
+  /** Explicit renderer ("3d" = Three.js, "2d"): binding, validated against the profile, never silently replaced. */
+  renderer: z.string().max(20).optional(),
 });
 export type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
 

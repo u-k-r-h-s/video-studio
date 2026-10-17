@@ -6,7 +6,7 @@ import type { VoiceInfo } from "./TTSProvider";
 const CatalogSchema = z.object({
   voices: z.record(
     z.string(),
-    z.object({ language: z.enum(LANGUAGE_IDS), model: z.string().min(1), speaker: z.number().int().min(0).optional(), license: z.string().optional() }),
+    z.object({ language: z.enum(LANGUAGE_IDS), model: z.string().min(1), speaker: z.number().int().min(0).optional(), license: z.string().optional(), lengthScale: z.number().min(0.5).max(2).optional() }),
   ),
 });
 

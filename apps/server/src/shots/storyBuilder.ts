@@ -33,7 +33,7 @@ export function beatAt(i: number, n: number): Beat {
  * camera, motion, character motion, transitions, SFX, effects, key visuals. Everything that must be consistent or
  * numeric is decided here, deterministically.
  */
-export function buildStory(outline: DirectorOutline, directed: DirectedShots, profile: FormatProfile, title: string): BuiltStory {
+export function buildStory(outline: DirectorOutline, directed: DirectedShots, profile: FormatProfile, title: string, opts: { trustBeats?: boolean } = {}): BuiltStory {
   const cin = profile.cinematic!;
   const characters: Character[] = outline.characters.map((c) => ({
     id: c.id, name: c.name, description: c.role, appearance: c.appearance, clothing: c.clothing,
@@ -48,8 +48,9 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
     const order = i + 1;
     const id = shotId(order);
     const subject = known.has(d.character) ? [d.character] : [];
-    // the model's beat is trusted only if it does not contradict the order (first = hook, last = payoff)
-    const beat: Beat = i === 0 ? "hook" : i === n - 1 ? "payoff" : d.beat === "hook" || d.beat === "payoff" ? beatAt(i, n) : d.beat;
+    // the model's beat is trusted only if it does not contradict the order (first = hook, last = payoff); an authored
+    // plan's beats are deliberate (a payoff can span several shots) and are kept
+    const beat: Beat = opts.trustBeats ? d.beat : i === 0 ? "hook" : i === n - 1 ? "payoff" : d.beat === "hook" || d.beat === "payoff" ? beatAt(i, n) : d.beat;
     const dialogue = d.line && (d.line.text.match(/\p{L}/gu)?.length ?? 0) >= 2
       ? [{ id: dialogueId(`shot-${String(order).padStart(2, "0")}`, 1), characterId: d.line.speaker === "narrator" || known.has(d.line.speaker) ? d.line.speaker : subject[0] ?? "narrator", text: d.line.text.trim() }]
       : [];
@@ -87,7 +88,7 @@ export function buildStory(outline: DirectorOutline, directed: DirectedShots, pr
   });
 
   // the animated pipeline reads the physical verbs of each sentence and makes sure the character actually travels in the film
-  const shots: Shot[] = profile.pipeline === "animated" ? enrichAnimation(base) : base;
+  const shots: Shot[] = profile.pipeline === "animated" ? enrichAnimation(base, { travelQuota: !opts.trustBeats }) : base;
 
   // a hard cut into a shocking shot lands harder with a zoom punch on the way out of the previous one
   for (let i = 0; i + 1 < shots.length; i++) if (shots[i + 1]!.emotion === "shock" && shots[i]!.transition.type === "cut") shots[i]!.transition = { type: "zoom", duration: 0.3 };

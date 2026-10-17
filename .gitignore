@@ -47,3 +47,6 @@ assets/3d/**/*.glb
 assets/3d/**/*.gltf
 assets/3d/**/*.bin
 assets/3d/plates/
+
+# downloaded third-party 3D sources (Rocketbox FBX/TGA etc.): converted into assets/3d/characters, never committed
+assets/3d/sources/

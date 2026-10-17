@@ -1,4 +1,9 @@
 import * as THREE from "three";
+import { interiorKit, marketKit, roadKit, villageKit, type Clamp, type KitCtx } from "./kits";
+import { birds, clouds, windTick, type WorldCtx } from "./world/nature";
+import { natureKit } from "./world/landscape";
+import { cityKit } from "./world/city";
+import { straightLane, traffic, type Lane } from "./world/vehicles";
 import type { EnvironmentSpec3D, SetObject3D } from "../spec";
 import { glowSprite, lightShaft } from "./effects";
 import type { LightingRig } from "./lighting";
@@ -17,6 +22,10 @@ export interface SetInstance {
   update(t: number, dt: number, cameraPos: THREE.Vector3): void;
   clampCamera(p: THREE.Vector3): void;
   cues: { kind: "door"; at: number; volume?: number }[];
+  /** What the world system built (counts of trees, grass blades, vehicles by kind, birds...): evidence for the report. */
+  info: Record<string, unknown>;
+  /** A pavement / path where background walkers can go (city), if the set has one. */
+  walkway?: { z: number; x0: number; x1: number };
 }
 
 const rand = (seed: number): (() => number) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
@@ -94,7 +103,7 @@ function concrete(r: () => number): THREE.CanvasTexture {
   });
 }
 
-export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, images: Record<string, string>, seed: number, rig?: LightingRig): Promise<SetInstance> {
+export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, images: Record<string, string>, seed: number, rig?: LightingRig, duration = 10): Promise<SetInstance> {
   const r = rand(seed);
   const group = new THREE.Group();
   scene.add(group);
@@ -164,7 +173,22 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   };
 
   const frontZ = DZ + 0.6;
-  if (spec.kind === "warehouse-exterior") {
+  let kitClamp: Clamp | null = null;
+  const kit: KitCtx = { spec, group, ground, r, day, wet, DX, DZ, add, mark, doorway, updates };
+  // the living world (world/*): only what the visual plan put in spec.world is built
+  const W = spec.world;
+  const info: Record<string, unknown> = { kit: spec.kind };
+  const wctx: WorldCtx = { group, scene, seed, day, wet, sunDir: rig?.sunDir.clone() ?? new THREE.Vector3(0.4, 0.8, 0.3).normalize(), sunColor: rig?.key.color.clone() ?? new THREE.Color("#fff4e0"), updates, wind: spec.weather?.wind ?? (day ? 0.5 : 0.3) };
+  windTick(wctx);
+  let lanes: Lane[] = [];
+  let walkway: SetInstance["walkway"];
+  if (spec.kind === "nature") { const n = natureKit(kit, wctx, W?.landscape ?? { relief: "hills", forest: 0.5, grass: 0.7 }); kitClamp = n.clamp; Object.assign(info, n.info); }
+  else if (spec.kind === "city") { const c = cityKit(kit, { lanes: W?.traffic?.lanes ?? 4, streetlights: W?.streetlights ?? true }); kitClamp = c.clamp; lanes = c.lanes; walkway = c.sidewalk; }
+  else if (spec.kind === "village") kitClamp = villageKit(kit);
+  else if (spec.kind === "market") kitClamp = marketKit(kit);
+  else if (spec.kind === "interior") kitClamp = interiorKit(kit, { outage: spec.lightsOut });
+  else if (spec.kind === "road") { const ls: { z: number; dir: 1 | -1 }[] = []; kitClamp = roadKit(kit, { traffic: !!W?.traffic, lanes: ls }); lanes = ls.map((l) => (l.dir > 0 ? straightLane(-75, 75, l.z) : straightLane(75, -75, l.z))); }
+  else if (spec.kind === "warehouse-exterior") {
     const dw = Number(door?.params?.width ?? 2.6), dh = Number(door?.params?.height ?? 3.3);
     const wallTex = await img(spec.wallTexture);
     const metal = corrugated(r);
@@ -254,31 +278,59 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
     if (obj.update) updates.push(obj.update);
   }
 
+  // sky life and traffic, where the plan has them (never indoors)
+  if (spec.kind !== "interior" && W?.sky) {
+    if (W.sky.clouds > 0) clouds(wctx, { count: W.sky.clouds, speed: W.sky.cloudSpeed, cover: Math.min(1, W.sky.clouds / 14) });
+    if (W.sky.birds > 0) birds(wctx, { flocks: Math.max(1, Math.round(W.sky.birds / 5)), perFlock: Math.min(7, Math.max(3, W.sky.birds)), area: { cx: 0, cz: -40, rx: 70, rz: 35 }, height: [14, 30] });
+    info.clouds = W.sky.clouds; info.birds = W.sky.birds;
+  }
+  if (W?.traffic && lanes.length) {
+    const lane0 = lanes[0]!;
+    const tr = traffic({ lanes, mix: W.traffic.mix, rate: W.traffic.rate, duration, seed: seed + 5, night: !day, wet,
+      ...(W.traffic.stop ? { stop: { lane: 0, kind: W.traffic.stop.kind, s: Math.min(lane0.length - 10, 75 + DX + 5), dwell: W.traffic.stop.dwell } } : {}) });
+    group.add(tr.group); updates.push((t) => tr.update(t));
+    info.vehicles = tr.vehicles.reduce<Record<string, number>>((a, v) => ({ ...a, [v.kind]: (a[v.kind] ?? 0) + 1 }), {});
+    info.lanes = lanes.length;
+  }
+
   // rain in three depth layers: big soft streaks near the lens, the main layer around the action, fine rain far away
   const rain = spec.weather?.rain ?? 0;
   if (rain > 0) {
+    // the drops are constants (offset, phase, speed) in a static buffer; the vertex shader places them from t and the
+    // camera, so nothing is uploaded per frame (12k segments) and any frame is the same however it is reached
     const layer = (n: number, span: [number, number, number], len: number, opacity: number, speed: number, ahead: number): void => {
-      const N = Math.round(n * rain), pos = new Float32Array(N * 6), base = new Float32Array(N * 4);
-      for (let i = 0; i < N; i++) base.set([(r() - 0.5) * span[0], r() * span[1], (r() - 0.5) * span[2], 0.75 + r() * 0.5], i * 4);
-      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: day ? "#c9d6e6" : "#a9bddb", transparent: true, opacity, depthWrite: false }));
-      lines.frustumCulled = false; group.add(lines);
-      updates.push((t, _dt, cam) => {
-        for (let i = 0; i < N; i++) {
-          const bx = base[i * 4]!, by = base[i * 4 + 1]!, bz = base[i * 4 + 2]!, sp = base[i * 4 + 3]!;
-          const y = ((by - t * speed * sp) % span[1] + span[1]) % span[1];
-          const x = cam.x + bx - t * 1.1 * sp, z = cam.z + bz - ahead;
-          pos.set([x, y + cam.y - 1.5, z, x + 0.04 * len, y + cam.y - 1.5 + len, z], i * 6);
-        }
-        geo.attributes.position!.needsUpdate = true;
+      const N = Math.round(n * rain), base = new Float32Array(N * 8), end = new Float32Array(N * 2);
+      for (let i = 0; i < N; i++) { const b = [(r() - 0.5) * span[0], r() * span[1], (r() - 0.5) * span[2], 0.75 + r() * 0.5]; base.set(b, i * 8); base.set(b, i * 8 + 4); end[i * 2 + 1] = 1; }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 6), 3)); // unused (bounds only)
+      geo.setAttribute("drop", new THREE.BufferAttribute(base, 4)); geo.setAttribute("tip", new THREE.BufferAttribute(end, 1));
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, fog: true,
+        uniforms: { uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uColor: { value: new THREE.Color(day ? "#c9d6e6" : "#a9bddb") }, uOpacity: { value: opacity }, ...THREE.UniformsLib.fog },
+        vertexShader: `attribute vec4 drop; attribute float tip; uniform float uT; uniform vec3 uCam;
+          #include <fog_pars_vertex>
+          void main(){
+            float y = mod(drop.y - uT * ${speed.toFixed(3)} * drop.w, ${span[1].toFixed(3)});
+            vec3 p = vec3(uCam.x + drop.x - uT * 1.1 * drop.w + tip * ${(0.04 * len).toFixed(4)}, y + uCam.y - 1.5 + tip * ${len.toFixed(3)}, uCam.z + drop.z - ${ahead.toFixed(3)});
+            vec4 mvPosition = viewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mvPosition;
+            #include <fog_vertex>
+          }`,
+        fragmentShader: `uniform vec3 uColor; uniform float uOpacity;
+          #include <fog_pars_fragment>
+          void main(){ gl_FragColor = vec4(uColor, uOpacity);
+            #include <fog_fragment>
+          }`,
       });
+      const lines = new THREE.LineSegments(geo, mat);
+      lines.frustumCulled = false; group.add(lines);
+      updates.push((t, _dt, cam) => { mat.uniforms.uT!.value = t; (mat.uniforms.uCam!.value as THREE.Vector3).copy(cam); });
     };
     layer(220, [3.2, 4, 2.4], 0.8, 0.2, 9, 1.6);
     layer(2600, [14, 9, 12], 0.42, 0.34, 11, 6);
     layer(3400, [60, 16, 40], 0.3, 0.18, 12, 24);
   }
   // daylight air: a few motes drifting in the sun (a subtle depth cue, never a fog band)
-  if (day && !rain) {
+  if (day && !rain && spec.kind !== "interior") {
     const N = 160, pos = new Float32Array(N * 3), base = new Float32Array(N * 4);
     for (let i = 0; i < N; i++) base.set([(r() - 0.5) * 10, 0.3 + r() * 3.5, (r() - 0.5) * 10, r() * 6.28], i * 4);
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
@@ -291,8 +343,8 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   }
 
   return {
-    group, cues,
-    clampCamera: (p) => { if ((spec.kind === "warehouse-exterior" || spec.kind === "neighborhood") && p.z < frontZ) p.z = frontZ; if (p.y < 0.35) p.y = 0.35; },
+    group, cues, info, ...(walkway ? { walkway } : {}),
+    clampCamera: (p) => { if (kitClamp) { kitClamp(p); return; } if ((spec.kind === "warehouse-exterior" || spec.kind === "neighborhood") && p.z < frontZ) p.z = frontZ; if (p.y < 0.35) p.y = 0.35; },
     named: (id) => { const o = named.get(id); return o ? o.getWorldPosition(new THREE.Vector3()) : null; },
     update: (t, dt, cam) => { for (const u of updates) u(t, dt, cam); },
   };

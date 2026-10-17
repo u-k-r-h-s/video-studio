@@ -82,7 +82,8 @@ const EMOTION_ACTION: Partial<Record<Shot["emotion"], ShotAnimAction["action"]>>
 export function impliedActions(shot: Pick<Shot, "subjectIds" | "shotType" | "emotion" | "animation" | "beat" | "dialogue">): ShotAnimAction[] {
   const who = shot.subjectIds[0];
   if (!who) return [];
-  const out: ShotAnimAction[] = (shot.animation?.actions ?? []).map((a) => ({ ...a, character: who }));
+  // the lead's own actions (other characters in the shot act through their own entries)
+  const out: ShotAnimAction[] = (shot.animation?.actions ?? []).filter((a) => !a.character || a.character === who || !shot.subjectIds.includes(a.character)).map((a) => ({ ...a, character: who }));
   const face = out.some((a) => variantFor(a.action) && a.action !== "head-turn" && a.action !== "look-left" && a.action !== "look-right");
   const emo = EMOTION_ACTION[shot.emotion];
   if (emo && !face && FACE_SHOTS.has(shot.shotType)) out.push({ character: who, action: emo, when: emo === "smile" ? "late" : "early" });

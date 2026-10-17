@@ -14,7 +14,7 @@ export const FRAMINGS: Record<CameraSpec3D["shot"], Framing> = {
   over_shoulder: { distance: 3.0, height: 1.8, lookHeight: 1.5, fov: 44 },
 };
 
-export interface CameraSubject { position: THREE.Vector3; heading: number; height: number }
+export interface CameraSubject { position: THREE.Vector3; heading: number; height: number; head?: THREE.Vector3 }
 
 /** Critically damped spring toward a goal (Unity-style SmoothDamp): smooth, no overshoot. `omega` = 2 / smoothing time. */
 class Spring {
@@ -42,8 +42,8 @@ export class CinematicCamera {
   }
 
   /** The framing in force at time t (keys blend from one framing to the next). */
-  private framingAt(t: number): { f: Framing; target: string; behind: boolean; side: number } {
-    let f = { ...FRAMINGS[this.spec.shot] }, target = this.spec.target, behind = !!this.spec.behind, side = this.spec.side ?? 1;
+  private framingAt(t: number): { f: Framing; target: string; behind: boolean; side: number; frameWith: string | undefined } {
+    let f = { ...FRAMINGS[this.spec.shot] }, target = this.spec.target, behind = !!this.spec.behind, side = this.spec.side ?? 1, frameWith = this.spec.frameWith;
     for (const k of this.spec.keys ?? []) {
       if (t < k.at) break;
       const u = Math.min(1, (t - k.at) / Math.max(0.01, k.blend ?? 1.2)), e = u * u * (3 - 2 * u);
@@ -51,16 +51,23 @@ export class CinematicCamera {
       if (k.target && u > 0.5) target = k.target;
       if (k.behind !== undefined) behind = k.behind;
       if (k.side !== undefined) side = k.side;
+      if (k.frameWith !== undefined) frameWith = k.frameWith ?? undefined; // a key can start or end a two-shot
     }
-    return { f, target, behind, side };
+    return { f, target, behind, side, frameWith };
   }
 
   step(t: number, dt: number): THREE.PerspectiveCamera {
-    const { f, target, behind } = this.framingAt(t);
+    const { f, target, behind, frameWith } = this.framingAt(t);
     const subj = this.resolve(target);
     if (!subj) return this.camera;
     const u = t / this.duration, ease = u * u * (3 - 2 * u);
-    let dist = f.distance, fov = f.fov, yawOffset = 0, tilt = 0;
+    // the shot's own lens and height (the visual plan varies them: a low angle for awe or anger, a longer lens in close)
+    // (a close-up keeps the angle mild: at 2 m on a long lens a full low angle shows sky, not a face)
+    const close = this.spec.shot === "closeup" && !behind;
+    const hOff = close ? THREE.MathUtils.clamp(this.spec.heightOffset ?? 0, -0.22, 0.3) : this.spec.heightOffset ?? 0;
+    f.height += hOff;
+    f.lookHeight += hOff * -0.25;
+    let dist = f.distance * (this.spec.fovScale && this.spec.fovScale < 1 ? 1 / this.spec.fovScale : 1), fov = f.fov * (this.spec.fovScale ?? 1), yawOffset = 0, tilt = 0;
     switch (this.spec.move) {
       case "push_in": dist *= 1 - 0.28 * ease; fov -= 3 * ease; break;
       case "pull_out": dist *= 1 + 0.35 * ease; break;
@@ -81,6 +88,8 @@ export class CinematicCamera {
     const fwd = new THREE.Vector3(Math.sin(subj.heading), 0, Math.cos(subj.heading));
     const right = new THREE.Vector3(Math.cos(subj.heading), 0, -Math.sin(subj.heading));
     lookAt.addScaledVector(fwd, behind ? 1.2 : 0.25);
+    // a close-up is about the face: aim at the head itself (a turned head or a leaning body would otherwise drift off frame)
+    if (close && subj.head) lookAt.set(subj.head.x, subj.head.y - 0.06 + tilt, subj.head.z);
     // over the shoulder: the camera sits behind one shoulder and looks past the character at what it faces
     const ots = this.spec.shot === "over_shoulder" || (behind && f.distance < 2.5);
     if (ots) lookAt.copy(subj.position).addScaledVector(fwd, 4).setY(1.45);
@@ -91,15 +100,18 @@ export class CinematicCamera {
     // two-shot: the subject AND what it deals with (a door, a doorbell) in one mobile frame: the camera stands off the line between
     // them, on the open side, far enough that both fit the narrow 9:16 width, looking at a point weighted toward the subject
     let twoShot: THREE.Vector3 | null = null;
-    if (this.spec.frameWith && !ots) {
-      const fw = this.resolve(this.spec.frameWith);
+    if (frameWith && !ots) {
+      const fw = this.resolve(frameWith);
       if (fw) {
         const S = subj.position.clone().setY(0), T = fw.position.clone().setY(0);
         const line = T.clone().sub(S); const sep = Math.max(0.3, line.length()); line.normalize();
         let perp = new THREE.Vector3(line.z, 0, -line.x);
         const test = (p: THREE.Vector3): number => { const q = p.clone(); this.clamp?.(q); return q.distanceTo(p); };
         const mid = S.clone().lerp(T, 0.38);
-        if (test(mid.clone().addScaledVector(perp, 4)) > test(mid.clone().addScaledVector(perp, -4))) perp.negate();
+        // the open side; when both sides are open, the side the subject faces (we see faces, not backs)
+        const ta = test(mid.clone().addScaledVector(perp, 4)), tb = test(mid.clone().addScaledVector(perp, -4));
+        const pref = this.spec.front ? new THREE.Vector3(this.spec.front.x, 0, this.spec.front.z) : fwd;
+        if (ta > tb + 0.01 || (Math.abs(ta - tb) <= 0.01 && perp.dot(pref) < 0)) perp.negate();
         // a little toward the subject's front, so the face reads
         perp = perp.addScaledVector(fwd, 0.35).normalize();
         const vfov = THREE.MathUtils.degToRad(fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
@@ -110,7 +122,7 @@ export class CinematicCamera {
     }
     const goal = twoShot ? twoShot : ots
       ? subj.position.clone().addScaledVector(fwd, -dist).addScaledVector(right, -0.75 * sideUse).setY(f.height * (subj.height / 1.8))
-      : subj.position.clone().add(new THREE.Vector3(Math.sin(ang) * dist, f.height * (subj.height / 1.8), Math.cos(ang) * dist));
+      : (close && subj.head ? subj.head.clone().setY(0) : subj.position.clone()).add(new THREE.Vector3(Math.sin(ang) * dist, f.height * (subj.height / 1.8), Math.cos(ang) * dist));
     this.clamp?.(goal);
     if (this.spec.move === "static" && this.pos) goal.copy(this.pos.x);
     const stiff = this.spec.move === "follow" || this.spec.move === "tracking" ? 2.6 : 1.8;

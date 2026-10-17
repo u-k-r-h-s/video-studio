@@ -10,7 +10,8 @@ import type { PipelineServices, StageFn } from "../../types";
 import { cinematicOf, mediaOf, storyOf, timelineOf } from "./common";
 
 export const CAPTION_RECIPE_VERSION = "captions-karaoke-v1";
-export const SOUNDTRACK_RECIPE_VERSION = "soundtrack-v1";
+// v2: the music and ambience follow the story's mood (warm bed + day ambience for gentle daytime stories)
+export const SOUNDTRACK_RECIPE_VERSION = "soundtrack-v3";
 export const captionAssetId = (shotId: string): string => `captions-${shotId}`;
 
 export interface ShotCaptions { states: CaptionState[]; insert?: CaptionState & { centerY: number } }
@@ -84,7 +85,8 @@ export const runTimelineStage = async (svc: PipelineServices, ctx: Parameters<St
     } else {
       ctx.progress(60, "Mixing the soundtrack...");
       const voicePaths = Object.fromEntries(voices.map((v) => [v.dialogueId, svc.store.resolve(project.id, v.path)]));
-      const tracks = await planSoundtrack({ shots: story.shots, timeline: tl, voicePaths, dir: svc.store.resolve(project.id, "audio", "synth"), extraCues: extra, rain });
+      const night = story.locations.some((l) => l.timeOfDay === "night" || (!l.timeOfDay && /(night|moon|midnight|after dark)/.test(`${l.lighting} ${l.visualIdentity}`.toLowerCase())));
+      const tracks = await planSoundtrack({ shots: story.shots, timeline: tl, voicePaths, dir: svc.store.resolve(project.id, "audio", "synth"), extraCues: extra, rain, night });
       const mix = await mixSoundtrack(tracks, tl.totalSec, svc.store.resolve(project.id, mixRel));
       await svc.store.update(project.id, (p) => upsertAsset(p, { id: SOUNDTRACK_ASSET_ID, kind: "audio_track", path: mixRel, status: "ready", inputHash: mixHash, meta: { durationSec: tl.totalSec, peak: mix.peak, tracks: tracks.length }, createdAt: new Date().toISOString() }));
     }

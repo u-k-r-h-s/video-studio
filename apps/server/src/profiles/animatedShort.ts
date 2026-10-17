@@ -35,4 +35,9 @@ export const animatedShort: FormatProfile = {
     captions: { font: "HelveticaNeue-Bold", size: 60, maxWidth: 820, stroke: 4, highlight: "FFFFFF", emphasisColour: "FFD23F" },
   },
   cinematic: { ...cinematicAnimatedShort.cinematic!, minShots: 6, maxShots: 12, stylePrefix: STYLE, negativePrompt: NEG },
+  // Hindi: a female and a male model, each at two speaking rates (config/voices.json), so up to 3 characters + narrator differ
+  voices: {
+    narrator: { ...cinematicAnimatedShort.voices.narrator, hi: "hi-rohan-narrator" },
+    characters: { ...cinematicAnimatedShort.voices.characters, hi: ["hi-priyamvada", "hi-rohan-elder", "hi-priyamvada-calm"] },
+  },
 };

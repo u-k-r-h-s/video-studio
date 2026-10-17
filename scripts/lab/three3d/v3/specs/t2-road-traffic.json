@@ -1,0 +1,122 @@
+{
+ "id": "t2",
+ "duration": 10,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "seed": 21,
+ "lighting": "golden-hour",
+ "environment": {
+  "kind": "road",
+  "objects": [
+   {
+    "id": "door",
+    "kind": "door",
+    "x": 0,
+    "z": -8,
+    "params": {
+     "width": 1.0,
+     "height": 2.1,
+     "hinge": "left"
+    }
+   }
+  ],
+  "world": {
+   "sky": {
+    "clouds": 8,
+    "cloudSpeed": 3,
+    "birds": 6
+   },
+   "traffic": {
+    "mix": [
+     "bus",
+     "scooter",
+     "auto",
+     "bicycle",
+     "motorcycle",
+     "car"
+    ],
+    "rate": 12,
+    "lanes": 2,
+    "stop": {
+     "kind": "bus",
+     "dwell": 2.5
+    }
+   }
+  }
+ },
+ "characters": [
+  {
+   "id": "dadaji",
+   "asset": "rb-elder-man",
+   "start": {
+    "x": -2.85,
+    "z": 2.6,
+    "heading": 1.35
+   },
+   "expression": "neutral",
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "arjun",
+     "duration": 10
+    }
+   ]
+  },
+  {
+   "id": "arjun",
+   "asset": "rb-young-man",
+   "start": {
+    "x": -1.7,
+    "z": 3.05,
+    "heading": -1.9
+   },
+   "expression": "happy",
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "dadaji",
+     "duration": 4
+    },
+    {
+     "at": 4.2,
+     "action": "look",
+     "target": {
+      "x": -12,
+      "y": 1.5,
+      "z": -1.4
+     },
+     "duration": 3
+    },
+    {
+     "at": 7.2,
+     "action": "look",
+     "target": "dadaji",
+     "duration": 3
+    }
+   ]
+  }
+ ],
+ "camera": {
+  "shot": "wide",
+  "move": "static",
+  "target": "dadaji",
+  "front": {
+   "x": 0,
+   "z": 1
+  },
+  "frameWith": "arjun",
+  "angle": 0.35,
+  "heightOffset": 0.3
+ },
+ "_voice": [
+  {
+   "character": "dadaji",
+   "voice": "hi-pratham-elder",
+   "text": "सुनो, बस आ गई। जाओ बेटा, ख़ुश रहो।",
+   "at": 5.6
+  }
+ ]
+}

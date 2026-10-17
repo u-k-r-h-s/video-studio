@@ -40,7 +40,15 @@ export interface SoundtrackPlan {
  * (whoosh into a zoom transition, impact on flash/impact frames), a looping ambience, and a tension bed whose
  * intensity follows the story (derived from each shot's beat/emotion/action).
  */
-export async function planSoundtrack(opts: { shots: Shot[]; timeline: Timeline; voicePaths: Record<string, string>; dir: string; musicVolume?: number; ambientVolume?: number; extraCues?: ExtraCue[]; rain?: boolean }): Promise<AudioTrack[]> {
+/** "dark" (mostly fear/tension/shock/eerie shots, or a night story with real tension in it) or "light" (everything else:
+ *  a warm family evening at home is not a thriller just because it is dark outside). */
+export function soundtrackMood(shots: Pick<Shot, "emotion">[], night: boolean): "dark" | "light" {
+  const dark = shots.filter((s) => s.emotion === "fear" || s.emotion === "tense" || s.emotion === "shock" || s.emotion === "eerie").length;
+  const share = dark / Math.max(1, shots.length);
+  return share > 0.45 || (night && share >= 0.15) ? "dark" : "light";
+}
+
+export async function planSoundtrack(opts: { shots: Shot[]; timeline: Timeline; voicePaths: Record<string, string>; dir: string; musicVolume?: number; ambientVolume?: number; extraCues?: ExtraCue[]; rain?: boolean; night?: boolean }): Promise<AudioTrack[]> {
   const { shots, timeline, dir } = opts;
   await fs.mkdir(dir, { recursive: true });
   const tracks: AudioTrack[] = [];
@@ -64,8 +72,16 @@ export async function planSoundtrack(opts: { shots: Shot[]; timeline: Timeline; 
     return pts[pts.length - 1]!.v;
   };
   const total = timeline.totalSec;
-  tracks.push({ type: "music", path: await writeSynth("music-tension", synth.tensionBed(total, (t) => Math.min(1, 0.15 + I(t) * 1.1))), startTime: 0, duration: total, volume: opts.musicVolume ?? 0.42 });
-  tracks.push({ type: "ambient", path: await writeSynth("ambient-night", synth.ambientNight(total)), startTime: 0, duration: total, volume: opts.ambientVolume ?? 0.3 });
+  // the music follows the story's mood: a night or mostly frightening story keeps the dark tension bed; a gentle, daytime
+  // story gets a warm major-key bed and daytime ambience (birds, breeze) instead of the night wind
+  const light = soundtrackMood(shots, opts.night ?? false) === "light";
+  if (light) {
+    tracks.push({ type: "music", path: await writeSynth("music-warm", synth.warmBed(total, (t) => Math.min(1, 0.1 + I(t) * 0.9))), startTime: 0, duration: total, volume: opts.musicVolume ?? 0.3 });
+    tracks.push({ type: "ambient", path: await writeSynth("ambient-day", synth.ambientDay(total)), startTime: 0, duration: total, volume: opts.ambientVolume ?? 0.22 });
+  } else {
+    tracks.push({ type: "music", path: await writeSynth("music-tension", synth.tensionBed(total, (t) => Math.min(1, 0.15 + I(t) * 1.1))), startTime: 0, duration: total, volume: opts.musicVolume ?? 0.42 });
+    tracks.push({ type: "ambient", path: await writeSynth("ambient-night", synth.ambientNight(total)), startTime: 0, duration: total, volume: opts.ambientVolume ?? 0.3 });
+  }
 
   const seen = new Set<string>();
   const addSfx = async (kind: SfxKindName, at: number, volume?: number): Promise<void> => {

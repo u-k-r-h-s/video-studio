@@ -34,17 +34,22 @@ export class LocomotionStateMachine {
 
     // target weights per state; a turn on the spot borrows a little of the walk (feet step around)
     const shuffle = this.state === "idle" || this.state === "stop" ? Math.min(0.45, Math.abs(turning) * 0.25) : 0;
+    // below cruise the walk is blended in by the speed itself (a 1-D blend tree): fully walking from half the cruise speed,
+    // and the clip rate set so that weight x rate x clip speed = the body's speed. Starting and stopping, the feet move
+    // as fast as the body does (a fixed-time cross-fade let the body glide ahead of feet still in the idle pose)
+    const walkShare = Math.min(1, speed / (0.5 * walkSpeed));
     const target = this.state === "run" ? { idle: 0, walk: 0, run: 1 }
-      : this.state === "walk" ? { idle: 0, walk: 1, run: 0 }
+      : this.state === "walk" ? { idle: 1 - walkShare, walk: walkShare, run: 0 }
+      : this.state === "stop" ? { idle: 1 - Math.max(walkShare, shuffle), walk: Math.max(walkShare, shuffle), run: 0 }
       : { idle: 1 - shuffle, walk: shuffle, run: 0 };
-    const fade = this.state === "run" || prev === "run" ? (this.o.fade?.walkRun ?? 0.25) : this.state === "stop" ? (this.o.fade?.stop ?? 0.35) : (this.o.fade?.idleWalk ?? 0.3);
+    const fade = this.state === "run" || prev === "run" ? (this.o.fade?.walkRun ?? 0.25) : (this.o.fade?.idleWalk ?? 0.2);
     const k = Math.min(1, dt / Math.max(0.001, fade));
     for (const key of ["idle", "walk", "run"] as const) this.w[key] += (target[key] - this.w[key]) * k;
     const sum = this.w.idle + this.w.walk + this.w.run || 1;
     return {
       idle: this.w.idle / sum, walk: this.w.walk / sum, run: this.w.run / sum,
       // clip rates follow the real speed so the feet stick to the ground
-      walkRate: Math.max(0.55, Math.min(1.5, speed / walkSpeed || (shuffle ? 0.8 : 1))),
+      walkRate: speed > 0.01 ? Math.max(0.5, Math.min(1.5, speed / (Math.max(0.25, this.w.walk / sum) * walkSpeed))) : shuffle ? 0.8 : 1,
       runRate: Math.max(0.7, Math.min(1.4, speed / runSpeed || 1)),
     };
   }

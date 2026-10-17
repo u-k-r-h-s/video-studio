@@ -1,0 +1,178 @@
+{
+ "_comment": "20-second validation = the opening scene of door-tak-saath.json (same characters, location, cast, style). npm run short -- --plan scripts/lab/stories/door-tak-saath-validation.json --renderer=3d --seconds 20",
+ "language": "hi",
+ "artStyle": "cinematic",
+ "outline": {
+  "title": "दूर तक साथ - जाँच",
+  "logline": "When her brother gets his first job in the city, a young girl's fear of losing him turns to anger, until her grandfather helps her say goodbye with a smile.",
+  "characters": [
+   {
+    "id": "meera",
+    "name": "Meera",
+    "role": "a lively 12-year-old girl who adores her elder brother",
+    "appearance": "a 12-year-old girl with dark hair and a headscarf",
+    "clothing": "green kurta and salwar with a maroon dupatta"
+   },
+   {
+    "id": "arjun",
+    "name": "Arjun",
+    "role": "Meera's warm-hearted elder brother, a young man of twenty who has just got his first job",
+    "appearance": "a young man with short black hair and a cap",
+    "clothing": "blue and white hoodie with jeans"
+   },
+   {
+    "id": "dadaji",
+    "name": "Dadaji",
+    "role": "their grandfather, an old man, calm, wise and gently funny",
+    "appearance": "an old man with grey hair and a grey beard",
+    "clothing": "green shirt under a beige vest"
+   }
+  ],
+  "locations": [
+   {
+    "id": "aangan",
+    "name": "Village courtyard",
+    "look": "the courtyard of the family's village house with mud walls, a charpai and clay pots at sunset",
+    "lighting": "warm golden evening light",
+    "timeOfDay": "golden_hour",
+    "weather": "clear"
+   }
+  ]
+ },
+ "cast": {
+  "meera": {
+   "voice": "hi-priyamvada"
+  },
+  "arjun": {
+   "voice": "hi-rohan-young"
+  },
+  "dadaji": {
+   "voice": "hi-pratham-elder"
+  }
+ },
+ "shots": [
+  {
+   "beat": "hook",
+   "shotType": "establishing",
+   "location": "aangan",
+   "character": "",
+   "emotion": "calm",
+   "action": "Golden evening light falls across the courtyard of the village house."
+  },
+  {
+   "beat": "hook",
+   "shotType": "medium-wide",
+   "location": "aangan",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun hurries into the courtyard to Dadaji, beaming.",
+   "line": {
+    "speaker": "arjun",
+    "text": "दादाजी! मीरा! एक बहुत बड़ी ख़बर है। मुझे शहर में नौकरी मिल गई!"
+   },
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "dadaji"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "arjun"
+      }
+     ]
+    },
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "close-up",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "shock",
+   "action": "Meera's smile fades as she understands.",
+   "line": {
+    "speaker": "meera",
+    "text": "शहर में? मतलब... भैया हमें छोड़कर चले जाएँगे?"
+   },
+   "actions": [
+    {
+     "action": "surprise",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "aangan",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji pats Arjun proudly and nods.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "शाबाश बेटा! मुझे तुम पर बहुत गर्व है। कब जाना है?"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "close-up",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "anger",
+   "action": "Meera shakes her head, hurt and angry.",
+   "line": {
+    "speaker": "meera",
+    "text": "तो जाइए! अब मुझसे बात मत करना।"
+   },
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  }
+ ]
+}

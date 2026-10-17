@@ -1,5 +1,5 @@
 {
-  "_comment": "Voice catalog. NO model weights live in this repository; `model` is a file name inside PIPER_VOICES_DIR. Both voices below are fine-tuned from the Lessac voice, so their commercial status is unresolved: see README 'Licensing caveats'. Speaker ids on the multi-speaker English model were chosen by MEASURED median pitch (scripts/lab/voice-audition.ts: 300=115 Hz, 25=149 Hz, 400=92 Hz, 60=227 Hz) so the voices are distinct; nobody has listened to them yet.",
+  "_comment": "Voice catalog. NO model weights live in this repository; `model` is a file name inside PIPER_VOICES_DIR. Both voices below are fine-tuned from the Lessac voice, so their commercial status is unresolved: see README 'Licensing caveats'. Speaker ids on the multi-speaker English model were chosen by MEASURED median pitch (scripts/lab/voice-audition.ts: 300=115 Hz, 25=149 Hz, 400=92 Hz, 60=227 Hz) so the voices are distinct; nobody has listened to them yet. Hindi: rohan (male) and priyamvada (female, CC BY-NC-SA: non-commercial). lengthScale multiplies the profile's rate: Hindi is ~2.8-3 words/s at 1.0 (measured), and one model at two rates gives two distinguishable speakers. Measured median pitch on one sentence: pratham 100 Hz (deep male), rohan 141 Hz (male), priyamvada 208 Hz (female): three distinct Hindi identities.",
   "voices": {
     "en-narrator": {
       "language": "en",
@@ -24,11 +24,47 @@
       "model": "hi_IN-rohan-medium.onnx",
       "license": "IITM IndicTTS EULA; fine-tuned from Lessac: unresolved"
     },
+    "hi-rohan-narrator": {
+      "language": "hi",
+      "model": "hi_IN-rohan-medium.onnx",
+      "lengthScale": 0.85,
+      "license": "see hi-rohan"
+    },
     "en-c": {
       "language": "en",
       "model": "en_US-libritts_r-medium.onnx",
       "speaker": 60,
       "license": "see en-narrator"
+    },
+    "hi-rohan-elder": {
+      "language": "hi",
+      "model": "hi_IN-rohan-medium.onnx",
+      "lengthScale": 0.95,
+      "license": "see hi-rohan"
+    },
+    "hi-priyamvada": {
+      "language": "hi",
+      "model": "hi_IN-priyamvada-medium.onnx",
+      "lengthScale": 0.8,
+      "license": "CC BY-NC-SA 4.0 (Piper hi_IN priyamvada, AI4Bharat data): NON-COMMERCIAL only"
+    },
+    "hi-priyamvada-calm": {
+      "language": "hi",
+      "model": "hi_IN-priyamvada-medium.onnx",
+      "lengthScale": 0.9,
+      "license": "CC BY-NC-SA 4.0 (Piper hi_IN priyamvada, AI4Bharat data): NON-COMMERCIAL only"
+    },
+    "hi-pratham-elder": {
+      "language": "hi",
+      "model": "hi_IN-pratham-medium.onnx",
+      "lengthScale": 0.95,
+      "license": "CC BY-NC-SA 4.0 (Piper hi_IN, AI4Bharat data): NON-COMMERCIAL only"
+    },
+    "hi-rohan-young": {
+      "language": "hi",
+      "model": "hi_IN-rohan-medium.onnx",
+      "lengthScale": 0.8,
+      "license": "see hi-rohan"
     }
   }
 }

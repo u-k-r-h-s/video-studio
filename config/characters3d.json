@@ -1,0 +1,11 @@
+{
+  "_comment": "The 3D character library (files: assets/3d/characters/<key>/character.glb, git-ignored). Casting reads gender, age, style and tags; face = what the model can do with its face (measured with scripts/lab/three3d/ai-character-poc/inspect.ts). Rocketbox models are converted by scripts/lab/three3d/rocketbox/convert.ts.",
+  "characters": {
+    "rb-young-man": { "style": "semi-realistic", "gender": "male", "age": "adult", "tags": ["young", "man", "south asian", "hoodie", "cap", "casual", "student"], "face": "visemes", "license": "MIT (Microsoft Rocketbox Male_Adult_17)", "source": "github.com/microsoft/Microsoft-Rocketbox" },
+    "rb-elder-man": { "style": "semi-realistic", "gender": "male", "age": "elder", "tags": ["old", "elderly", "grey", "beard", "vest", "farmer", "worker", "grandfather", "uncle"], "face": "visemes", "license": "MIT (Microsoft Rocketbox Male_Adult_05)", "source": "github.com/microsoft/Microsoft-Rocketbox" },
+    "rb-girl": { "style": "semi-realistic", "gender": "female", "age": "child", "tags": ["girl", "young", "kurta", "salwar", "dupatta", "headscarf", "daughter", "student"], "face": "visemes", "license": "MIT (Microsoft Rocketbox Female_Child_02)", "source": "github.com/microsoft/Microsoft-Rocketbox" },
+    "casual-man": { "style": "stylized-lowpoly", "gender": "male", "age": "adult", "tags": ["man", "casual", "t-shirt"], "face": "none", "license": "CC0 (Quaternius Casual Character)", "source": "poly.pizza" },
+    "woman-casual": { "style": "stylized-lowpoly", "gender": "female", "age": "adult", "tags": ["woman", "casual"], "face": "none", "license": "CC0 (Quaternius Woman Casual)", "source": "poly.pizza" },
+    "farmer": { "style": "stylized-lowpoly", "gender": "male", "age": "elder", "tags": ["farmer", "old", "hat", "dungarees"], "face": "none", "license": "CC0 (Quaternius Farmer)", "source": "poly.pizza" }
+  }
+}

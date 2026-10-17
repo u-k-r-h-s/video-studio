@@ -1,0 +1,46 @@
+{
+ "asset": "casual-man",
+ "out": "/Users/apple/Desktop/three3d-ai-character-poc-casual-man.mp4",
+ "glbMB": 1.43,
+ "seconds": 12,
+ "frames": 360,
+ "totalSeconds": 28.2,
+ "hostMsPerFrame": 78,
+ "glMsPerFrame": 1.5,
+ "peakMemoryMB": 1595,
+ "sizeMB": 20.8,
+ "setupMs": 245,
+ "glbLoadMs": {
+  "casual-man": 77
+ },
+ "renderMs": 540,
+ "triangles": 23468,
+ "drawCalls": 182,
+ "geometries": 139,
+ "textures": 31,
+ "characters": [
+  {
+   "id": "courier",
+   "height": 1.82,
+   "walkSpeed": 1.31,
+   "runSpeed": 2.52,
+   "bones": 19,
+   "clips": [
+    "idle",
+    "walk",
+    "run",
+    "wave",
+    "interact",
+    "react",
+    "aim",
+    "death"
+   ],
+   "transitions": [
+    "2.10 idle->walk",
+    "5.47 walk->stop",
+    "5.83 stop->idle"
+   ]
+  }
+ ],
+ "hostSetupMs": 1697
+}

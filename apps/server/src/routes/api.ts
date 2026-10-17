@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { Router } from "express";
 import { z } from "zod";
 import { CreateProjectInputSchema, isJobActive, type Job } from "@studio/shared";
@@ -6,6 +7,9 @@ import { HttpError } from "../errors";
 import type { JobContext, JobManager } from "../jobs/JobManager";
 import { assertSafeId } from "../lib/paths";
 import type { Studio } from "../pipeline/Studio";
+import { DIRECTOR_PLAN_FILE } from "../pipeline/stages/shots/planStory";
+import { storyFromPlan } from "../shots/director";
+import { engineOf, parseRendererChoice, profileForRenderer } from "../profiles/rendererChoice";
 import type { ProfileRegistry } from "../profiles";
 import type { HealthService } from "../services/HealthService";
 import type { ProjectStore } from "../storage/ProjectStore";
@@ -48,15 +52,26 @@ export function createApiRouter(deps: ApiDeps): Router {
   const projectId = (raw: string | string[] | undefined) => assertSafeId(Array.isArray(raw) ? raw[0] : raw, "project id");
 
   router.get("/health", async (_req, res) => res.json(await health.check()));
-  router.get("/profiles", (_req, res) => res.json({ profiles: profiles.list().map((p) => ({ id: p.id, pipeline: p.pipeline ?? "scenes", name: p.name, description: p.description, video: p.video, visualStyle: p.visualStyle.name, planning: p.planning, timing: { minSceneSeconds: p.timing.minSceneSeconds, maxSceneSeconds: p.timing.maxSceneSeconds } })) }));
+  router.get("/profiles", (_req, res) => res.json({ profiles: profiles.list().map((p) => ({ id: p.id, pipeline: p.pipeline ?? "scenes", engine: engineOf(p), name: p.name, description: p.description, video: p.video, visualStyle: p.visualStyle.name, planning: p.planning, timing: { minSceneSeconds: p.timing.minSceneSeconds, maxSceneSeconds: p.timing.maxSceneSeconds } })) }));
   router.get("/tools", (_req, res) => res.json({ tools: tools.describe() }));
 
   router.get("/projects", async (_req, res) => res.json({ projects: await store.list() }));
 
   router.post("/projects", async (req, res) => {
     const input = parseBody(CreateProjectInputSchema, req.body);
+    // an explicit renderer picks (or must agree with) the profile; "formatProfile" counts as requested only if it was sent
+    if (input.renderer !== undefined) {
+      const sent = typeof (req.body as { formatProfile?: unknown })?.formatProfile === "string" ? input.formatProfile : undefined;
+      input.formatProfile = profileForRenderer(parseRendererChoice(input.renderer), sent, (id) => profiles.get(id))!;
+    }
     const profile = profiles.get(input.formatProfile);
+    // an authored plan is checked before anything is created: a broken plan is a 400, not a failed job later
+    if (input.directorPlan !== undefined) {
+      if (!profile.cinematic) throw new HttpError(400, "plan_invalid", `The ${profile.id} format does not take an authored shot plan.`);
+      try { storyFromPlan(input.directorPlan, profile, input.targetDurationSeconds); } catch (e) { throw new HttpError(400, "plan_invalid", (e as Error).message); }
+    }
     const project = await store.create(input, profile);
+    if (input.directorPlan !== undefined) await fs.writeFile(store.resolve(project.id, DIRECTOR_PLAN_FILE), JSON.stringify(input.directorPlan, null, 1));
     const job = enqueue(project.id, "scene_planning", (ctx) => studio.plan(project.id, { signal: ctx.signal, progress: ctx.setProgress }));
     res.status(201).json({ project, job });
   });

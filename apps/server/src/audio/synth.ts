@@ -241,3 +241,47 @@ export function tensionBed(dur: number, intensity?: (t: number) => number): Buf 
   const mix = add(gain(bright, 0.9), pulse.map((v, i) => v * (0.2 + 0.8 * I(i / SR))) as Buf);
   return normalize(mul(mix, (t) => attack(t, 1.0) * Math.min(1, (dur - t) / 0.6)), 0.5);
 }
+
+/** Daytime ambience: a light breeze and, now and then, a bird (short warbling chirps). */
+export function ambientDay(dur: number, seed = 41): Buf {
+  const r = rng(seed);
+  const breeze = gain(lowpass(whiteNoise(dur, seed), (t) => 500 + 200 * Math.sin(t * 0.4)), 0.55);
+  const birds = new Float32Array(n(dur));
+  for (let t0 = 1 + r() * 2; t0 < dur - 1; t0 += 2.5 + r() * 4) {
+    const chirps = 2 + Math.floor(r() * 4), base = 2600 + r() * 1600;
+    for (let c = 0; c < chirps; c++) {
+      const s = t0 + c * (0.11 + r() * 0.06), len = 0.06 + r() * 0.07, up = r() > 0.5 ? 1 : -1;
+      let ph = 0;
+      for (let i = n(s); i < Math.min(birds.length, n(s + len)); i++) {
+        const u = (i / SR - s) / len;
+        ph += (TAU * base * (1 + up * 0.35 * u + 0.04 * Math.sin(TAU * 40 * u))) / SR;
+        birds[i]! += Math.sin(ph) * Math.sin(Math.PI * u) ** 2 * 0.35;
+      }
+    }
+  }
+  return normalize(mul(add(breeze, birds as Buf), (t) => attack(t, 0.8) * Math.min(1, (dur - t) / 0.8)), 0.45);
+}
+
+/**
+ * Warm bed for a gentle story: a soft major-key pad over I-V-vi-IV and a quiet plucked arpeggio. `intensity(t)` in 0..1 opens
+ * the filter and brings the arpeggio forward (a conflict swells, the ending settles), like the tension bed but in a major key.
+ */
+export function warmBed(dur: number, intensity?: (t: number) => number): Buf {
+  const I = intensity ?? (() => 0.4);
+  const chords = [[130.81, 164.81, 196.0], [98.0, 123.47, 146.83], [110.0, 130.81, 164.81], [87.31, 110.0, 130.81]]; // C G Am F
+  const bar = 3.2, len = n(dur), pad = new Float32Array(len), pluck = new Float32Array(len);
+  const ph = [0, 0, 0];
+  for (let i = 0; i < len; i++) {
+    const t = i / SR, k = Math.floor(t / bar) % chords.length, ch = chords[k]!, inBar = (t % bar) / bar;
+    const swell = Math.min(1, inBar * 6) * (0.75 + 0.25 * Math.cos(TAU * inBar)); // each chord breathes in
+    let v = 0;
+    ch.forEach((f, j) => { ph[j]! += (TAU * f * (1 + 0.002 * Math.sin(t * (0.5 + j * 0.3)))) / SR; v += Math.sin(ph[j]!) + 0.25 * Math.sin(2 * ph[j]!); });
+    pad[i] = (v / ch.length) * swell;
+    // arpeggio: chord tones an octave up, one every quarter bar, each a short decaying pluck
+    const step = Math.floor((t % bar) / (bar / 4)), since = (t % (bar / 4));
+    const f = ch[step % ch.length]! * 2;
+    pluck[i] = Math.sin(TAU * f * since) * Math.exp(-since * 7) * (0.25 + 0.5 * I(t));
+  }
+  const soft = lowpass(pad, (t) => 600 + 1400 * I(t));
+  return normalize(mul(add(gain(soft, 0.9), lowpass(pluck as Buf, 3000)), (t) => attack(t, 1.5) * Math.min(1, (dur - t) / 1.2)), 0.45);
+}

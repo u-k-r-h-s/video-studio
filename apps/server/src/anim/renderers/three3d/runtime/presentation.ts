@@ -55,7 +55,10 @@ export function presentModel(model: THREE.Object3D, opts: { smooth?: boolean } =
   model.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
-    if (opts.smooth !== false && isFaceted(m.geometry)) {
+    // authored assets (textures, normal maps, blend shapes) are left as they are: re-smoothing would break their normals
+    // and the morph-carrying meshes; only low-poly flat-colour models need it
+    const authored = !!m.geometry.morphAttributes.position?.length || (Array.isArray(m.material) ? m.material : [m.material]).some((x) => !!(x as THREE.MeshStandardMaterial).normalMap);
+    if (opts.smooth !== false && !authored && isFaceted(m.geometry)) {
       // merge the duplicated corners (skin weights are equal there) and let the normals average: no more facets
       const g = m.geometry.clone();
       g.deleteAttribute("normal");
@@ -69,6 +72,7 @@ export function presentModel(model: THREE.Object3D, opts: { smooth?: boolean } =
       const have = done.get(mt);
       if (have) return have;
       const src = mt as THREE.MeshStandardMaterial;
+      if (src.map && src.normalMap) { kinds[src.name] = "authored" as MaterialKind; src.envMapIntensity = 0.45; done.set(mt, src); return src; }
       const kind = materialKind(src.name, src.color);
       kinds[src.name] = kind;
       const r = RESPONSE[kind];

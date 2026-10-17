@@ -53,6 +53,9 @@ export class Three3DRenderer implements ShotRenderer<Shot3DSpec> {
     this.browser = await puppeteer.launch({ executablePath: chrome, headless: true, userDataDir: this.profile, args: ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist", "--no-first-run", "--no-default-browser-check", "--disable-extensions"] });
     const page = await this.browser.newPage();
     page.on("pageerror", (e) => console.error("[three3d]", e));
+    // WebGL shader compile / link failures are console errors, not exceptions: surface them (a mesh that fails to compile
+    // is silently not drawn)
+    page.on("console", (m) => { if (m.type() === "error" || (m.type() === "warn" && /THREE|WebGL|shader/i.test(m.text()))) console.error("[three3d console]", m.text().slice(0, 1500)); });
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
     await page.setContent(`<!doctype html><html><body style="margin:0;background:#000"><script>${await runtimeBundle()}</script></body></html>`);
     this.page = page;
@@ -62,7 +65,8 @@ export class Three3DRenderer implements ShotRenderer<Shot3DSpec> {
   /** Files the shot needs, as base64 / data URLs (a model is sent once per browser session). */
   private async assets(spec: Shot3DSpec): Promise<{ characters: Record<string, string>; images: Record<string, string> }> {
     const characters: Record<string, string> = {};
-    for (const c of spec.characters) {
+    for (const asset of [...spec.characters.map((c) => c.asset), ...(spec.environment.world?.pedestrians?.assets ?? [])]) {
+      const c = { asset };
       if (this.loaded.has(c.asset) || characters[c.asset]) { characters[c.asset] ??= ""; continue; }
       const file = this.o.characterFile(c.asset);
       if (!existsSync(file)) throw new Error(`3D character "${c.asset}" not found at ${file}`);
@@ -90,6 +94,21 @@ export class Three3DRenderer implements ShotRenderer<Shot3DSpec> {
     return { frames: out, ...(await this.finish(page)) };
   }
 
+  /**
+   * Renders frames [from, to) on their own, as one chunk of a longer render would: the shot is set up fresh and frames
+   * 0..from-1 are simulated without drawing, so every frame equals the same frame of a full, continuous render.
+   */
+  async renderRange(spec: Shot3DSpec, from: number, to: number): Promise<Buffer[]> {
+    const page = await this.prepare(spec);
+    await page.evaluate((n) => { const s = (window as unknown as { shot: { advance(i: number): void } }).shot; for (let i = 0; i < n; i++) s.advance(i); }, from);
+    const out: Buffer[] = [];
+    for (let i = from; i < to; i++) {
+      const b64 = await page.evaluate((k) => { const s = (window as unknown as { shot: { renderFrame(i: number): void; canvas: HTMLCanvasElement } }).shot; s.renderFrame(k); return s.canvas.toDataURL("image/png").slice(22); }, i);
+      out.push(Buffer.from(b64, "base64"));
+    }
+    return out;
+  }
+
   private async prepare(spec: Shot3DSpec): Promise<Page> {
     const page = await this.open(spec.width, spec.height);
     const assets = await this.assets(spec);
@@ -101,7 +120,7 @@ export class Three3DRenderer implements ShotRenderer<Shot3DSpec> {
       w.shot?.dispose();
       w.shot = (await w.studio3d.createShot(s, { characters: w.models, images: a.images })) as { dispose(): void };
     }, spec as unknown, assets);
-    for (const c of spec.characters) this.loaded.add(c.asset);
+    for (const a of [...spec.characters.map((c) => c.asset), ...(spec.environment.world?.pedestrians?.assets ?? [])]) this.loaded.add(a);
     return page;
   }
 

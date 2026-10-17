@@ -1,0 +1,926 @@
+{
+ "_comment": "Original 3-minute Hindi story (story-driven Three.js renderer). npm run short -- --plan scripts/lab/stories/door-tak-saath.json --renderer=3d --seconds 180",
+ "language": "hi",
+ "artStyle": "cinematic",
+ "outline": {
+  "title": "दूर तक साथ",
+  "logline": "When her brother gets his first job in the city, a young girl's fear of losing him turns to anger, until her grandfather helps her say goodbye with a smile.",
+  "characters": [
+   {
+    "id": "meera",
+    "name": "Meera",
+    "role": "a lively 12-year-old girl who adores her elder brother",
+    "appearance": "a 12-year-old girl with dark hair and a headscarf",
+    "clothing": "green kurta and salwar with a maroon dupatta"
+   },
+   {
+    "id": "arjun",
+    "name": "Arjun",
+    "role": "Meera's warm-hearted elder brother, a young man of twenty who has just got his first job",
+    "appearance": "a young man with short black hair and a cap",
+    "clothing": "blue and white hoodie with jeans"
+   },
+   {
+    "id": "dadaji",
+    "name": "Dadaji",
+    "role": "their grandfather, an old man, calm, wise and gently funny",
+    "appearance": "an old man with grey hair and a grey beard",
+    "clothing": "green shirt under a beige vest"
+   }
+  ],
+  "locations": [
+   {
+    "id": "aangan",
+    "name": "Village courtyard",
+    "look": "the courtyard of the family's village house with mud walls, a charpai and clay pots at sunset",
+    "lighting": "warm golden evening light",
+    "timeOfDay": "golden_hour",
+    "weather": "clear"
+   },
+   {
+    "id": "ghar",
+    "name": "Living room",
+    "look": "the family's living room inside the house at night with a sofa and a shelf",
+    "lighting": "warm lamp light",
+    "timeOfDay": "night"
+   },
+   {
+    "id": "sadak",
+    "name": "Village road",
+    "look": "the village road between fields at dawn by the tea stall where the bus stops, thick mist",
+    "lighting": "pale dawn light in the mist",
+    "timeOfDay": "morning",
+    "weather": "fog"
+   }
+  ]
+ },
+ "cast": {
+  "meera": {
+   "voice": "hi-priyamvada"
+  },
+  "arjun": {
+   "voice": "hi-rohan-young"
+  },
+  "dadaji": {
+   "voice": "hi-pratham-elder"
+  }
+ },
+ "shots": [
+  {
+   "beat": "hook",
+   "shotType": "establishing",
+   "location": "aangan",
+   "character": "",
+   "emotion": "calm",
+   "action": "Golden evening light falls across the courtyard of the village house."
+  },
+  {
+   "beat": "hook",
+   "shotType": "medium-wide",
+   "location": "aangan",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun hurries into the courtyard to Dadaji, beaming.",
+   "line": {
+    "speaker": "arjun",
+    "text": "दादाजी! मीरा! एक बहुत बड़ी ख़बर है। मुझे शहर में नौकरी मिल गई!"
+   },
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "dadaji"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "arjun"
+      }
+     ]
+    },
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "close-up",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "shock",
+   "action": "Meera's smile fades as she understands.",
+   "line": {
+    "speaker": "meera",
+    "text": "शहर में? मतलब... भैया हमें छोड़कर चले जाएँगे?"
+   },
+   "actions": [
+    {
+     "action": "surprise",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "aangan",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji pats Arjun proudly and nods.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "शाबाश बेटा! मुझे तुम पर बहुत गर्व है। कब जाना है?"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium-close",
+   "location": "aangan",
+   "character": "arjun",
+   "emotion": "calm",
+   "action": "Arjun answers gently, glancing at his sister.",
+   "line": {
+    "speaker": "arjun",
+    "text": "परसों सुबह की बस से, दादाजी। पहली नौकरी है, मना नहीं कर सकता।"
+   },
+   "actions": [
+    {
+     "action": "head-turn",
+     "when": "late",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "close-up",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "anger",
+   "action": "Meera shakes her head, hurt and angry.",
+   "line": {
+    "speaker": "meera",
+    "text": "तो जाइए! अब मुझसे बात मत करना।"
+   },
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium-wide",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "sad",
+   "action": "Meera runs off into the house.",
+   "actions": [
+    {
+     "action": "run",
+     "when": "start",
+     "toward": "the door"
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium",
+   "location": "aangan",
+   "character": "arjun",
+   "emotion": "sad",
+   "action": "Arjun turns to Dadaji, confused and sad.",
+   "line": {
+    "speaker": "arjun",
+    "text": "दादाजी, मीरा नाराज़ हो गई। मैंने तो सोचा था वो ख़ुश होगी।"
+   },
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium-close",
+   "location": "aangan",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji explains kindly.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "वो नाराज़ नहीं है बेटा, डरी हुई है। प्यार कभी-कभी गुस्से का रूप ले लेता है।"
+   },
+   "actions": [
+    {
+     "action": "hand-gesture",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "establishing",
+   "location": "ghar",
+   "character": "",
+   "emotion": "calm",
+   "action": "Night. A warm lamp lights the family's living room."
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "sad",
+   "action": "Meera sits quietly, looking down.",
+   "line": {
+    "speaker": "meera",
+    "text": "दादाजी, भैया के बिना ये घर कितना ख़ाली लगेगा।"
+   },
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji speaks softly, remembering.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "जब तुम्हारे पापा पहली बार शहर गए थे, मुझे भी यही लगा था।"
+   },
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "dadaji"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "curious",
+   "action": "Meera looks up at him.",
+   "line": {
+    "speaker": "meera",
+    "text": "फिर आपने क्या किया, दादाजी?"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji smiles at the memory.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "मैंने उन्हें हँसते हुए विदा किया। ताकि वो बिना डरे अपना सपना पूरा कर सकें।"
+   },
+   "actions": [
+    {
+     "action": "hand-gesture",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-close",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "uneasy",
+   "action": "Meera's worry comes out.",
+   "line": {
+    "speaker": "meera",
+    "text": "पर अगर भैया शहर जाकर हमें भूल गए तो?"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji chuckles warmly.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "दूरी से प्यार कम नहीं होता, बिटिया। बस चिट्ठियाँ लंबी हो जाती हैं।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-wide",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "uneasy",
+   "action": "Arjun comes in quietly and walks up to Meera.",
+   "line": {
+    "speaker": "arjun",
+    "text": "मीरा... क्या मैं अंदर आ सकता हूँ?"
+   },
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "mid",
+       "toward": "arjun"
+      }
+     ]
+    },
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "sad",
+   "action": "Meera looks up at her brother, eyes wet.",
+   "line": {
+    "speaker": "meera",
+    "text": "भैया, मुझे माफ़ कर दो। मैं गुस्सा नहीं थी, बस... डर गई थी।"
+   },
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun smiles and nods.",
+   "line": {
+    "speaker": "arjun",
+    "text": "पगली! मैं हर रविवार फ़ोन करूँगा। और दिवाली पर सबसे पहले घर आऊँगा।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera brightens.",
+   "line": {
+    "speaker": "meera",
+    "text": "पक्का वादा?"
+   },
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-close",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun grins.",
+   "line": {
+    "speaker": "arjun",
+    "text": "पक्का वादा। और तुम्हारे लिए शहर से नई किताबें भी लाऊँगा।"
+   },
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji claps his hands softly.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "चलो, अब सो जाओ दोनों। सुबह जल्दी उठना है।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "establishing",
+   "location": "sadak",
+   "character": "",
+   "emotion": "calm",
+   "action": "Dawn mist over the village road; the tea stall is just opening."
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-wide",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "calm",
+   "action": "Arjun walks up to Dadaji at the bus stop.",
+   "line": {
+    "speaker": "arjun",
+    "text": "बस आने ही वाली है। सारा सामान रख लिया, दादाजी।"
+   },
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "dadaji"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "arjun"
+      }
+     ]
+    },
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "sadak",
+   "character": "meera",
+   "emotion": "curious",
+   "action": "Meera checks on her brother like a little mother.",
+   "line": {
+    "speaker": "meera",
+    "text": "भैया, अपना टिफ़िन तो रख लिया ना?"
+   },
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun laughs and nods.",
+   "line": {
+    "speaker": "arjun",
+    "text": "हाँ बाबा, रख लिया! तुम तो अभी से माँ जैसी बातें करने लगी।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    },
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "sadak",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji gives his blessing.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "अपना ख़याल रखना, बेटा। ईमानदारी से काम करना, और समय पर खाना खाना।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "late"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "calm",
+   "action": "Arjun bows his head respectfully.",
+   "line": {
+    "speaker": "arjun",
+    "text": "जी दादाजी। आपकी हर बात याद रखूँगा।"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "sadak",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera reaches out to give Arjun something.",
+   "line": {
+    "speaker": "meera",
+    "text": "भैया, ये लो। मैंने रात भर जागकर आपके लिए ये चिट्ठी लिखी है।"
+   },
+   "actions": [
+    {
+     "action": "reach",
+     "when": "mid",
+     "toward": "arjun"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "surprise",
+       "when": "mid"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "awe",
+   "action": "Arjun is touched.",
+   "line": {
+    "speaker": "arjun",
+    "text": "मेरे लिए? इसे मैं बस में पढ़ूँगा।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "sadak",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera smiles shyly.",
+   "line": {
+    "speaker": "meera",
+    "text": "इसमें लिखा है कि मुझे आप पर कितना गर्व है।"
+   },
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "sad",
+   "action": "Arjun's voice catches.",
+   "line": {
+    "speaker": "arjun",
+    "text": "और मुझे तुम दोनों पर। तुम्हीं मेरी हिम्मत हो।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-wide",
+   "location": "sadak",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji turns toward the sound of the bus.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "सुनो, बस की आवाज़ आ रही है। जाओ बेटा, ख़ुश रहो।"
+   },
+   "actions": [
+    {
+     "action": "head-turn",
+     "when": "early",
+     "toward": "the road"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun waves goodbye.",
+   "line": {
+    "speaker": "arjun",
+    "text": "अलविदा! रविवार को फ़ोन करूँगा, पक्का!"
+   },
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "wave",
+       "when": "late"
+      }
+     ]
+    },
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "wide",
+   "location": "sadak",
+   "character": "arjun",
+   "emotion": "calm",
+   "action": "Arjun walks off down the misty road.",
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "down the road"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-close",
+   "location": "sadak",
+   "character": "meera",
+   "emotion": "sad",
+   "action": "Meera waves, holding back tears.",
+   "line": {
+    "speaker": "meera",
+    "text": "अलविदा भैया! जल्दी आना!"
+   },
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "sadak",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji puts a hand on her shoulder.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "देखा बिटिया? हँसते हुए विदा करना भी हिम्मत का काम है।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "sadak",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera wipes her eyes and smiles.",
+   "line": {
+    "speaker": "meera",
+    "text": "हाँ दादाजी। अब मैं भी भैया की तरह बड़े सपने देखूँगी।"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "wide",
+   "location": "sadak",
+   "character": "",
+   "emotion": "calm",
+   "action": "The sun breaks through the mist over the empty road."
+  }
+ ]
+}

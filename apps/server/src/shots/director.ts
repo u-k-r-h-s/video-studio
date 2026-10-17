@@ -1,8 +1,10 @@
+import { z } from "zod";
+import { ANIM_ACTIONS, ANIM_WHEN, StorySchema, type ShotAnimAction } from "@studio/shared";
 import { BEATS, SHOT_TYPES, STORY_EMOTIONS, type Beat, type Character, type FormatProfile, type ShotType, type Story } from "@studio/shared";
 import { generateStructured } from "../llm/structured";
 import type { LLMProvider } from "../llm/types";
 import {
-  BeatShotsSchema, DirectedBeatsSchema, DirectorOutlineSchema, normalizeBeats, normalizeOutline, normalizeShots,
+  BeatShotsSchema, DirectedBeatsSchema, DirectedShotSchema, DirectorOutlineSchema, normalizeBeats, normalizeOutline, normalizeShots,
   type DirectedShot, type DirectedShots, type DirectorOutline,
 } from "./directorSchemas";
 import { buildStory } from "./storyBuilder";
@@ -40,11 +42,11 @@ export function outlinePrompt(i: DirectInput, profile: FormatProfile): string {
 
 Idea: ${i.idea}
 ${i.feedback ? `\nThe user asked for these changes: ${i.feedback}\n` : ""}
-Stay faithful to the idea: its main character (for example a delivery rider), its setting and its genre MUST be what the story is about. Do not swap them for something generic.
+Stay faithful to the idea: its main character (for example a fisherman, a schoolgirl, a shopkeeper), its setting and its genre MUST be what the story is about. Do not swap them for something generic.
 Write:
 - "title": a short original title.
 - "logline": one sentence (who wants what, what goes wrong, the twist).
-- "characters": 1 to ${profile.planning.maxCharacters}. The FIRST one is the hero. Each has a lowercase kebab-case "id", a "role", "appearance" (starting with age and gender as the story intends, e.g. "a young man", then face, hair and build: physical features only) and ONE distinctive "clothing" costume built from two strong colours (for example "yellow raincoat with a blue scarf") that also shows their job or role (a delivery rider wears a delivery backpack and a helmet). The costume is how viewers recognise the character in every shot, so make it simple and bold. Every character is a real person or creature that can be drawn, never a voice or an idea.
+- "characters": 1 to ${profile.planning.maxCharacters}. The FIRST one is the hero. Each has a lowercase kebab-case "id", a "role", "appearance" (starting with age and gender as the story intends, e.g. "a young man", then face, hair and build: physical features only) and ONE distinctive "clothing" costume built from two strong colours (for example "yellow raincoat with a blue scarf") that also shows their job or role (a fisherman wears a net over his shoulder, a doctor a white coat). The costume is how viewers recognise the character in every shot, so make it simple and bold. Every character is a real person or creature that can be drawn, never a voice or an idea.
 - "locations": 2 to ${Math.min(3, profile.planning.maxLocations)}. Each has a kebab-case "id", a "look" (architecture, materials, mood; no people), "lighting" (light colours and sources), "timeOfDay" (morning, day, golden_hour, sunset, night) and "weather" (sunny, clear, cloudy, overcast, rain, fog). Pick what fits THIS story: a cheerful or everyday story is usually a sunny day; only a story that needs darkness happens at night.
 Everything is drawn as a cinematic 3D animated film frame, so describe things that look good in moody light.
 Image budget: the film is built from about ${c.maxKeyImages} generated pictures, so keep the cast and places few and distinctive.`;
@@ -93,7 +95,7 @@ Shot rules:
 - "action": one concrete sentence about what we SEE (present tense), no camera jargon.
 - "line": optional, one short line a person would really SAY (max 12 words), never a place name or caption. "speaker" is a character id, or "narrator" (avoid narration). Spoken words left for the whole film: about ${wordBudget}.
 - "onScreenText": only for a phone/message/screen close-up: the text shown on it.
-- ACTION FIRST. For the visible character give three short plain-words fields: "move" = how they travel in this shot ("walk to the door", "run away", "enter from the left", "none"); "gesture" = what their hands do ("raise the flashlight", "push the door open", "check the phone", "point at the window", "none"); "reaction" = how they react at the end ("stop and listen", "turn head toward the sound", "step back in fear", "none"). In wide and medium shots at least one of move/gesture must not be "none"; when the character discovers something, give a reaction. Never give coordinates, pixels or frame numbers.
+- ACTION FIRST. For the visible character give three short plain-words fields: "move" = how they travel in this shot ("walk to the door", "run away", "enter from the left", "none"); "gesture" = what their hands do ("wave to someone", "push the door open", "check the phone", "point at the window", "none"); "reaction" = how they react at the end ("stop and listen", "turn head toward the sound", "step back in fear", "none"). In wide and medium shots at least one of move/gesture must not be "none"; when the character discovers something, give a reaction. Never give coordinates, pixels or frame numbers.
 - "actions": optional extra list (walk, run, turn, look-left, look-right, look-up, look-down, head-turn, nod, shake-head, step-back, point, raise-hand, reach, push, pull, raise-object, hold-phone, listen, surprise, fear, smile) with "when" (start, early, mid, late, end) and "toward" in plain words.
 - Make the story PHYSICAL: describe what MOVES in "action" (walks down the hallway, pushes the door open, the phone buzzes). At least one shot in three shows the character travelling through the place in a wide or medium shot (walk, run, enter, exit); a door, a phone or a light that changes is an object action.
 - "objects": optional, for a visible object that moves: a door that opens, a phone that lights up (action appear, disappear, move, open, close, glow, shake, drive, flicker).
@@ -199,6 +201,74 @@ export class ShotDirector {
     const title = outline.title.trim();
     return { title, ...buildStory(outline, directed, profile, title) };
   }
+}
+
+/**
+ * An AUTHORED story in the director's own output format ({ outline, shots }): the same normalisation, schemas and whole-film
+ * checks as the AI director, then the same deterministic `buildStory` (durations, camera, SFX, prompts). Only the LLM call is
+ * skipped. Unlike model output, an authored plan is not silently repaired: an unknown id or beat is an error. The plan's own
+ * length is the limit (an authored 3-minute story may have more shots than the AI director writes).
+ */
+export function storyFromPlan(raw: unknown, profile: FormatProfile, targetSeconds: number): DirectResult & { advice: string[] } {
+  const cin = profile.cinematic;
+  if (!cin) throw new Error(`profile ${profile.id} has no cinematic settings`);
+  const r = (raw ?? {}) as { outline?: unknown; shots?: unknown };
+  const o = DirectorOutlineSchema.safeParse(normalizeOutline(r.outline));
+  if (!o.success) throw new Error(`plan outline: ${o.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+  const outline = o.data;
+  const rawShots = Array.isArray(r.shots) ? (r.shots as Record<string, unknown>[]) : [];
+  if (rawShots.length < 3 || rawShots.length > 60) throw new Error(`plan: ${rawShots.length} shots (an authored plan needs 3-60)`);
+  const chars = new Set(outline.characters.map((c) => c.id)), locs = new Set(outline.locations.map((l) => l.id));
+  const strict: string[] = [];
+  rawShots.forEach((s, i) => {
+    if (!locs.has(String(s.location))) strict.push(`shot ${i + 1}: unknown location "${String(s.location)}"`);
+    if (s.character && !chars.has(String(s.character))) strict.push(`shot ${i + 1}: unknown character "${String(s.character)}"`);
+    const sp = (s.line as { speaker?: unknown } | undefined)?.speaker;
+    if (sp !== undefined && sp !== "narrator" && !chars.has(String(sp))) strict.push(`shot ${i + 1}: unknown speaker "${String(sp)}"`);
+    if (!(BEATS as readonly string[]).includes(String(s.beat))) strict.push(`shot ${i + 1}: beat must be one of ${BEATS.join(", ")}`);
+  });
+  if (strict.length) throw new Error(`plan: ${strict.join("; ")}`);
+  const parsed = z.object({ shots: z.array(DirectedShotSchema).min(3).max(60) }).safeParse(normalizeShots({ shots: rawShots }, outline));
+  if (!parsed.success) throw new Error(`plan shots: ${parsed.error.issues.slice(0, 8).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+  const sized: FormatProfile = { ...profile, cinematic: { ...cin, minShots: Math.min(cin.minShots, parsed.data.shots.length), maxShots: Math.max(cin.maxShots, parsed.data.shots.length) } };
+  const { hard, advice } = checkShots(parsed.data, outline, sized, parsed.data.shots.length, targetSeconds);
+  if (hard.length) throw new Error(`plan: ${hard.join(" ")}`);
+  const title = outline.title.trim();
+  const built = buildStory(outline, parsed.data, sized, title, { trustBeats: true });
+  applyCastAndPartners(r as AuthoredExtras, built, chars);
+  return { title, ...built, story: StorySchema.parse(built.story), advice };
+}
+
+/** Plan-only extras: `cast` = per character a 3D model and a voice; per shot `with` = other characters on screen and what they do. */
+interface AuthoredExtras {
+  artStyle?: string;
+  cast?: Record<string, { asset?: string; voice?: string }>;
+  shots?: { with?: { character: string; actions?: { action: string; when?: string; toward?: string }[] }[] }[];
+}
+function applyCastAndPartners(r: AuthoredExtras, built: { characters: Character[]; story: Story }, chars: Set<string>): void {
+  const issues: string[] = [];
+  if (r.artStyle) built.story.artStyle = r.artStyle;
+  for (const [id, c] of Object.entries(r.cast ?? {})) {
+    const ch = built.characters.find((x) => x.id === id);
+    if (!ch) { issues.push(`cast: unknown character "${id}"`); continue; }
+    if (c.asset) ch.asset3d = c.asset;
+    if (c.voice) ch.voiceId = c.voice;
+  }
+  (r.shots ?? []).forEach((s, i) => {
+    const shot = built.story.shots[i];
+    if (!shot || !s.with?.length) return;
+    for (const w of s.with) {
+      if (!chars.has(w.character)) { issues.push(`shot ${i + 1}: with: unknown character "${w.character}"`); continue; }
+      if (!shot.subjectIds.includes(w.character)) shot.subjectIds.push(w.character);
+      for (const a of w.actions ?? []) {
+        if (!(ANIM_ACTIONS as readonly string[]).includes(a.action)) { issues.push(`shot ${i + 1}: with ${w.character}: unknown action "${a.action}"`); continue; }
+        shot.animation = shot.animation ?? { actions: [], objects: [] };
+        shot.animation.actions.push({ character: w.character, action: a.action as ShotAnimAction["action"], when: (ANIM_WHEN as readonly string[]).includes(a.when ?? "") ? (a.when as ShotAnimAction["when"]) : "mid", ...(a.toward ? { toward: a.toward } : {}) });
+      }
+    }
+    if (shot.subjectIds.length > 3) issues.push(`shot ${i + 1}: at most 3 characters on screen`);
+  });
+  if (issues.length) throw new Error(`plan: ${issues.join("; ")}`);
 }
 
 /** Structural checks for one beat's shots (ids were already repaired deterministically; this catches speech problems). */

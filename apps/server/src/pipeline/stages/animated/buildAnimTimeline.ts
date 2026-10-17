@@ -18,7 +18,11 @@ import { animationOf, animTimelineOf } from "./common";
 export const buildAnimTimeline: StageFn = (svc, ctx) =>
   runTimelineStage(svc, ctx, {
     timeline: (p, story) => animTimelineOf(p, story),
-    style: (p, s) => animationOf(s.profiles.get(p.formatProfile)).captions as CaptionStyle,
+    // the caption font follows the language (the profile's subtitle font per language, e.g. a Devanagari face for Hindi)
+    style: (p, s) => {
+      const profile = s.profiles.get(p.formatProfile), base = animationOf(profile).captions as CaptionStyle;
+      return p.language === "en" ? base : { ...base, font: profile.layout.subtitleFonts[p.language] ?? base.font };
+    },
     recipe: "-anim-v2-small-captions",
     // smaller captions in the lower third: up to two short lines, the animation stays the main thing on screen
     chunk: { maxWords: 6, maxChars: 34 },

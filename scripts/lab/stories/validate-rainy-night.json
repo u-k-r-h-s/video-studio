@@ -1,0 +1,141 @@
+{
+ "_comment": "Validation A: rainy night, village courtyard (story-driven environment)",
+ "language": "hi",
+ "artStyle": "indian-folk",
+ "outline": {
+  "title": "Barish ki raat",
+  "logline": "On a stormy monsoon night a grandfather calls the children in from the courtyard.",
+  "characters": [
+   {
+    "id": "meera",
+    "name": "Meera",
+    "role": "a curious 12-year-old girl, the youngest in the family",
+    "appearance": "a 12-year-old girl with dark hair and a headscarf",
+    "clothing": "green kurta and salwar with a maroon dupatta"
+   },
+   {
+    "id": "arjun",
+    "name": "Arjun",
+    "role": "Meera's cheerful elder brother, a young man of twenty",
+    "appearance": "a young man with short black hair and a cap",
+    "clothing": "blue and white hoodie with jeans"
+   },
+   {
+    "id": "dadaji",
+    "name": "Dadaji",
+    "role": "their grandfather, an old man, calm and funny",
+    "appearance": "an old man with grey hair and a grey beard",
+    "clothing": "green shirt under a beige vest"
+   }
+  ],
+  "locations": [
+   {
+    "id": "courtyard",
+    "name": "Village courtyard",
+    "look": "the courtyard of a village house with mud walls, a charpai and clay pots, monsoon rain",
+    "lighting": "a single bulb over the door in heavy rain",
+    "timeOfDay": "night",
+    "weather": "rain"
+   }
+  ]
+ },
+ "cast": {
+  "meera": {
+   "voice": "hi-priyamvada"
+  },
+  "arjun": {
+   "voice": "hi-rohan-young"
+  },
+  "dadaji": {
+   "voice": "hi-pratham-elder"
+  }
+ },
+ "shots": [
+  {
+   "beat": "hook",
+   "shotType": "medium-wide",
+   "location": "courtyard",
+   "character": "dadaji",
+   "emotion": "uneasy",
+   "action": "Dadaji stands by the door in the rain and calls the children.",
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "dadaji"
+      }
+     ]
+    },
+    {
+     "character": "arjun"
+    }
+   ],
+   "line": {
+    "speaker": "dadaji",
+    "text": "बारिश बहुत तेज़ है, बच्चों। जल्दी अंदर आ जाओ।"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "courtyard",
+   "character": "meera",
+   "emotion": "tense",
+   "action": "Meera looks at the dark sky, worried.",
+   "actions": [
+    {
+     "action": "look-up",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ],
+   "line": {
+    "speaker": "meera",
+    "text": "दादाजी, बिजली कड़क रही है। मुझे डर लग रहा है।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-close",
+   "location": "courtyard",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun smiles and puts a hand on her shoulder.",
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "arjun",
+    "text": "डरो मत मीरा, मैं हूँ ना। चलो अंदर चलते हैं।"
+   }
+  }
+ ]
+}

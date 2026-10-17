@@ -100,7 +100,7 @@ const WIDE_PREF: Partial<Record<Shot["shotType"], number>> = { wide: 3, establis
  * the shots best able to show it (wide and medium, not a shocked close-up), always in the same screen direction so the
  * character is visibly going somewhere.
  */
-export function enrichAnimation(shots: Shot[]): Shot[] {
+export function enrichAnimation(shots: Shot[], opts: { travelQuota?: boolean } = {}): Shot[] {
   const out = shots.map((s) => {
     if (!s.subjectIds.length) {
       const objs = mergeObjects(s.animation?.objects ?? [], objectsFromText(s.action));
@@ -118,6 +118,8 @@ export function enrichAnimation(shots: Shot[]): Shot[] {
     return actions.length || objects.length ? { ...s, animation: { actions, objects } } : s;
   });
 
+  // an authored story's actions are deliberate (a conversation must not start walking): no quota
+  if (opts.travelQuota === false) return out;
   const withChar = out.filter((s) => s.subjectIds.length);
   const travels = (s: Shot): boolean => !!s.animation?.actions.some((a) => LOCOMOTION.has(a.action));
   const need = Math.max(2, Math.ceil(withChar.length * 0.25));

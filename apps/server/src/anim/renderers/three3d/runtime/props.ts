@@ -97,7 +97,8 @@ export function placeProp(p: Prop3D, sock: { hand?: THREE.Object3D; elbow?: THRE
     // a carried box stays upright, square to the body, resting on the forearm in front of the belly
     sock.hand.getWorldPosition(v1); sock.chest.getWorldPosition(v2);
     o.quaternion.copy(sock.root.getWorldQuaternion(new THREE.Quaternion()));
-    const centre = new THREE.Vector3(v2.x, v1.y + 0.04, v2.z).lerp(v1, 0.35);
+    // raised (brought up to look at it) it moves out into the hands
+    const centre = new THREE.Vector3(v2.x, v1.y + 0.04, v2.z).lerp(v1, 0.35 + 0.5 * Math.min(1, p.aimWeight ?? 0));
     o.position.copy(centre).add(new THREE.Vector3(-0.12, 0, 0.14).applyQuaternion(o.quaternion));
   } else if ((p.socket === "rightHand" || p.socket === "leftHand") && sock.hand && sock.elbow) {
     sock.hand.getWorldPosition(v1); sock.elbow.getWorldPosition(v2);

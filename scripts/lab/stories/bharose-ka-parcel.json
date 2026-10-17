@@ -1,0 +1,1069 @@
+{
+ "_comment": "Original 3-minute Hindi story for the Three.js renderer: 3 distinct 3D characters (Quaternius CC0 models), 3 distinct Piper voices, no narrator. Run: npm run short -- --plan scripts/lab/stories/bharose-ka-parcel.json --renderer=3d --seconds 180",
+ "language": "hi",
+ "outline": {
+  "title": "भरोसे का पार्सल",
+  "logline": "A hurried new courier leaves a parcel at an empty house; when it goes missing, an old neighbour teaches him what responsibility means.",
+  "characters": [
+   {
+    "id": "raju",
+    "name": "Raju",
+    "role": "a 22-year-old new courier, eager and always in a hurry, afraid of losing his job",
+    "appearance": "a young man with short brown hair",
+    "clothing": "red t-shirt with blue jeans"
+   },
+   {
+    "id": "sunita",
+    "name": "Sunita",
+    "role": "Sunita Sharma, a strict but kind schoolteacher who lives at house 42",
+    "appearance": "a woman in her thirties with short dark hair",
+    "clothing": "green top with grey trousers"
+   },
+   {
+    "id": "ramdeen",
+    "name": "Ramdeen Kaka",
+    "role": "an old retired farmer next door, slow-moving, wise and watchful",
+    "appearance": "an old man with a grey beard",
+    "clothing": "farmer dungarees with a straw hat"
+   }
+  ],
+  "locations": [
+   {
+    "id": "courier-depot",
+    "name": "Courier depot",
+    "look": "the loading bay of a small courier warehouse with crates and pallets",
+    "lighting": "bright late-morning sun",
+    "timeOfDay": "day",
+    "weather": "sunny"
+   },
+   {
+    "id": "colony-street",
+    "name": "Green Park colony",
+    "look": "a quiet residential street of houses with lawns, a sidewalk and trees; house number 42",
+    "lighting": "bright midday sun",
+    "timeOfDay": "day",
+    "weather": "sunny"
+   },
+   {
+    "id": "colony-evening",
+    "name": "Green Park colony at dusk",
+    "look": "the same residential street of houses with lawns and trees in the evening",
+    "lighting": "warm golden evening light",
+    "timeOfDay": "golden_hour",
+    "weather": "clear"
+   }
+  ]
+ },
+ "cast": {
+  "raju": {
+   "asset": "casual-man",
+   "voice": "hi-rohan-young"
+  },
+  "sunita": {
+   "asset": "woman-casual",
+   "voice": "hi-priyamvada"
+  },
+  "ramdeen": {
+   "asset": "farmer",
+   "voice": "hi-pratham-elder"
+  }
+ },
+ "shots": [
+  {
+   "beat": "hook",
+   "shotType": "establishing",
+   "location": "courier-depot",
+   "character": "",
+   "emotion": "calm",
+   "action": "The loading bay of the courier depot in the late-morning sun."
+  },
+  {
+   "beat": "hook",
+   "shotType": "medium",
+   "location": "courier-depot",
+   "character": "raju",
+   "emotion": "curious",
+   "action": "Raju holds a parcel and reads the label.",
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "early"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "मकान नंबर बयालीस, सुनीता शर्मा... बारह बजे से पहले पहुँचाना है।"
+   }
+  },
+  {
+   "beat": "hook",
+   "shotType": "close-up",
+   "location": "courier-depot",
+   "character": "raju",
+   "emotion": "tense",
+   "action": "Raju looks up in alarm, realising how late it is.",
+   "actions": [
+    {
+     "action": "surprise",
+     "when": "early"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "अरे! साढ़े ग्यारह बज गए! आज देर हुई तो नौकरी गई।"
+   }
+  },
+  {
+   "beat": "hook",
+   "shotType": "medium-wide",
+   "location": "courier-depot",
+   "character": "raju",
+   "emotion": "tense",
+   "action": "Raju runs off with the parcel.",
+   "actions": [
+    {
+     "action": "run",
+     "when": "start",
+     "toward": "the street"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "जल्दी, राजू, जल्दी!"
+   }
+  },
+  {
+   "beat": "setup",
+   "shotType": "establishing",
+   "location": "colony-street",
+   "character": "",
+   "emotion": "calm",
+   "action": "A quiet residential street of houses and lawns at midday."
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium-wide",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "tense",
+   "action": "Raju hurries along the sidewalk toward Ramdeen Kaka, parcel in hand.",
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "ramdeen"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "raju"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "calm",
+   "action": "Ramdeen Kaka raises a hand to slow the young man down.",
+   "actions": [
+    {
+     "action": "raise-hand",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju"
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "अरे बेटा, ज़रा धीरे! इतनी भी क्या जल्दी है?"
+   }
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "neutral",
+   "action": "Raju shows the parcel to Ramdeen Kaka.",
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "नमस्ते काका! सुनीता जी का पार्सल है। वो घर पर हैं?"
+   }
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "calm",
+   "action": "Ramdeen Kaka points down the street.",
+   "actions": [
+    {
+     "action": "point",
+     "when": "mid",
+     "toward": "the street"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju",
+     "actions": [
+      {
+       "action": "look-right",
+       "when": "mid"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "सुनीता बिटिया बाज़ार गई है, घंटे भर में लौटेगी।"
+   }
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "uneasy",
+   "action": "Raju presses the doorbell of house 42 and waits.",
+   "actions": [
+    {
+     "action": "press",
+     "when": "early",
+     "toward": "the doorbell"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "कोई है? पार्सल आया है!"
+   }
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "close-up",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "anger",
+   "action": "Raju frowns at the closed door.",
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "mid"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "घंटा भर? इतना समय नहीं है मेरे पास। अभी दस पार्सल और बाकी हैं।"
+   }
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium-wide",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "uneasy",
+   "action": "Raju reaches toward the door to leave the parcel on the step.",
+   "actions": [
+    {
+     "action": "reach",
+     "when": "mid",
+     "toward": "the door"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "मैं पार्सल यहीं दरवाज़े पर रख देता हूँ।"
+   }
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "uneasy",
+   "action": "Ramdeen Kaka shakes his head, worried.",
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju"
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "ऐसा मत करो बेटा। कल ही इस गली से एक पार्सल चोरी हुआ था।"
+   }
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "neutral",
+   "action": "Raju waves the warning away with a grin.",
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid",
+     "toward": "ramdeen"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen",
+     "actions": [
+      {
+       "action": "shake-head",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "कुछ नहीं होगा काका! अच्छा, मैं चलता हूँ, बहुत देर हो रही है।"
+   }
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "wide",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "tense",
+   "action": "Raju runs off down the street without the parcel.",
+   "actions": [
+    {
+     "action": "run",
+     "when": "start",
+     "toward": "down the street"
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "close-up",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "uneasy",
+   "action": "Ramdeen Kaka looks at the door of house 42, thinking.",
+   "actions": [
+    {
+     "action": "head-turn",
+     "when": "early",
+     "toward": "the door"
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "ये आजकल के बच्चे... चलो, मैं ही नज़र रखता हूँ।"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "establishing",
+   "location": "colony-street",
+   "character": "",
+   "emotion": "calm",
+   "action": "The same street an hour later."
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium-wide",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "calm",
+   "action": "Sunita walks home to her door.",
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "the door"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "उफ़, आज बाज़ार में कितनी भीड़ थी।"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "shock",
+   "action": "Sunita looks down at the empty doorstep in surprise.",
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "early"
+    },
+    {
+     "action": "surprise",
+     "when": "late"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "ऐप में लिखा है पार्सल पहुँच गया... पर यहाँ तो कुछ नहीं!"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "anger",
+   "action": "Sunita calls the courier office on her phone, angry.",
+   "actions": [
+    {
+     "action": "hold-phone",
+     "when": "start"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "हेलो, कूरियर ऑफ़िस? मेरा पार्सल गायब है! उसमें बच्चों के परीक्षा-पत्र हैं।"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "courier-depot",
+   "character": "raju",
+   "emotion": "shock",
+   "action": "Back at the depot, Raju listens on the phone, shocked.",
+   "actions": [
+    {
+     "action": "hold-phone",
+     "when": "start"
+    },
+    {
+     "action": "surprise",
+     "when": "mid"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "गायब? पर मैंने तो दरवाज़े पर रखा था!"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "close-up",
+   "location": "courier-depot",
+   "character": "raju",
+   "emotion": "fear",
+   "action": "Raju's face falls as he realises his mistake.",
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "mid"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "हे भगवान... मेरी जल्दबाज़ी ने सब बिगाड़ दिया।"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium-wide",
+   "location": "courier-depot",
+   "character": "raju",
+   "emotion": "tense",
+   "action": "Raju runs out of the depot.",
+   "actions": [
+    {
+     "action": "run",
+     "when": "start",
+     "toward": "the street"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-wide",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "tense",
+   "action": "Raju hurries up to Sunita, out of breath.",
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "sunita"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "raju"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "दीदी, माफ़ कीजिए! मैं पार्सल यहीं रखकर गया था।"
+   }
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "anger",
+   "action": "Sunita points at the empty doorstep, furious.",
+   "actions": [
+    {
+     "action": "point",
+     "when": "mid",
+     "toward": "the door"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju",
+     "actions": [
+      {
+       "action": "look-down",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "बिना बताए छोड़ दिया? उसमें पूरी कक्षा के परीक्षा-पत्र थे!"
+   }
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "sad",
+   "action": "Raju hangs his head.",
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "मुझसे बड़ी भूल हो गई दीदी। मैं जल्दी में था।"
+   }
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "sad",
+   "action": "Sunita shakes her head in despair.",
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "जल्दी? अब मैं बच्चों को क्या जवाब दूँगी?"
+   }
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-wide",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "calm",
+   "action": "Ramdeen Kaka walks up to Sunita carrying the parcel.",
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "sunita"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "mid",
+       "toward": "ramdeen"
+      }
+     ]
+    },
+    {
+     "character": "raju",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "mid",
+       "toward": "ramdeen"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "रुको, रुको बच्चों! झगड़ा मत करो।"
+   }
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "shock",
+   "action": "Sunita stares at the parcel in Ramdeen Kaka's hands.",
+   "actions": [
+    {
+     "action": "surprise",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "काका! ये तो मेरा पार्सल है!"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "calm",
+   "action": "Ramdeen Kaka explains calmly, holding the parcel.",
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    },
+    {
+     "character": "raju"
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "दरवाज़े पर पड़ा था। मैंने सोचा कोई उठा न ले, तो रख लिया।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "joy",
+   "action": "Raju breathes out with relief.",
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "काका, आपने तो मेरी नौकरी बचा ली!"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "joy",
+   "action": "Ramdeen Kaka holds out the parcel to Sunita.",
+   "actions": [
+    {
+     "action": "raise-object",
+     "when": "mid",
+     "toward": "sunita"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita",
+     "actions": [
+      {
+       "action": "reach",
+       "when": "late",
+       "toward": "ramdeen"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "लो बिटिया, तुम्हारी अमानत।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "joy",
+   "action": "Sunita takes the parcel and smiles warmly.",
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "धन्यवाद काका। आप न होते तो बड़ी मुश्किल होती।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "ramdeen",
+   "emotion": "calm",
+   "action": "Ramdeen Kaka turns to Raju and speaks kindly but firmly.",
+   "actions": [
+    {
+     "action": "point",
+     "when": "mid",
+     "toward": "raju"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju",
+     "actions": [
+      {
+       "action": "look-down",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "बेटा, जल्दी अच्छी है, पर ज़िम्मेदारी उससे बड़ी होती है।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "calm",
+   "action": "Raju nods, taking the lesson to heart.",
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "ramdeen"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "सही कहा काका। अब हर पार्सल हाथ में ही दूँगा।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-close",
+   "location": "colony-street",
+   "character": "sunita",
+   "emotion": "joy",
+   "action": "Sunita smiles at Raju, her anger gone.",
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "raju"
+    },
+    {
+     "character": "ramdeen"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "गलती मान लेना भी बड़ी बात है, राजू। आओ, पानी पी लो।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "colony-street",
+   "character": "raju",
+   "emotion": "joy",
+   "action": "Raju smiles and thanks them both.",
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid",
+     "toward": "sunita"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita"
+    },
+    {
+     "character": "ramdeen",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "धन्यवाद दीदी! धन्यवाद काका!"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "establishing",
+   "location": "colony-evening",
+   "character": "",
+   "emotion": "calm",
+   "action": "The street of houses in warm evening light."
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "colony-evening",
+   "character": "raju",
+   "emotion": "calm",
+   "action": "Raju rings a doorbell, parcel in hand, and waits patiently.",
+   "actions": [
+    {
+     "action": "press",
+     "when": "early",
+     "toward": "the doorbell"
+    }
+   ],
+   "objects": [
+    {
+     "object": "parcel",
+     "action": "hold",
+     "when": "start"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "नमस्ते जी, आपका पार्सल! मैं इंतज़ार कर लूँगा।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-wide",
+   "location": "colony-evening",
+   "character": "ramdeen",
+   "emotion": "joy",
+   "action": "Ramdeen Kaka and Sunita watch him from the sidewalk.",
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "sunita",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "ramdeen",
+    "text": "देखा बिटिया? सीख गया हमारा राजू।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "colony-evening",
+   "character": "sunita",
+   "emotion": "joy",
+   "action": "Sunita smiles.",
+   "with": [
+    {
+     "character": "ramdeen"
+    }
+   ],
+   "line": {
+    "speaker": "sunita",
+    "text": "हाँ काका। भरोसा ऐसे ही बनता है, एक-एक पार्सल से।"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "colony-evening",
+   "character": "raju",
+   "emotion": "joy",
+   "action": "Raju waves goodbye to them.",
+   "actions": [
+    {
+     "action": "wave",
+     "when": "early",
+     "toward": "camera"
+    }
+   ],
+   "line": {
+    "speaker": "raju",
+    "text": "कल मिलते हैं काका! कल मिलते हैं दीदी!"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "wide",
+   "location": "colony-evening",
+   "character": "",
+   "emotion": "calm",
+   "action": "The quiet street at dusk."
+  }
+ ]
+}

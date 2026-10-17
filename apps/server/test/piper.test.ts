@@ -96,6 +96,16 @@ describe("PiperProvider (fake process runner)", () => {
     expect(args.slice(sep + 1)).toEqual(['Hello; rm -rf / $(whoami) "quoted" second line']); // one literal argument, control chars flattened
   });
 
+  it("a voice's own lengthScale multiplies the requested one (one model, two speaking rates)", async () => {
+    const { r, calls } = runner(() => ({ wav: clip(0, 1, 0) }));
+    const p = new PiperProvider(r, { python: "/py", voicesDir, timeoutMs: 1000 }, [{ id: "en-slow", language: "en", model: "en.onnx", lengthScale: 0.8 }, ...catalog]);
+    await p.synthesize({ text: "hi there", voiceId: "en-slow", outPath: path.join(dir, "s.wav"), lengthScale: 1.35 });
+    await p.synthesize({ text: "hi there", voiceId: "en-a", outPath: path.join(dir, "t.wav"), lengthScale: 1.35 });
+    const scale = (i: number) => calls[i]!.args[calls[i]!.args.indexOf("--length-scale") + 1];
+    expect(scale(0)).toBe("1.08");
+    expect(scale(1)).toBe("1.35");
+  });
+
   it("reports a missing voice model with the required message", async () => {
     const err = await provider(runner(() => ({})).r).synthesize({ text: "namaste", voiceId: "hi-x", outPath: path.join(dir, "h.wav") }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PiperVoiceNotFoundError);

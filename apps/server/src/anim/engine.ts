@@ -162,11 +162,30 @@ export class AnimEngine {
           const t = s + i / hz;
           const goal = c.tl.pathX.at(t) - (sx - 0.5) * (this.W / z) + num(p, "lead", 0) * (Math.sign(c.tl.facing.at(t)) || 1);
           cx += (goal - cx) * (1 - Math.exp(-1 / hz / tau));
-          this.camX.set(t, cx);
+          this.camX.set(t, this.withinBackground(cx, this.camZoom.at(t)));
         }
         if (sy !== null) this.camY.moveTo(s, Math.min(d, 0.6), sy, "inOut");
       }
     }
+  }
+
+  /** The camera x clamped so no background layer shows its edge (a follow shot never pans past the location picture). */
+  private withinBackground(camX: number, zoom: number): number {
+    const { W, H } = this;
+    let lo = -Infinity, hi = Infinity;
+    for (const o of this.objs.values()) {
+      const l = o.layer;
+      if (l.type !== "background") continue;
+      const img = this.lib.images.get(l.source), par = l.parallax ?? 0.4;
+      if (!img || par <= 0) continue;
+      const zl = 1 + (zoom - 1) * Math.min(1.4, Math.max(0.35, par));
+      const wPx = (l.height ?? H * 1.15) * (l.scale ?? 1) * zl * (img.width / img.height);
+      const room = Math.max(0, (wPx - W) / 2) / zl; // how far the layer centre may move from the frame centre
+      lo = Math.max(lo, W / 2 + (l.x - room - W / 2) / par);
+      hi = Math.min(hi, W / 2 + (l.x + room - W / 2) / par);
+    }
+    if (lo > hi) return (lo + hi) / 2;
+    return Math.min(hi, Math.max(lo, camX));
   }
 
   camera(t: number): CameraState & { flash: number } {

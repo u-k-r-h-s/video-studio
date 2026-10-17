@@ -136,8 +136,11 @@ export const StorySchema = z.object({
   beats: z.array(z.object({ kind: z.enum(BEATS), summary: z.string().min(3).max(300) })).min(2).max(8),
   locations: z.array(LocationSchema).min(1).max(5),
   scenes: z.array(StorySceneSchema).min(1).max(8),
-  shots: z.array(ShotSchema).min(3).max(20),
+  // up to 60: a 3-minute story at ~5 s a shot (the AI director itself writes far fewer; the profile caps it)
+  shots: z.array(ShotSchema).min(3).max(60),
   keyVisuals: z.array(KeyVisualSchema).max(14),
+  /** Art direction for the 3D renderer ("cinematic", "semi-realistic", "family-animated", "indian-folk"); the profile's when absent. */
+  artStyle: z.string().max(40).optional(),
 });
 export type Story = z.infer<typeof StorySchema>;
 

@@ -30,7 +30,7 @@ export const generateShotVoices: StageFn = async (svc, ctx) => {
       if (ctx.signal?.aborted) throw new CancelledError();
       const voiceId = resolveVoiceId(d.characterId, project.characters, project.language, profile);
       const voice = tts.getVoice(voiceId);
-      const hash = stableHash({ text: spokenText(d.text), voiceId, model: voice.model, speaker: voice.speaker, scale: cin.voiceLengthScale, recipe: VOICE_RECIPE_VERSION });
+      const hash = stableHash({ text: spokenText(d.text), voiceId, model: voice.model, speaker: voice.speaker, scale: cin.voiceLengthScale, ...(voice.lengthScale !== undefined ? { voiceScale: voice.lengthScale } : {}), recipe: VOICE_RECIPE_VERSION });
       const id = voiceAudioId(d.id);
       const current = await svc.store.require(project.id);
       const existing = findAudio(current, id);

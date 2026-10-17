@@ -114,9 +114,13 @@ export function composeShot(inp: ComposeInput): ComposedShot {
     const r = resolveDirection(mover, objects);
     moverDir = r.dir;
     targetObject = r.object;
-    const m = placeAction(mover.when, mover.duration ?? Math.max(DEFAULT_DURATION[mover.action] ?? 0.7, D * (1 - 0.04) - 0.5), D);
-    moverEvent = m;
     const speed = (mover.action === "run" ? RUN_SPEED : WALK_SPEED) * (charH0 / 900);
+    let m = placeAction(mover.when, mover.duration ?? Math.max(DEFAULT_DURATION[mover.action] ?? 0.7, D * (1 - 0.04) - 0.5), D);
+    // a sideways walk crosses at most ~70% of the frame and then the character stands: the location picture is only a little
+    // wider than the frame, so a walk stretched over a long (spoken) shot would pan the camera past its edge
+    const sideways = !mover.duration && (mover.action === "walk" || mover.action === "run") && (moverDir === "right" || moverDir === "left" || moverDir === "object");
+    if (sideways && speed * m.duration * 0.9 > 0.7 * W) m = placeAction(mover.when, (0.7 * W) / (speed * 0.9), D);
+    moverEvent = m;
     const dist = Math.min(speed * m.duration * 0.9, 3000);
     if (moverDir === "right" || moverDir === "object") { startX = 0.15 * W; endX = startX + dist; }
     else if (moverDir === "left") { startX = 0.85 * W; endX = startX - dist; }

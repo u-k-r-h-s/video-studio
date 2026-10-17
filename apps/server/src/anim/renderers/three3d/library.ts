@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { Character } from "@studio/shared";
 import type { Cast3D } from "./compile";
+import { resolveSource, sourceDir } from "./discover";
 import type { PropSpec3D } from "./spec";
 
 /**
@@ -11,7 +12,19 @@ import type { PropSpec3D } from "./spec";
  */
 export const LIBRARY_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../../../../assets/3d/characters");
 
-export function characterFile(asset: string): string { return path.join(LIBRARY_DIR, asset, "character.glb"); }
+/**
+ * The GLB of a character asset key: the library model (assets/3d/characters/<key>/character.glb); for an external source
+ * (the AI character POC: "tripo", "meshy") a derived GLB in assets/3d/characters/ai-courier/<key>/ if one was made, else the
+ * character found in the provider's export folder (discover.ts). A missing external source throws a clear error; it never
+ * falls back to another character.
+ */
+export function characterFile(asset: string): string {
+  const lib = path.join(LIBRARY_DIR, asset, "character.glb");
+  if (existsSync(lib) || !sourceDir(asset)) return lib;
+  const derived = path.join(LIBRARY_DIR, "ai-courier", asset, "character.glb");
+  if (existsSync(derived)) return derived;
+  return resolveSource(asset).file;
+}
 export function libraryCharacters(): string[] {
   if (!existsSync(LIBRARY_DIR)) return [];
   return readdirSync(LIBRARY_DIR).filter((d) => existsSync(characterFile(d)));
@@ -24,9 +37,10 @@ const COLOURS: [RegExp, string][] = [
 const colourIn = (s: string): string | undefined => COLOURS.find(([re]) => re.test(s))?.[1];
 
 /** Base model per story character (the first library model, or one whose folder name appears in the character's words). */
-export function castFor(c: Character, available = libraryCharacters()): Cast3D {
+export function castFor(c: Character, available = libraryCharacters(), forced = process.env.STUDIO_3D_ASSET): Cast3D {
   const words = `${c.appearance} ${c.clothing ?? ""} ${c.description}`.toLowerCase();
-  const asset = available.find((a) => words.includes(a.replace(/-/g, " "))) ?? (available.includes("casual-man") ? "casual-man" : available[0] ?? "casual-man");
+  // `npm run short -- --renderer=3d --asset=<key>` plays every character with that asset (comparison runs)
+  const asset = forced ? forced : c.asset3d ? c.asset3d : available.find((a) => words.includes(a.replace(/-/g, " "))) ?? (available.includes("casual-man") ? "casual-man" : available[0] ?? "casual-man");
   const clothing = (c.clothing ?? "").toLowerCase();
   const [top, bottom] = clothing.split(/\band\b|,|with/).map((x) => x.trim());
   const wardrobe: Record<string, string> = {};

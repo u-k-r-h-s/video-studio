@@ -49,6 +49,10 @@ const P: Record<Exclude<LightingPreset, "day" | "warehouse" | "street" | "rain" 
   "rainy-night": { daylight: false, sun: ["#93a8d8", 0.5, 45, 140, 4, 2048], sky: { kind: "gradient", top: "#04070e", horizon: "#1c2638" }, fill: ["#283650", "#0a0b0d", 0.75], bounce: ["#141a26", 0.1], rim: ["#a0b8ff", 1.6], fog: ["#1a2333", 0.03], exposure: 1.5, env: 0.45, wet: 1 },
   "indoor-daylight": { daylight: true, sun: ["#fff6e8", 1.8, 35, 200, 6, 1024], sky: { kind: "gradient", top: "#cfd8e2", horizon: "#e6e3dc" }, fill: ["#dfe4ea", "#8e877a", 0.8], bounce: ["#f0e6d6", 0.3], rim: ["#ffffff", 0.4], fog: ["#dcdad4", 0.004], exposure: 0.8, env: 0.5, wet: 0 },
   "warm-interior": { daylight: false, sun: ["#ffd4a0", 2.0, 45, 160, 5, 1024], sky: { kind: "gradient", top: "#1a120c", horizon: "#3a2a1c" }, fill: ["#5a4433", "#20160e", 0.9], bounce: ["#ffb070", 0.25], rim: ["#ffb070", 0.8], fog: ["#2a1e15", 0.015], exposure: 1.2, env: 0.6, wet: 0 },
+  // dawn mist: a low pale sun behind haze, cool soft fill, dense ground fog (depth fades instead of a fog band)
+  "foggy-dawn": { daylight: true, sun: ["#ffd9b0", 1.1, 8, 110, 12, 1024], sky: { kind: "gradient", top: "#9aa8b8", horizon: "#e2d6c8" }, fill: ["#c9d2dc", "#6a6258", 0.95], bounce: ["#e8d2b8", 0.2], rim: ["#ffe0bc", 0.6], fog: ["#d6d2cc", 0.045], exposure: 0.85, env: 0.45, wet: 0.25 },
+  // a power cut at night: almost no ambient, a faint cold moon through the windows; the set's candle / lamp carries the scene
+  "power-outage": { daylight: false, sun: ["#8aa0d0", 0.15, 30, 230, 6, 1024], sky: { kind: "gradient", top: "#02040a", horizon: "#0b1222" }, fill: ["#18223a", "#06070a", 0.12], bounce: ["#1a1410", 0.05], rim: ["#7088c0", 0.5], fog: ["#05070c", 0.01], exposure: 1.1, env: 0.18, wet: 0 },
   "cold-interior": { daylight: false, sun: ["#cfe2ff", 1.8, 45, 200, 5, 1024], sky: { kind: "gradient", top: "#0d121a", horizon: "#253246" }, fill: ["#344766", "#101318", 0.8], bounce: ["#4a5a78", 0.2], rim: ["#9fc0ff", 0.9], fog: ["#141c28", 0.02], exposure: 1.3, env: 0.6, wet: 0 },
 };
 const ALIAS: Record<string, keyof typeof P> = { day: "sunny-day", warehouse: "cinematic-night", street: "night", rain: "rainy-night", horror: "cinematic-night" };
@@ -61,12 +65,16 @@ function gradientDome(top: string, horizon: string, ground: string): THREE.Mesh 
     vertexShader: "varying vec3 vW; void main(){ vW = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
     fragmentShader: "uniform vec3 top; uniform vec3 horizon; uniform vec3 ground; varying vec3 vW; void main(){ float h = vW.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(clamp(h,0.0,1.0), 0.6)) : mix(horizon, ground, clamp(-h*4.0,0.0,1.0)); gl_FragColor = vec4(c,1.0); }",
   });
-  return new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), mat);
+  // inside the camera's far plane (300 m): a bigger dome is clipped away and the sky renders black
+  return new THREE.Mesh(new THREE.SphereGeometry(240, 32, 16), mat);
 }
 
-export function applyLighting(scene: THREE.Scene, preset: LightingPreset, opts: { area?: number; center?: THREE.Vector3 } = {}): LightingRig {
+/** `sunAzimuth` (degrees) turns the sun around the set (the elevation, colour and strength stay the preset's: the time of
+ *  day is unchanged); the visual plan uses it to light an open landscape from the camera side or across it. */
+export function applyLighting(scene: THREE.Scene, preset: LightingPreset, opts: { area?: number; center?: THREE.Vector3; sunAzimuth?: number } = {}): LightingRig {
   const p = P[resolvePreset(preset)];
-  const [sc, si, elev, az, soft, size] = p.sun;
+  const [sc, si, elev, az0, soft, size] = p.sun;
+  const az = opts.sunAzimuth ?? az0;
   const e = THREE.MathUtils.degToRad(elev), a = THREE.MathUtils.degToRad(az);
   const sunDir = new THREE.Vector3(Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a)).normalize();
   const c = opts.center ?? new THREE.Vector3();
@@ -103,7 +111,8 @@ export function applyLighting(scene: THREE.Scene, preset: LightingPreset, opts: 
     scene.add(dome); envScene.add(gradientDome(p.sky.top, p.sky.horizon, p.fill[1]));
     background = new THREE.Color(p.sky.horizon);
   }
-  scene.background = null;
+  // a gradient sky also sets the clear colour (anything beyond the dome is sky, never black)
+  scene.background = p.sky.kind === "gradient" ? background.clone() : null;
   const fog = new THREE.FogExp2(p.fog[0], p.fog[1]);
   scene.fog = fog;
   return { key, fill, bounce, rim, exposure: p.exposure, background, fog, envScene, envIntensity: p.env, sunDir, wetness: p.wet, daylight: p.daylight, rimStrength: p.rim[1] };

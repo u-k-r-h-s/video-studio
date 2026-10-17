@@ -1,0 +1,12 @@
+{
+ "id": "t1", "duration": 9, "width": 1080, "height": 1920, "fps": 30, "seed": 5, "lighting": "golden-hour",
+ "environment": { "kind": "village", "objects": [{ "id": "door", "kind": "door", "x": 0, "z": -8, "params": { "width": 2.6, "height": 3.3, "hinge": "left" } }] },
+ "characters": [
+  { "id": "arjun", "asset": "rb-young-man", "start": { "x": -6.5, "z": 2.6, "heading": 1.5708 }, "expression": "happy",
+    "events": [ { "at": 0.3, "action": "walk", "target": { "x": -2.0, "z": 2.4 } }, { "at": 4.4, "action": "turn", "target": { "x": -0.6, "z": 3.4 } }, { "at": 4.6, "action": "look", "target": "meera", "duration": 4.4 } ] },
+  { "id": "meera", "asset": "rb-girl", "start": { "x": -0.6, "z": 3.4, "heading": -2.4 }, "expression": "neutral",
+    "events": [ { "at": 0, "action": "look", "target": "arjun", "duration": 9 }, { "at": 6.6, "action": "nod", "duration": 1.0 } ] }
+ ],
+ "camera": { "shot": "medium", "move": "follow", "target": "arjun", "front": { "x": 0, "z": 1 }, "frameWith": "meera", "angle": 0.9 },
+ "_voice": [ { "character": "arjun", "voice": "hi-rohan-young", "text": "मीरा, देखो! मुझे शहर में नौकरी मिल गई है।", "at": 5.0 } ]
+}

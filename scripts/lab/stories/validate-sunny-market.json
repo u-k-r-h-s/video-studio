@@ -1,0 +1,144 @@
+{
+ "_comment": "Validation B: sunny afternoon, vegetable market (story-driven environment)",
+ "language": "hi",
+ "artStyle": "family-animated",
+ "outline": {
+  "title": "Sabzi mandi",
+  "logline": "Arjun, Meera and Dadaji bargain over tomatoes at a busy afternoon market.",
+  "characters": [
+   {
+    "id": "meera",
+    "name": "Meera",
+    "role": "a curious 12-year-old girl, the youngest in the family",
+    "appearance": "a 12-year-old girl with dark hair and a headscarf",
+    "clothing": "green kurta and salwar with a maroon dupatta"
+   },
+   {
+    "id": "arjun",
+    "name": "Arjun",
+    "role": "Meera's cheerful elder brother, a young man of twenty",
+    "appearance": "a young man with short black hair and a cap",
+    "clothing": "blue and white hoodie with jeans"
+   },
+   {
+    "id": "dadaji",
+    "name": "Dadaji",
+    "role": "their grandfather, an old man, calm and funny",
+    "appearance": "an old man with grey hair and a grey beard",
+    "clothing": "green shirt under a beige vest"
+   }
+  ],
+  "locations": [
+   {
+    "id": "mandi",
+    "name": "Vegetable market",
+    "look": "a busy vegetable market bazaar with colourful stalls, crates of tomatoes and shop signs",
+    "lighting": "bright afternoon sun",
+    "timeOfDay": "day",
+    "weather": "sunny"
+   }
+  ]
+ },
+ "cast": {
+  "meera": {
+   "voice": "hi-priyamvada"
+  },
+  "arjun": {
+   "voice": "hi-rohan-young"
+  },
+  "dadaji": {
+   "voice": "hi-pratham-elder"
+  }
+ },
+ "shots": [
+  {
+   "beat": "hook",
+   "shotType": "medium-wide",
+   "location": "mandi",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun walks up to Dadaji at the stall, delighted.",
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "dadaji"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "arjun"
+      }
+     ]
+    },
+    {
+     "character": "meera"
+    }
+   ],
+   "line": {
+    "speaker": "arjun",
+    "text": "दादाजी, देखिए! आज टमाटर बहुत सस्ते हैं!"
+   }
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "mandi",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji laughs and wags a finger.",
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    },
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "surprise",
+       "when": "mid"
+      }
+     ]
+    }
+   ],
+   "line": {
+    "speaker": "dadaji",
+    "text": "सस्ते तो हैं बेटा, पर सब के सब पिलपिले हैं!"
+   }
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "mandi",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera giggles.",
+   "actions": [
+    {
+     "action": "smile",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ],
+   "line": {
+    "speaker": "meera",
+    "text": "तो चलिए, चटनी के लिए ले लेते हैं!"
+   }
+  }
+ ]
+}

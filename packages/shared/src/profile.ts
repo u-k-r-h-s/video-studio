@@ -49,6 +49,10 @@ export const AnimationSettingsSchema = z.object({
   maxPropKinds: z.number().int().min(0).max(8),
   /** Shot renderer: the 2D puppet engine (default) or rigged 3D characters in Three.js (`npm run short -- --renderer=3d`). */
   renderer: z.enum(["canvas2d", "three3d"]).optional(),
+  /** 3D casting prefers library models of this style ("semi-realistic", "stylized-lowpoly"); see config/characters3d.json. */
+  characterStyle: z.string().optional(),
+  /** Default art style of the 3D renderer when the story names none. */
+  artStyle: z.string().optional(),
   captions: z.object({ font: z.string(), size: z.number().int().min(20), maxWidth: z.number().int().min(200), stroke: z.number().min(0).max(20), highlight: z.string().regex(/^[0-9A-Fa-f]{6}$/), emphasisColour: z.string().regex(/^[0-9A-Fa-f]{6}$/) }),
   grade: z.object({ contrast: z.number(), saturation: z.number(), vignette: z.number(), grain: z.number(), bloom: z.number(), haze: z.number(), gamma: z.number() }).partial().optional(),
 });

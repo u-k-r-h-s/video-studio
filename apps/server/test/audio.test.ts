@@ -130,3 +130,22 @@ describe("soundtrack timeline", () => {
     expect(tracks.filter((t) => t.path.includes("whoosh"))).toHaveLength(1);
   });
 });
+
+import { soundtrackMood } from "../src/audio/soundtrack";
+import { ambientDay, warmBed } from "../src/audio/synth";
+describe("soundtrack mood", () => {
+  it("a night or mostly frightening story keeps the tension bed; a gentle daytime story gets the warm bed", () => {
+    const e = (xs: string[]) => xs.map((emotion) => ({ emotion })) as { emotion: never }[];
+    expect(soundtrackMood(e(["calm", "joy", "tense", "sad", "joy"]), false)).toBe("light");
+    expect(soundtrackMood(e(["calm", "joy", "fear", "tense", "sad"]), true)).toBe("dark"); // a frightening night
+    expect(soundtrackMood(e(["calm", "joy", "sad", "joy", "calm", "joy", "shock"]), true)).toBe("light"); // a warm evening at home
+    expect(soundtrackMood(e(["fear", "tense", "shock", "calm"]), false)).toBe("dark");
+  });
+  it("the warm bed and day ambience are finite, audible and the right length", () => {
+    for (const b of [warmBed(3), ambientDay(3)]) {
+      expect(b.length).toBe(3 * 44100);
+      expect(b.every((v) => Number.isFinite(v))).toBe(true);
+      expect(b.reduce((m, v) => Math.max(m, Math.abs(v)), 0)).toBeGreaterThan(0.2);
+    }
+  });
+});

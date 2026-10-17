@@ -1,0 +1,36 @@
+{
+  "_comment": "Short Three.js validation: all three characters on screen, one line in each character's voice. npm run short -- --plan scripts/lab/stories/colony-3d-validation.json --renderer=3d --seconds 10",
+  "language": "hi",
+  "outline": {
+    "title": "ग्रीन पार्क टेस्ट",
+    "logline": "A courier hands a parcel to a woman while an old farmer watches, a short test of three characters and three voices.",
+    "characters": [
+      { "id": "raju", "name": "Raju", "role": "a young, hurried parcel courier", "appearance": "a young man with short brown hair", "clothing": "red t-shirt with blue jeans" },
+      { "id": "sunita", "name": "Sunita", "role": "a sharp, kind schoolteacher who lives at house 42", "appearance": "a woman in her thirties with dark hair", "clothing": "green top with grey trousers" },
+      { "id": "ramdeen", "name": "Ramdeen Kaka", "role": "an old retired farmer, her neighbour, wise and watchful", "appearance": "an old man with a grey beard", "clothing": "brown farmer clothes with a straw hat" }
+    ],
+    "locations": [
+      { "id": "colony-street", "name": "Green Park colony", "look": "a quiet residential street of houses with lawns, a sidewalk and trees", "lighting": "bright warm morning sun", "timeOfDay": "day", "weather": "sunny" }
+    ]
+  },
+  "cast": {
+    "raju": { "asset": "casual-man", "voice": "hi-rohan-young" },
+    "sunita": { "asset": "woman-casual", "voice": "hi-priyamvada" },
+    "ramdeen": { "asset": "farmer", "voice": "hi-pratham-elder" }
+  },
+  "shots": [
+    { "beat": "hook", "shotType": "medium-wide", "location": "colony-street", "character": "raju", "emotion": "joy",
+      "action": "Raju walks up to Sunita carrying a parcel.", "actions": [{ "action": "walk", "when": "start", "toward": "sunita" }],
+      "objects": [{ "object": "parcel", "action": "hold", "when": "start" }],
+      "with": [{ "character": "sunita" }, { "character": "ramdeen", "actions": [{ "action": "look-left", "when": "mid" }] }],
+      "line": { "speaker": "raju", "text": "नमस्ते दीदी, आपका पार्सल!" } },
+    { "beat": "setup", "shotType": "medium", "location": "colony-street", "character": "sunita", "emotion": "joy",
+      "action": "Sunita nods and thanks him.", "actions": [{ "action": "nod", "when": "mid" }],
+      "with": [{ "character": "raju" }],
+      "line": { "speaker": "sunita", "text": "अरे वाह, बहुत धन्यवाद!" } },
+    { "beat": "payoff", "shotType": "medium-close", "location": "colony-street", "character": "ramdeen", "emotion": "joy",
+      "action": "Ramdeen Kaka waves at Raju approvingly.", "actions": [{ "action": "wave", "when": "mid", "toward": "raju" }],
+      "with": [{ "character": "raju", "actions": [{ "action": "nod", "when": "late" }] }],
+      "line": { "speaker": "ramdeen", "text": "शाबाश बेटा, समय पर आए।" } }
+  ]
+}

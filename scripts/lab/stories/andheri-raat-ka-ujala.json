@@ -1,0 +1,893 @@
+{
+ "_comment": "Original 3-minute Hindi family story for the story-driven Three.js renderer. Casting is automatic (characters3d catalog); voices explicit. npm run short -- --plan scripts/lab/stories/andheri-raat-ka-ujala.json --renderer=3d --seconds 180",
+ "language": "hi",
+ "artStyle": "cinematic",
+ "outline": {
+  "title": "अँधेरी रात का उजाला",
+  "logline": "A girl afraid of the dark, her over-confident brother and their wise grandfather get through a monsoon power cut with one candle and a shadow game.",
+  "characters": [
+   {
+    "id": "meera",
+    "name": "Meera",
+    "role": "a curious 12-year-old girl who is afraid of the dark",
+    "appearance": "a 12-year-old girl with dark hair and a headscarf",
+    "clothing": "green kurta and salwar with a maroon dupatta"
+   },
+   {
+    "id": "arjun",
+    "name": "Arjun",
+    "role": "Meera's cheerful, over-confident elder brother, a young man of twenty",
+    "appearance": "a young man with short black hair and a cap",
+    "clothing": "blue and white hoodie with jeans"
+   },
+   {
+    "id": "dadaji",
+    "name": "Dadaji",
+    "role": "their grandfather, an old man, calm, wise and gently funny",
+    "appearance": "an old man with grey hair and a grey beard",
+    "clothing": "green shirt under a beige vest"
+   }
+  ],
+  "locations": [
+   {
+    "id": "mandi",
+    "name": "Vegetable market",
+    "look": "a busy vegetable market bazaar with colourful stalls, crates of vegetables and shop signs",
+    "lighting": "bright afternoon sun",
+    "timeOfDay": "day",
+    "weather": "sunny"
+   },
+   {
+    "id": "aangan",
+    "name": "Village courtyard",
+    "look": "the courtyard of the family's village house with mud walls and a charpai, a monsoon storm",
+    "lighting": "a bulb over the door in heavy rain",
+    "timeOfDay": "night",
+    "weather": "rain"
+   },
+   {
+    "id": "ghar",
+    "name": "Living room",
+    "look": "the living room inside the family house during a power cut, only a candle burning",
+    "lighting": "candle light",
+    "timeOfDay": "night"
+   }
+  ]
+ },
+ "cast": {
+  "meera": {
+   "voice": "hi-priyamvada"
+  },
+  "arjun": {
+   "voice": "hi-rohan-young"
+  },
+  "dadaji": {
+   "voice": "hi-pratham-elder"
+  }
+ },
+ "shots": [
+  {
+   "beat": "hook",
+   "shotType": "establishing",
+   "location": "mandi",
+   "character": "",
+   "emotion": "calm",
+   "action": "A busy vegetable market in the bright afternoon sun."
+  },
+  {
+   "beat": "hook",
+   "shotType": "medium-wide",
+   "location": "mandi",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun walks up to Dadaji at the stall with a full bag of vegetables.",
+   "line": {
+    "speaker": "arjun",
+    "text": "दादाजी, सब्ज़ी हो गई। अब घर चलें? बहुत गर्मी है।"
+   },
+   "actions": [
+    {
+     "action": "walk",
+     "when": "start",
+     "toward": "dadaji"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji",
+     "actions": [
+      {
+       "action": "head-turn",
+       "when": "early",
+       "toward": "arjun"
+      }
+     ]
+    },
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "mandi",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji looks up at the sky and points to the clouds.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "रुको बेटा, पहले मोमबत्तियाँ ले लें। आसमान देखो, रात को तूफ़ान आएगा।"
+   },
+   "actions": [
+    {
+     "action": "point",
+     "when": "mid",
+     "toward": "the sky"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "look-up",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium-close",
+   "location": "mandi",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun laughs and shakes his head.",
+   "line": {
+    "speaker": "arjun",
+    "text": "तूफ़ान? दादाजी, इतनी धूप है! और बिजली तो हमारे गाँव में जाती ही नहीं।"
+   },
+   "actions": [
+    {
+     "action": "shake-head",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "close-up",
+   "location": "mandi",
+   "character": "meera",
+   "emotion": "uneasy",
+   "action": "Meera looks worried.",
+   "line": {
+    "speaker": "meera",
+    "text": "दादाजी, अगर सच में बिजली चली गई तो? मुझे अंधेरे से बहुत डर लगता है।"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "mandi",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji nods kindly at Meera.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "इसीलिए तो तैयारी करते हैं, बिटिया। तैयारी हो, तो डर छोटा हो जाता है।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium-wide",
+   "location": "mandi",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji picks up a packet of candles from the stall.",
+   "actions": [
+    {
+     "action": "reach",
+     "when": "early"
+    }
+   ],
+   "objects": [
+    {
+     "object": "packet of candles",
+     "action": "hold",
+     "when": "start"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "close-up",
+   "location": "mandi",
+   "character": "meera",
+   "emotion": "curious",
+   "action": "Meera tugs at Dadaji's sleeve as they walk.",
+   "line": {
+    "speaker": "meera",
+    "text": "दादाजी, आपको हमेशा पहले से कैसे पता चल जाता है?"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "mandi",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji chuckles and taps his nose.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "सत्तर साल से आसमान पढ़ रहा हूँ, बिटिया। बादल भी बातें करते हैं।"
+   },
+   "actions": [
+    {
+     "action": "smile",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "setup",
+   "shotType": "medium",
+   "location": "mandi",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun shrugs, smiles and waves Meera along.",
+   "line": {
+    "speaker": "arjun",
+    "text": "ठीक है दादाजी, जैसा आप कहें। चलो मीरा, घर चलते हैं!"
+   },
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "establishing",
+   "location": "aangan",
+   "character": "",
+   "emotion": "tense",
+   "action": "Night. Heavy monsoon rain lashes the courtyard of the village house."
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium-wide",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "tense",
+   "action": "Meera stares up at the stormy sky.",
+   "line": {
+    "speaker": "meera",
+    "text": "भैया, देखो! कितनी तेज़ बारिश है, और बिजली कड़क रही है।"
+   },
+   "actions": [
+    {
+     "action": "look-up",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "look-up",
+       "when": "mid"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium",
+   "location": "aangan",
+   "character": "arjun",
+   "emotion": "shock",
+   "action": "Arjun is surprised by the storm.",
+   "line": {
+    "speaker": "arjun",
+    "text": "अरे, ये तो सच में तूफ़ान आ गया! दादाजी सही थे।"
+   },
+   "actions": [
+    {
+     "action": "surprise",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "curiosity",
+   "shotType": "medium-close",
+   "location": "aangan",
+   "character": "dadaji",
+   "emotion": "uneasy",
+   "action": "Dadaji calls from the doorway and waves them in.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "बच्चों, जल्दी अंदर आओ। ऐसे तूफ़ान में तार टूट जाते हैं।"
+   },
+   "actions": [
+    {
+     "action": "wave",
+     "when": "mid",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "establishing",
+   "location": "ghar",
+   "character": "",
+   "emotion": "eerie",
+   "action": "The power is out. The living room is dark except for one candle."
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "fear",
+   "action": "Meera stands frozen in the dark room.",
+   "line": {
+    "speaker": "meera",
+    "text": "बिजली चली गई! भैया, कितना अंधेरा है। मुझे डर लग रहा है।"
+   },
+   "actions": [
+    {
+     "action": "step-back",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "shock",
+   "action": "Arjun checks his phone and it is dead.",
+   "line": {
+    "speaker": "arjun",
+    "text": "रुको, मैं फ़ोन की रोशनी जलाता हूँ... अरे! बैटरी भी ख़त्म।"
+   },
+   "actions": [
+    {
+     "action": "hold-phone",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium-close",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji smiles in the candlelight.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "घबराओ मत। देखो, मोमबत्ती जल रही है। वही, जो आज मंडी से लाए थे।"
+   },
+   "actions": [
+    {
+     "action": "point",
+     "when": "mid",
+     "toward": "the candle"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "look-right",
+       "when": "mid"
+      }
+     ]
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "sad",
+   "action": "Arjun looks down, embarrassed.",
+   "line": {
+    "speaker": "arjun",
+    "text": "दादाजी, आप सही थे। और मैं आपका मज़ाक उड़ा रहा था।"
+   },
+   "actions": [
+    {
+     "action": "look-down",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "conflict",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji nods gently at Arjun.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "कोई बात नहीं बेटा। समझ धीरे-धीरे ही आती है।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "nod",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "curious",
+   "action": "Meera looks at Dadaji with big eyes.",
+   "line": {
+    "speaker": "meera",
+    "text": "पर दादाजी, अंधेरे में डर क्यों लगता है?"
+   },
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji explains softly.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "क्योंकि अंधेरे में हम कुछ देख नहीं पाते, और मन अपनी कहानियाँ बनाने लगता है।"
+   },
+   "actions": [
+    {
+     "action": "hand-gesture",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji remembers his childhood.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "जब मैं तुम्हारी उम्र का था, गाँव में बिजली ही नहीं थी। हम रोज़ दीये की रोशनी में पढ़ते थे।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "awe",
+   "action": "Meera's eyes go wide.",
+   "line": {
+    "speaker": "meera",
+    "text": "रोज़? सच में, दादाजी? बिना बिजली के?"
+   },
+   "actions": [
+    {
+     "action": "surprise",
+     "when": "early"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-close",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "curious",
+   "action": "Meera thinks about it.",
+   "line": {
+    "speaker": "meera",
+    "text": "तो फिर डर को भगाएँ कैसे?"
+   },
+   "actions": [
+    {
+     "action": "head-turn",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji reaches out his hand to Meera.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "एक छोटी सी रोशनी जलाओ, और किसी अपने का हाथ पकड़ लो। बस इतना ही।"
+   },
+   "actions": [
+    {
+     "action": "reach",
+     "when": "mid",
+     "toward": "meera"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "medium-wide",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera smiles for the first time tonight.",
+   "line": {
+    "speaker": "meera",
+    "text": "जैसे अभी! मोमबत्ती भी है, और आप दोनों भी।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "dadaji"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "escalation",
+   "shotType": "close-up",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun grins and raises his hands.",
+   "line": {
+    "speaker": "arjun",
+    "text": "और सुनो छोटी, चलो परछाइयों का खेल खेलते हैं!"
+   },
+   "actions": [
+    {
+     "action": "raise-hand",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera makes a shadow animal with her hands.",
+   "line": {
+    "speaker": "meera",
+    "text": "देखो भैया, ये रहा मेरा हाथी! सूँड़ हिलाता हुआ।"
+   },
+   "actions": [
+    {
+     "action": "hand-gesture",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun",
+     "actions": [
+      {
+       "action": "smile",
+       "when": "late"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "ghar",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun laughs and makes a roaring tiger.",
+   "line": {
+    "speaker": "arjun",
+    "text": "हा हा! और ये रहा मेरा शेर, दहाड़ता हुआ!"
+   },
+   "actions": [
+    {
+     "action": "raise-hand",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera",
+     "actions": [
+      {
+       "action": "surprise",
+       "when": "mid"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-close",
+   "location": "ghar",
+   "character": "dadaji",
+   "emotion": "joy",
+   "action": "Dadaji chuckles warmly.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "देखा? थोड़ी सी रोशनी से अंधेरा भी खेल बन गया।"
+   },
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "establishing",
+   "location": "aangan",
+   "character": "",
+   "emotion": "calm",
+   "action": "Later. The rain keeps falling on the quiet courtyard."
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-wide",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "calm",
+   "action": "Meera stands at the doorway watching the rain, calm now.",
+   "line": {
+    "speaker": "meera",
+    "text": "बारिश अब भी हो रही है... पर अब मुझे बिल्कुल डर नहीं लग रहा।"
+   },
+   "actions": [
+    {
+     "action": "look-up",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium",
+   "location": "aangan",
+   "character": "arjun",
+   "emotion": "joy",
+   "action": "Arjun pats her shoulder proudly.",
+   "line": {
+    "speaker": "arjun",
+    "text": "सच? हमारी डरपोक मीरा अब बहादुर हो गई!"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "mid"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "close-up",
+   "location": "aangan",
+   "character": "meera",
+   "emotion": "joy",
+   "action": "Meera beams.",
+   "line": {
+    "speaker": "meera",
+    "text": "हाँ! क्योंकि मुझे पता है, अंधेरे के बाद उजाला ज़रूर आता है।"
+   },
+   "with": [
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "medium-wide",
+   "location": "aangan",
+   "character": "dadaji",
+   "emotion": "calm",
+   "action": "Dadaji joins them at the door.",
+   "line": {
+    "speaker": "dadaji",
+    "text": "और जब तैयारी हो, तो अंधेरा भी किसी को डरा नहीं पाता।"
+   },
+   "actions": [
+    {
+     "action": "nod",
+     "when": "late"
+    }
+   ],
+   "with": [
+    {
+     "character": "meera"
+    },
+    {
+     "character": "arjun"
+    }
+   ]
+  },
+  {
+   "beat": "payoff",
+   "shotType": "wide",
+   "location": "aangan",
+   "character": "",
+   "emotion": "calm",
+   "action": "The rain falls softly on the courtyard at night."
+  }
+ ]
+}
