@@ -1,0 +1,115 @@
+{
+ "id": "v6-land",
+ "duration": 8,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "seed": 33,
+ "lighting": "sunny-day",
+ "environment": {
+  "kind": "nature",
+  "objects": [
+   {
+    "id": "door",
+    "kind": "door",
+    "x": 0,
+    "z": -8
+   }
+  ],
+  "weather": {
+   "wind": 0.6
+  },
+  "world": {
+   "landscape": {
+    "relief": "hills",
+    "water": "lake",
+    "forest": 0.55,
+    "grass": 0.8
+   },
+   "sky": {
+    "clouds": 8,
+    "cloudSpeed": 3,
+    "birds": 8
+   }
+  }
+ },
+ "characters": [
+  {
+   "id": "meera",
+   "asset": "rb-girl",
+   "start": {
+    "x": -0.8,
+    "z": -17,
+    "heading": 3.1
+   },
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": {
+      "x": -8,
+      "y": 6,
+      "z": -90
+     },
+     "duration": 8
+    }
+   ]
+  },
+  {
+   "id": "dadaji",
+   "asset": "rb-elder-man",
+   "start": {
+    "x": 0.6,
+    "z": -17.4,
+    "heading": 3.0
+   },
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "meera",
+     "duration": 8
+    }
+   ]
+  }
+ ],
+ "camera": {
+  "shot": "wide",
+  "move": "static",
+  "target": "meera",
+  "fixed": {
+   "position": [
+    7,
+    2.4,
+    1
+   ],
+   "lookAt": [
+    -2,
+    3.2,
+    -90
+   ],
+   "fov": 48,
+   "to": {
+    "position": [
+     3,
+     1.9,
+     -6
+    ],
+    "lookAt": [
+     -9,
+     4,
+     -90
+    ]
+   }
+  }
+ },
+ "_voice": [
+  {
+   "character": "meera",
+   "voice": "hi-priyamvada",
+   "text": "दादाजी, झील कितनी शांत है।",
+   "at": 2.0
+  }
+ ],
+ "sunAzimuth": 30
+}

@@ -1,0 +1,215 @@
+{
+ "id": "v5-vil",
+ "duration": 8,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "seed": 3,
+ "lighting": "golden-hour",
+ "sunAzimuth": 230,
+ "environment": {
+  "kind": "village",
+  "objects": [
+   {
+    "id": "door",
+    "kind": "door",
+    "x": 0,
+    "z": -8,
+    "params": {
+     "width": 1.15,
+     "height": 2.15,
+     "hinge": "left"
+    }
+   }
+  ],
+  "world": {
+   "sky": {
+    "clouds": 7,
+    "cloudSpeed": 2,
+    "birds": 6
+   }
+  },
+  "interactions": {
+   "handpump": {
+    "from": 1.0,
+    "to": 7.5
+   }
+  },
+  "animals": [
+   {
+    "id": "dog",
+    "asset": "dog-shiba",
+    "path": [
+     {
+      "at": 0,
+      "x": -8.5,
+      "z": 1.4
+     },
+     {
+      "at": 0.6,
+      "x": -8.5,
+      "z": 1.4
+     },
+     {
+      "at": 5.4,
+      "x": -3.7,
+      "z": 4.4
+     },
+     {
+      "at": 8,
+      "x": -3.7,
+      "z": 4.4
+     }
+    ],
+    "face": [
+     {
+      "at": 6.2,
+      "x": -2.2,
+      "z": 2.8
+     }
+    ],
+    "actions": [
+     {
+      "at": 6.6,
+      "duration": 1.2,
+      "clip": "idle2"
+     }
+    ]
+   },
+   {
+    "id": "cat",
+    "asset": "cat",
+    "path": [
+     {
+      "at": 0,
+      "x": 5.8,
+      "z": -5.6
+     },
+     {
+      "at": 2.0,
+      "x": 5.8,
+      "z": -5.6
+     },
+     {
+      "at": 5.5,
+      "x": 3.2,
+      "z": -4.4
+     },
+     {
+      "at": 8,
+      "x": 3.2,
+      "z": -4.4
+     }
+    ],
+    "actions": [
+     {
+      "at": 5.9,
+      "duration": 2,
+      "clip": "eat"
+     }
+    ]
+   }
+  ]
+ },
+ "characters": [
+  {
+   "id": "arjun",
+   "asset": "rb-young-man",
+   "start": {
+    "x": -2.85,
+    "z": 2.6,
+    "heading": 1.4
+   },
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "dadaji",
+     "duration": 8
+    }
+   ]
+  },
+  {
+   "id": "dadaji",
+   "asset": "rb-elder-man",
+   "start": {
+    "x": -1.7,
+    "z": 3.05,
+    "heading": -1.9
+   },
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": "arjun",
+     "duration": 5.5
+    },
+    {
+     "at": 5.6,
+     "action": "look",
+     "target": {
+      "x": -3.6,
+      "y": 0.4,
+      "z": 4.6
+     },
+     "duration": 2.4
+    }
+   ]
+  },
+  {
+   "id": "meera",
+   "asset": "rb-girl",
+   "start": {
+    "x": 2.48,
+    "z": -2.62,
+    "heading": 1.5708
+   },
+   "events": [
+    {
+     "at": 0,
+     "action": "reach",
+     "target": "pump-handle",
+     "duration": 8
+    }
+   ]
+  }
+ ],
+ "camera": {
+  "shot": "wide",
+  "move": "static",
+  "target": "arjun",
+  "fixed": {
+   "position": [
+    -5.5,
+    1.75,
+    7.2
+   ],
+   "lookAt": [
+    -8.0,
+    1.15,
+    -3.5
+   ],
+   "fov": 50,
+   "to": {
+    "position": [
+     2.0,
+     1.7,
+     6.2
+    ],
+    "lookAt": [
+     3.6,
+     1.0,
+     -2.9
+    ]
+   }
+  }
+ },
+ "_voice": [
+  {
+   "character": "dadaji",
+   "voice": "hi-pratham-elder",
+   "text": "शाम हो गई। मीरा, पानी भर लाओ।",
+   "at": 1.2
+  }
+ ]
+}

@@ -4,6 +4,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import type { Cue3D, Shot3DSpec, Target } from "../spec";
 import { CinematicCamera } from "./camera";
 import { Character3D, type World } from "./character";
+import { Animal3D } from "./animal";
 import { buildSet } from "./environment";
 import { applyLighting } from "./lighting";
 
@@ -133,6 +134,14 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
       scene.add(c.root); extras.push(c);
     }
   }
+  // animals from the registry (the host resolved their files, clip names and height)
+  const animals: Animal3D[] = [];
+  for (const as of spec.environment.animals ?? []) {
+    const b64 = assets.characters[`animal:${as.asset}`];
+    if (!b64 || !as.clips) { console.warn(`[three3d] animal "${as.id}": asset "${as.asset}" not delivered, skipped`); continue; }
+    const a = new Animal3D(as, await loadGlb(`animal:${as.asset}`, b64), as.clips, as.height ?? 0.5);
+    scene.add(a.root); animals.push(a);
+  }
   if (spec.style?.shading === "toon") toonShade(scene);
   cam = new CinematicCamera(spec.camera, spec.width / spec.height, spec.duration, (id) => {
     const c = chars.get(id);
@@ -158,6 +167,8 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
     if (i !== last + 1) throw new Error(`frames must be simulated in order (got ${i} after ${last})`);
     last = i;
     const t = i * dt, step = i === 0 ? 0 : dt;
+    set.pre(t);
+    for (const a of animals) a.update(t);
     for (const c of chars.values()) c.update(t, step);
     for (const c of extras) c.update(t, step);
     const camera = cam!.step(t, i === 0 ? 1 : dt);
@@ -214,7 +225,7 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
       setupMs: Math.round(setupMs), glbLoadMs: loadMs, renderMs: Math.round(renderMs), triangles: renderer.info.render.triangles, drawCalls: renderer.info.render.calls,
       geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
       ...(spec.trace ? { trace } : {}),
-      world: { ...set.info, pedestrians: extras.length },
+      world: { ...set.info, pedestrians: extras.length, animals: animals.map((a) => a.spec.id) },
       ...(spec.trace ? { particles: (() => { const out: string[] = []; scene.traverse((o) => { const pt = o as THREE.Points; if (pt.isPoints && pt.geometry.attributes.aAlpha) { const a = pt.geometry.attributes.aAlpha.array as Float32Array, p = pt.geometry.attributes.position!.array as Float32Array; let n = 0, mx = 0, k = -1; for (let i = 0; i < a.length; i++) if (a[i]! > 0.001) { n++; if (a[i]! > mx) { mx = a[i]!; k = i; } } let near = 0, nearMax = 0, ex = ""; for (let i = 0; i < a.length; i++) if (a[i]! > 0.001 && Math.abs(p[i * 3]! - cam!.camera.position.x) < 15) { near++; if (a[i]! > nearMax) { nearMax = a[i]!; ex = `${p[i * 3]!.toFixed(1)},${p[i * 3 + 1]!.toFixed(2)},${p[i * 3 + 2]!.toFixed(1)} size ${(pt.geometry.attributes.aSize!.array as Float32Array)[i]!.toFixed(2)}`; } }
               out.push(`near camera: ${near} visible, max alpha ${nearMax.toFixed(2)} at ${ex}`);
               out.push(`${a.length} pts, ${n} visible, max alpha ${mx.toFixed(2)}${k >= 0 ? ` at ${p[k * 3]!.toFixed(1)},${p[k * 3 + 1]!.toFixed(2)},${p[k * 3 + 2]!.toFixed(1)} size ${(pt.geometry.attributes.aSize!.array as Float32Array)[k]!.toFixed(2)}` : ""} visible=${pt.visible} parentVisible=${pt.parent?.visible}`); } }); return out; })() } : {}),

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { KitCtx, Clamp } from "../kits";
 import type { WorldSpec3D } from "../../spec";
-import { forest, grass, lake, river, sea, terrain, waterfall, type Terrain, type WorldCtx } from "./nature";
+import { forest, grass, lake, lakeDist, river, sea, terrain, waterfall, type Terrain, type WorldCtx } from "./nature";
 
 /**
  * The open-country kit: the action stands on level ground (a meadow, a riverbank, a beach) in front of the camera; behind
@@ -21,19 +21,20 @@ export function natureKit(ctx: KitCtx, w: WorldCtx, L: Landscape): { clamp: Clam
   const shoreZ = L.water === "sea" ? -9 : undefined;
   const t = terrain(w, {
     relief: L.water === "sea" ? "flat" : L.relief, pad, snow: L.snow,
-    ...(hasRiver ? { river: { z: riverZ, width: 13 } } : {}), ...(lakeShape ? { lake: lakeShape } : {}), ...(shoreZ !== undefined ? { sea: { shoreZ } } : {}),
+    ...(hasRiver ? { river: { z: riverZ, width: 17 } } : {}), ...(lakeShape ? { lake: lakeShape } : {}), ...(shoreZ !== undefined ? { sea: { shoreZ } } : {}),
     ...(L.water === "sea" ? { palette: { grass: "#7f8f4a", dry: "#b8a66a" } } : {}),
   });
-  if (hasRiver) river(w, t, { z: riverZ, width: 13 });
+  if (hasRiver) river(w, t, { z: riverZ, width: 17 });
   if (lakeShape) lake(w, t, lakeShape);
   if (shoreZ !== undefined) sea(w, t, { shoreZ });
   if (L.water === "waterfall") waterfall(w, t, { x: 26, z: -58, height: 24, width: 6 });
 
   const inWater = (x: number, z: number): boolean =>
-    (hasRiver && Math.abs(z - riverZ(x)) < 9.5) || (!!lakeShape && Math.hypot((x - lakeShape.cx) / lakeShape.rx, (z - lakeShape.cz) / lakeShape.rz) < 1.15) || (shoreZ !== undefined && z < shoreZ + 3);
+    (hasRiver && Math.abs(z - riverZ(x)) < 11.5) || (!!lakeShape && lakeDist(lakeShape, x, z) < 1.12) || (shoreZ !== undefined && z < shoreZ + 3);
   const onStage = (x: number, z: number): boolean => Math.hypot((x - pad.x) / (pad.rx * 0.9), (z - pad.z) / (pad.rz * 0.9)) < 1;
   const inView = (x: number, z: number): boolean => z > 12 && Math.abs(x) < 30; // between the camera and the actors
-  const free = (x: number, z: number): boolean => !inWater(x, z) && !onStage(x, z) && !inView(x, z);
+  const steep = (x: number, z: number): boolean => { const y = t.height(x, z); return Math.abs(t.height(x + 2, z) - y) + Math.abs(t.height(x, z + 2) - y) > 2.4 || y > (L.relief === "mountains" ? 34 : 60); };
+  const free = (x: number, z: number): boolean => !inWater(x, z) && !onStage(x, z) && !inView(x, z) && !steep(x, z);
 
   const kind = L.palms || L.water === "sea" ? "palm" : L.relief === "mountains" || L.snow ? "conifer" : "broadleaf";
   const density = L.forest ?? 0.5;
@@ -41,9 +42,10 @@ export function natureKit(ctx: KitCtx, w: WorldCtx, L: Landscape): { clamp: Clam
     // the forest climbs the far slopes (it frames the mountains instead of hiding them); near the water only clumps
     info.treesFar = forest(w, t, { kind, count: Math.round(900 * density), area: { x0: -230, x1: 230, z0: -200, z1: -40 }, free, scale: [0.9, 1.7] });
     info.treesNear = forest(w, t, { kind, count: Math.round(45 * density), area: { x0: -80, x1: 80, z0: -32, z1: 26 }, free: (x, z) => free(x, z) && Math.abs(x) > 19, scale: [0.9, 1.4] });
+    if (kind === "broadleaf" && L.relief !== "flat") info.conifer = forest(w, t, { kind: "conifer", count: Math.round(160 * density), area: { x0: -230, x1: 230, z0: -200, z1: -60 }, free, scale: [0.8, 1.3] });
     if (kind === "conifer") info.broadleaf = forest(w, t, { kind: "broadleaf", count: Math.round(40 * density), area: { x0: -90, x1: 90, z0: -36, z1: 25 }, free: (x, z) => free(x, z) && Math.abs(x) > 17, scale: [0.8, 1.2] });
   }
-  if ((L.grass ?? 0.7) > 0 && L.water !== "sea") info.grassBlades = grass(w, t, { count: Math.round(30000 * (L.grass ?? 0.7)), area: { x0: -24, x1: 24, z0: -9, z1: 13 }, free: (x, z) => !inWater(x, z) });
+  if ((L.grass ?? 0.7) > 0 && L.water !== "sea") info.grassBlades = grass(w, t, { count: Math.round(30000 * (L.grass ?? 0.7)), area: { x0: -24, x1: 24, z0: -9, z1: 13 }, free: (x, z) => !inWater(x, z) && !(z > 7 && Math.abs(x) < 9) });
   if (L.crop) info.cropPlants = grass(w, t, { count: 22000, crop: L.crop, area: { x0: -70, x1: 70, z0: hasRiver ? -60 : -40, z1: hasRiver ? -24 : -11 }, free: (x, z) => !inWater(x, z) });
   // aerial perspective: distant land fades into the sky colour (the presets leave clear days without haze)
   const scene = w.scene;

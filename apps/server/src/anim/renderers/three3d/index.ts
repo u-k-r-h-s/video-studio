@@ -6,6 +6,7 @@ import path from "node:path";
 import { animPostGraph } from "../../video";
 import type { ClipOptions, RenderResult, ShotRenderer } from "../types";
 import type { Shot3DSpec } from "./spec";
+import { resolveAsset } from "./assets";
 
 /**
  * The Three.js shot renderer. The runtime (./runtime, bundled once with esbuild) runs in a headless Google Chrome page
@@ -72,6 +73,16 @@ export class Three3DRenderer implements ShotRenderer<Shot3DSpec> {
       if (!existsSync(file)) throw new Error(`3D character "${c.asset}" not found at ${file}`);
       characters[c.asset] = (await fs.readFile(file)).toString("base64");
     }
+    // animals: the registry resolves the file, the clip names and the height; a missing asset is reported, not fatal
+    for (const a of spec.environment.animals ?? []) {
+      const res = resolveAsset(a.asset);
+      if (res.problem) console.warn(`[three3d] ${res.problem}`);
+      if (!res.file || !res.entry) continue;
+      a.clips ??= res.entry.clips ?? {}; a.height ??= res.entry.height;
+      const key = `animal:${a.asset}`;
+      if (this.loaded.has(key) || characters[key] !== undefined) { characters[key] ??= ""; continue; }
+      characters[key] = (await fs.readFile(res.file)).toString("base64");
+    }
     const images: Record<string, string> = {};
     for (const key of [spec.environment.backdrop, spec.environment.wallTexture, spec.environment.groundTexture]) {
       if (!key) continue;
@@ -120,7 +131,7 @@ export class Three3DRenderer implements ShotRenderer<Shot3DSpec> {
       w.shot?.dispose();
       w.shot = (await w.studio3d.createShot(s, { characters: w.models, images: a.images })) as { dispose(): void };
     }, spec as unknown, assets);
-    for (const a of [...spec.characters.map((c) => c.asset), ...(spec.environment.world?.pedestrians?.assets ?? [])]) this.loaded.add(a);
+    for (const a of [...spec.characters.map((c) => c.asset), ...(spec.environment.world?.pedestrians?.assets ?? []), ...(spec.environment.animals ?? []).map((x) => `animal:${x.asset}`)]) this.loaded.add(a);
     return page;
   }
 

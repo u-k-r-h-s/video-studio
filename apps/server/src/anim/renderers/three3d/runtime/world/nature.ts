@@ -83,6 +83,13 @@ function detailTex(seed: number): THREE.CanvasTexture {
 }
 
 // ---------- terrain ----------
+/** Normalised distance from a lake's centre with an irregular shoreline (bays and points from a few angular lobes):
+ *  1 = the water's edge. The terrain basin, the shore colour, the water mesh and placement all use this one function. */
+export function lakeDist(o: { cx: number; cz: number; rx: number; rz: number }, x: number, z: number): number {
+  const dx = (x - o.cx) / o.rx, dz = (z - o.cz) / o.rz, a = Math.atan2(dz, dx);
+  const lobes = 1 + 0.1 * Math.sin(3 * a + 0.7) + 0.06 * Math.sin(5 * a + 2.1) + 0.04 * Math.sin(9 * a + 4.0);
+  return Math.hypot(dx, dz) / lobes;
+}
 export interface TerrainOptions {
   relief: "flat" | "hills" | "mountains";
   /** River centre line z(x) and width; a lake ellipse; a sea beyond a shoreline (z of the water's edge). */
@@ -98,26 +105,37 @@ export interface TerrainOptions {
 export interface Terrain { mesh: THREE.Mesh; height: (x: number, z: number) => number; waterLevel: number }
 
 export function terrain(ctx: WorldCtx, o: TerrainOptions): Terrain {
-  const n = new Noise2D(ctx.seed), n2 = new Noise2D(ctx.seed + 7);
+  const n = new Noise2D(ctx.seed), n2 = new Noise2D(ctx.seed + 7), n3 = new Noise2D(ctx.seed + 19);
   // heights that leave sky above the ridge in a 9:16 frame from eye level (the range is ~230 m away: ~15 degrees up)
-  const H = o.relief === "mountains" ? 75 : o.relief === "hills" ? 26 : 6;
+  const H = o.relief === "mountains" ? 85 : o.relief === "hills" ? 30 : 6;
   const waterLevel = -0.45;
   const height = (x: number, z: number): number => {
     let h = 0.45 * n.fbm(x * 0.045, z * 0.045, 4);
     const pd = Math.hypot((x - o.pad.x) / o.pad.rx, (z - o.pad.z) / o.pad.rz);
     h *= smoothstep(0.8, 1.6, pd); // the stage is level
-    if (o.river) { const d = Math.abs(z - o.river.z(x)), half = o.river.width / 2; h -= 1.6 * (1 - smoothstep(half - 1, half + 3.5, d)); }
-    if (o.lake) { const d = Math.hypot((x - o.lake.cx) / o.lake.rx, (z - o.lake.cz) / o.lake.rz); h -= 2.2 * (1 - smoothstep(0.85, 1.12, d)); }
+    // a river channel: a deeper middle and sloping banks (a flat 1.6 m trough read as a puddle strip)
+    if (o.river) { const d = Math.abs(z - o.river.z(x)), half = o.river.width / 2; h -= 1.1 * (1 - smoothstep(half - 0.5, half + 4, d)) + 1.3 * (1 - smoothstep(0, half, d)); }
+    if (o.lake) { const d = lakeDist(o.lake, x, z); h -= 2.2 * (1 - smoothstep(0.88, 1.08, d)); }
     if (o.sea) h -= 3.5 * smoothstep(o.sea.shoreZ + 4, o.sea.shoreZ - 14, z);
     // the far relief: behind the action and to the sides, rising with distance; ridged crests for mountains
     const R = Math.hypot(x, z);
     // the range stands well back (rising from ~90 m, full height at ~230 m): it reads as distant mountains under the sky,
     // not as a wall behind the actors
-    const back = smoothstep(-80, -235, z), side = smoothstep(110, 230, Math.abs(x)) * 0.85, front = smoothstep(90, 220, z) * 0.35;
-    const m = Math.max(back, side, front) * smoothstep(90, 230, R);
+    // hills stand closer than mountains (their crests are 100-200 m away, mountains 150-280 m)
+    const near = o.relief === "hills" ? 0.78 : 1;
+    const back = smoothstep(-80 * near, -235 * near, z), side = smoothstep(110 * near, 230 * near, Math.abs(x)) * 0.85, front = smoothstep(90, 220, z) * 0.35;
+    const m = Math.max(back, side, front) * smoothstep(90 * near, 230 * near, R);
+    // layered relief: rolling midground hills (40-110 m) in front of the far range, so the land steps back in planes
+    if (o.relief !== "flat" && !(o.sea && z < o.sea.shoreZ)) {
+      const mid = smoothstep(-35, -70, z) * (1 - smoothstep(-110, -150, z)) * smoothstep(40, 70, R);
+      if (mid > 0) h += mid * (o.relief === "mountains" ? 9 : 7) * (0.5 + 0.5 * n3.fbm(x * 0.018 + 5, z * 0.018, 3)) * (o.lake && lakeDist(o.lake, x, z) < 1.25 ? 0 : 1);
+    }
     if (m > 0 && !(o.sea && z < o.sea.shoreZ)) {
-      const ridge = o.relief === "mountains" ? n2.ridged(x * 0.009, z * 0.009) : 0.5 + 0.5 * n2.fbm(x * 0.012, z * 0.012, 4);
-      h += m * H * (0.35 + 0.9 * ridge) * (o.relief === "flat" ? 0.3 : 1);
+      // domain-warped ridges (no two crests alike) under a range-scale profile: peaks, saddles and lower spurs
+      const wx = x + 40 * n3.fbm(x * 0.004, z * 0.004, 3), wz = z + 40 * n3.fbm(x * 0.004 + 9, z * 0.004 + 9, 3);
+      const ridge = o.relief === "mountains" ? n2.ridged(wx * 0.008, wz * 0.008) : 0.5 + 0.5 * n2.fbm(wx * 0.012, wz * 0.012, 4);
+      const range = 0.55 + 0.6 * (0.5 + 0.5 * n3.fbm(x * 0.0035 + 3, 0.7, 3));
+      h += m * H * range * (0.3 + 0.95 * ridge) * (o.relief === "flat" ? 0.3 : 1);
     }
     return h;
   };
@@ -132,12 +150,21 @@ export function terrain(ctx: WorldCtx, o: TerrainOptions): Terrain {
     const slope = Math.min(1, (Math.abs(height(x + 1, z) - y) + Math.abs(height(x, z + 1) - y)) * 0.9);
     const v = n.at(x * 0.11, z * 0.11) * 0.5 + 0.5;
     c.copy(pal.grass).lerp(pal.dry, Math.min(1, v * 0.6 + Math.max(0, y) / (H * 1.4)));
-    // forested lower slopes, bare rock only where it is both steep and high
-    c.lerp(new THREE.Color("#3d5a32"), smoothstep(2, 12, y) * (1 - smoothstep(H * 0.45, H * 0.7, y)) * 0.7);
-    c.lerp(pal.rock, smoothstep(0.55, 1.1, slope) * smoothstep(H * 0.3, H * 0.55, y));
-    if (o.snow) c.lerp(pal.snow, smoothstep(H * 0.55, H * 0.72, y + n.at(x * 0.05, z * 0.05) * 8));
-    if (o.river && Math.abs(z - o.river.z(x)) < o.river.width / 2 + 2.6) c.lerp(y < waterLevel + 0.1 ? pal.mud : pal.sand, 0.85);
-    if (o.lake && Math.hypot((x - o.lake.cx) / o.lake.rx, (z - o.lake.cz) / o.lake.rz) < 1.08) c.lerp(pal.sand, 0.8);
+    // forested lower slopes; rock on steep faces and above the tree line (strata bands); snow on the high, gentler
+    // ground (it slides off cliffs): altitude AND slope decide, with a noisy snow line
+    c.lerp(new THREE.Color("#3d5a32"), smoothstep(2, 12, y) * (1 - smoothstep(H * 0.35, H * 0.5, y)) * 0.75);
+    const strata = 0.85 + 0.15 * Math.sin(y * 0.9 + n.at(x * 0.02, z * 0.02) * 4);
+    c.lerp(pal.rock.clone().multiplyScalar(strata), Math.max(smoothstep(0.5, 1.0, slope) * smoothstep(4, 14, y), smoothstep(H * 0.4, H * 0.55, y)));
+    if (o.snow) c.lerp(pal.snow, smoothstep(H * 0.5, H * 0.62, y + n.at(x * 0.05, z * 0.05) * 9) * (1 - smoothstep(0.7, 1.3, slope)));
+    // river bed: dark in the deep middle (seen through the water), wet mud at the waterline, a pebble/sand bank above
+    if (o.river) { const d = Math.abs(z - o.river.z(x)), half = o.river.width / 2;
+      if (d < half + 3.2) c.lerp(y < waterLevel - 0.6 ? new THREE.Color("#2d3a2c") : y < waterLevel + 0.12 ? pal.mud : pal.sand.clone().lerp(new THREE.Color("#a49a86"), 0.4), 0.88); }
+    // the lake shore: a narrow pale beach band, dark wet ground at the waterline, and the bed darkening with depth
+    // (graded with smoothsteps: hard thresholds on a 2.4 m vertex grid drew a stepped, zigzag beach)
+    if (o.lake) { const d = lakeDist(o.lake, x, z);
+      c.lerp(pal.sand.clone().lerp(pal.grass, 0.25), (1 - smoothstep(1.02, 1.16, d)) * 0.7);
+      c.lerp(pal.mud, (1 - smoothstep(0.97, 1.03, d)) * 0.8);
+      c.lerp(new THREE.Color("#3a4a3c"), (1 - smoothstep(0.85, 0.97, d)) * 0.7); }
     if (o.sea && z < o.sea.shoreZ + 9) c.lerp(pal.sand, smoothstep(o.sea.shoreZ + 9, o.sea.shoreZ + 4, z));
     colors.set([c.r, c.g, c.b], i * 3);
   }
@@ -151,7 +178,7 @@ export function terrain(ctx: WorldCtx, o: TerrainOptions): Terrain {
 
 // ---------- water ----------
 /** Planar-reflection water (three.js Water) on a horizontal surface given in world x/z, moving with t. */
-function waterSurface(ctx: WorldCtx, shape: THREE.BufferGeometry, level: number, o: { color: string; flow: [number, number]; distortion: number; size: number }): Water {
+function waterSurface(ctx: WorldCtx, shape: THREE.BufferGeometry, level: number, o: { color: string; flow: [number, number]; distortion: number; size: number; alpha?: number }): Water {
   const w = new Water(shape, {
     textureWidth: 512, textureHeight: 512, waterNormals: waterNormals(), sunDirection: ctx.sunDir.clone(), sunColor: ctx.day ? ctx.sunColor.getHex() : 0x445566,
     waterColor: new THREE.Color(o.color).getHex(), distortionScale: o.distortion, fog: true,
@@ -159,6 +186,7 @@ function waterSurface(ctx: WorldCtx, shape: THREE.BufferGeometry, level: number,
   w.rotation.x = -Math.PI / 2; w.position.y = level;
   const u = w.material.uniforms;
   u.size!.value = o.size;
+  if (o.alpha !== undefined) { u.alpha!.value = o.alpha; w.material.transparent = true; w.material.depthWrite = false; }
   ctx.group.add(w);
   // Water's own time uniform scrolls the normals; flow is added by moving the sampled pattern along the river
   ctx.updates.push((t) => { u.time!.value = t * (0.5 + Math.hypot(...o.flow) * 0.25); });
@@ -170,11 +198,42 @@ export function river(ctx: WorldCtx, t: Terrain, o: { z: (x: number) => number; 
   // local y = -world z; the across-river offset is added (a shear), never negated: a mirrored layout would flip the
   // triangles to face down and the surface would be culled (it was: the river rendered as a dry bed)
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), across = p.getY(i); p.setY(i, across - o.z(x)); }
-  return waterSurface(ctx, geo, t.waterLevel, { color: o.color ?? (ctx.day ? "#2f5d5a" : "#0b1a22"), flow: [1, 0], distortion: 3.5, size: 2.2 });
+  return waterSurface(ctx, geo, t.waterLevel, { color: o.color ?? (ctx.day ? "#2a4f4c" : "#0b1a22"), flow: [1, 0], distortion: 1.4, size: 3.6, alpha: 0.86 });
 }
 export function lake(ctx: WorldCtx, t: Terrain, o: { cx: number; cz: number; rx: number; rz: number; color?: string }): Water {
-  const geo = new THREE.CircleGeometry(1, 96); geo.scale(o.rx * 1.12, o.rz * 1.12, 1); geo.translate(o.cx, -o.cz, 0);
-  return waterSurface(ctx, geo, t.waterLevel + 0.15, { color: o.color ?? (ctx.day ? "#2a5a6a" : "#08141c"), flow: [0.2, 0.1], distortion: 1.6, size: 3.2 });
+  // the shore: scattered rocks and clumps of reeds along the waterline (instanced; deterministic placement)
+  {
+    const rr = mulberry(ctx.seed + 71), nn = new Noise2D(ctx.seed + 72);
+    const rockG = new THREE.IcosahedronGeometry(1, 1), rp = rockG.attributes.position!;
+    for (let i = 0; i < rp.count; i++) { const k = 1 + 0.25 * nn.at(rp.getX(i) * 3, rp.getY(i) * 3 + rp.getZ(i) * 2); rp.setXYZ(i, rp.getX(i) * k, rp.getY(i) * k * 0.6, rp.getZ(i) * k); }
+    rockG.computeVertexNormals();
+    const rocks = new THREE.InstancedMesh(rockG, new THREE.MeshStandardMaterial({ color: "#8a8478", roughness: 0.9, flatShading: true }), 140);
+    const reedG = new THREE.ConeGeometry(0.035, 1.3, 3); reedG.translate(0, 0.65, 0);
+    const reeds = new THREE.InstancedMesh(reedG, sway(new THREE.MeshStandardMaterial({ color: "#6f7f3a", roughness: 0.9 }), 1.3, 0.12, 1.4), 1400);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
+    let kr = 0, kd = 0;
+    for (let i = 0; i < 6000 && (kr < 140 || kd < 1400); i++) {
+      const a = rr() * Math.PI * 2, r0 = 0.94 + rr() * 0.14, x = o.cx + Math.cos(a) * r0 * o.rx * 1.05, z = o.cz + Math.sin(a) * r0 * o.rz * 1.05;
+      const d = lakeDist(o, x, z); if (d < 0.97 || d > 1.06) continue;
+      const y = t.height(x, z);
+      if (rr() < 0.12 && kr < 140) { const sz = 0.25 + rr() ** 2 * 1.1; m.compose(p.set(x, Math.max(y, t.waterLevel + 0.1) - sz * 0.2, z), q.setFromEuler(e.set(0, rr() * 6.28, 0)), sc.set(sz, sz, sz * (0.8 + rr() * 0.4))); rocks.setMatrixAt(kr, m); rocks.setColorAt(kr, col.setScalar(0.8 + rr() * 0.3)); kr++; }
+      else if (kd < 1400 && nn.at(x * 0.08, z * 0.08) > 0.05) { // reeds grow in clumps, not in a ring
+        for (let j = 0; j < 6 && kd < 1400; j++) { m.compose(p.set(x + (rr() - 0.5) * 0.9, Math.max(y, t.waterLevel + 0.12), z + (rr() - 0.5) * 0.9), q.setFromEuler(e.set((rr() - 0.5) * 0.3, rr() * 6.28, (rr() - 0.5) * 0.3)), sc.set(1, 0.6 + rr() * 0.8, 1)); reeds.setMatrixAt(kd++, m); }
+      }
+    }
+    rocks.count = kr; reeds.count = kd;
+    for (const im of [rocks, reeds]) { im.castShadow = true; im.receiveShadow = true; im.instanceMatrix.needsUpdate = true; ctx.group.add(im); }
+  }
+  const pts: THREE.Vector2[] = [];
+  for (let i = 0; i < 160; i++) {
+    const a = (i / 160) * Math.PI * 2;
+    let lo = 0.3, hi = 2; // the radius (in ellipse units) where lakeDist crosses 1.04
+    for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (lakeDist(o, o.cx + Math.cos(a) * m * o.rx, o.cz + Math.sin(a) * m * o.rz) < 1.04) lo = m; else hi = m; }
+    pts.push(new THREE.Vector2(o.cx + Math.cos(a) * lo * o.rx, -(o.cz + Math.sin(a) * lo * o.rz)));
+  }
+  const geo = new THREE.ShapeGeometry(new THREE.Shape(pts), 1);
+  // calm water: a low distortion and finer, slower normals (a uniform coarse pattern read as stripes), semi-clear
+  return waterSurface(ctx, geo, t.waterLevel + 0.15, { color: o.color ?? (ctx.day ? "#3a6a72" : "#08141c"), flow: [0.15, 0.05], distortion: 1.0, size: 1.6, alpha: 0.94 });
 }
 /** The sea to the horizon, with a breaking shoreline: a foam band that runs up the beach and back. */
 export function sea(ctx: WorldCtx, t: Terrain, o: { shoreZ: number }): Water {
@@ -200,11 +259,22 @@ export function sea(ctx: WorldCtx, t: Terrain, o: { shoreZ: number }): Water {
 /** A waterfall down a rock face into a pool: falling sheet (scrolling streaks), foam at the foot, mist. */
 export function waterfall(ctx: WorldCtx, t: Terrain, o: { x: number; z: number; height: number; width: number }): void {
   const base = t.height(o.x, o.z + 4);
-  const rock = new THREE.MeshStandardMaterial({ color: "#5d5953", roughness: 0.95, flatShading: true });
-  const cliffGeo = new THREE.BoxGeometry(o.width * 4, o.height + 6, 6, 8, 12, 2), cp = cliffGeo.attributes.position!, nn = new Noise2D(ctx.seed + 11);
-  for (let i = 0; i < cp.count; i++) cp.setZ(i, cp.getZ(i) + nn.at(cp.getX(i) * 0.3, cp.getY(i) * 0.3) * 1.2);
-  cliffGeo.computeVertexNormals();
-  const cliff = new THREE.Mesh(cliffGeo, rock); cliff.position.set(o.x, base + (o.height + 6) / 2 - 2, o.z - 3.2); cliff.castShadow = true; cliff.receiveShadow = true; ctx.group.add(cliff);
+  // the cliff: a mass of displaced rock blocks of different sizes (strata, ledges), merged into one mesh; the water
+  // falls through a notch between two buttresses (a single noisy box read as a grey cube)
+  const rock = new THREE.MeshStandardMaterial({ color: "#6a655d", roughness: 0.95, flatShading: true }), nn = new Noise2D(ctx.seed + 11), rr = mulberry(ctx.seed + 12);
+  const blocks: THREE.BufferGeometry[] = [];
+  const block = (cx: number, cy: number, cz: number, sx: number, sy: number, sz: number): void => {
+    const g = new THREE.IcosahedronGeometry(1, 2), bp = g.attributes.position!;
+    for (let i = 0; i < bp.count; i++) { const vx = bp.getX(i), vy = bp.getY(i), vz = bp.getZ(i), k = 1 + 0.28 * nn.at(vx * 2.1 + cx, vy * 2.1 + cy + vz); bp.setXYZ(i, vx * sx * k, vy * sy * (0.85 + 0.15 * Math.round((vy + 1) * 2) / 4) * k, vz * sz * k); }
+    g.translate(cx, cy, cz); blocks.push(g.toNonIndexed());
+  };
+  for (let row = 0; row < 5; row++) for (let i = -4; i <= 4; i++) {
+    if (Math.abs(i) < 1 && row < 4) continue; // the notch
+    const w = 3.2 + rr() * 2.2, h = (o.height + 6) / 5 + rr() * 2;
+    block(o.x + i * (o.width * 0.55 + 1.6) + (rr() - 0.5) * 1.5, base - 1 + row * (o.height + 6) / 5 + h * 0.35, o.z - 4.2 - rr() * 2.5 + Math.abs(i) * 0.6, w, h, 2.6 + rr() * 1.4);
+  }
+  for (let i = 0; i < 6; i++) block(o.x + (rr() - 0.5) * o.width * 2.6, base + 0.2, o.z + 1.5 + rr() * 3, 0.8 + rr() * 1.2, 0.6 + rr() * 0.6, 0.8 + rr());
+  const cliff = new THREE.Mesh(mergeGeometries(blocks)!, rock); cliff.castShadow = true; cliff.receiveShadow = true; ctx.group.add(cliff);
   const sheetGeo = new THREE.PlaneGeometry(o.width, o.height, 8, 24), sp = sheetGeo.attributes.position!;
   for (let i = 0; i < sp.count; i++) { const v = (sp.getY(i) / o.height) + 0.5; sp.setZ(i, (1 - v) * (1 - v) * 2.2); } // the sheet curves out at the lip
   const sheet = new THREE.Mesh(sheetGeo, new THREE.ShaderMaterial({
@@ -235,15 +305,34 @@ export function waterfall(ctx: WorldCtx, t: Terrain, o: { x: number; z: number; 
       s.scale.setScalar(4 + ph * 7); (s.material as THREE.SpriteMaterial).opacity = 0.45 * Math.sin(ph * Math.PI);
     }
   });
-  lake(ctx, t, { cx: o.x, cz: o.z + 5, rx: o.width * 1.4, rz: 5 });
+  // the plunge pool: churned, foamy water (no planar mirror, which reflected the cliff upside down), foam rings
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(1, 48).scale(o.width * 1.5, 5.5, 1), new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, fog: true,
+    uniforms: { uTime: { value: 0 }, uDeep: { value: new THREE.Color(ctx.day ? "#2c4d4c" : "#0c1a20") }, uFoam: { value: new THREE.Color(ctx.day ? "#eef5f6" : "#8a9aa6") }, ...THREE.UniformsLib.fog },
+    vertexShader: "varying vec2 vUv;\n#include <fog_pars_vertex>\nvoid main(){ vUv = uv; vec4 mvPosition = modelViewMatrix * vec4(position,1.0); gl_Position = projectionMatrix * mvPosition;\n#include <fog_vertex>\n}",
+    fragmentShader: `uniform float uTime; uniform vec3 uDeep; uniform vec3 uFoam; varying vec2 vUv;
+      #include <fog_pars_fragment>
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
+      void main(){
+        vec2 c = vUv - vec2(0.5, 0.9); float r = length(c * vec2(1.0, 1.6));
+        float rings = vn(vec2(atan(c.y, c.x) * 6.0, r * 14.0 - uTime * 1.6)) * smoothstep(0.75, 0.0, r);
+        float foam = clamp(rings * 1.4 + smoothstep(0.35, 0.0, r) * 0.8, 0.0, 1.0);
+        gl_FragColor = vec4(mix(uDeep, uFoam, foam), 0.92 * smoothstep(0.5, 0.42, length(vUv - 0.5)));
+        #include <fog_fragment>
+      }`,
+  }));
+  pool.rotation.x = -Math.PI / 2; pool.position.set(o.x, Math.max(t.waterLevel + 0.2, base - 0.6), o.z + 4.4); ctx.group.add(pool);
+  ctx.updates.push((time) => { (pool.material as THREE.ShaderMaterial).uniforms.uTime!.value = time; });
 }
 
 // ---------- vegetation ----------
 type Species = "broadleaf" | "conifer" | "palm";
-let treeGeo: Partial<Record<Species, { trunk: THREE.BufferGeometry; crown: THREE.BufferGeometry; height: number }>> = {};
-function treeGeometry(kind: Species): { trunk: THREE.BufferGeometry; crown: THREE.BufferGeometry; height: number } {
-  if (treeGeo[kind]) return treeGeo[kind]!;
-  const r = mulberry(kind.length * 17), nz = new Noise2D(kind.length);
+const treeGeo = new Map<string, { trunk: THREE.BufferGeometry; crown: THREE.BufferGeometry; height: number }>();
+function treeGeometry(kind: Species, variant = 0): { trunk: THREE.BufferGeometry; crown: THREE.BufferGeometry; height: number } {
+  const key = `${kind}${variant}`;
+  if (treeGeo.has(key)) return treeGeo.get(key)!;
+  const r = mulberry(kind.length * 17 + variant * 131), nz = new Noise2D(kind.length + variant * 7);
   const tint = (g: THREE.BufferGeometry, c: string, vary = 0.12): THREE.BufferGeometry => {
     const col = new THREE.Color(c), arr = new Float32Array(g.attributes.position!.count * 3), p = g.attributes.position!;
     for (let i = 0; i < p.count; i++) { const k = 1 + (nz.at(p.getX(i) * 3, p.getY(i) * 3 + p.getZ(i) * 2) * vary) + (p.getY(i) * 0.02); arr.set([col.r * k, col.g * k, col.b * k], i * 3); }
@@ -257,8 +346,10 @@ function treeGeometry(kind: Species): { trunk: THREE.BufferGeometry; crown: THRE
   let out: { trunk: THREE.BufferGeometry; crown: THREE.BufferGeometry; height: number };
   if (kind === "conifer") {
     const trunk = tint(new THREE.CylinderGeometry(0.12, 0.22, 2.2, 7).translate(0, 1.1, 0), "#4e3a2a");
-    const tiers = [0, 1, 2, 3].map((i) => lumpy(new THREE.ConeGeometry(2.1 - i * 0.42, 2.6 - i * 0.3, 9, 2).translate(0, 2.4 + i * 1.45, 0), 0.08));
-    out = { trunk, crown: tint(mergeGeometries(tiers.map((g) => (g.index ? g.toNonIndexed() : g)))!, "#2f5a33", 0.18), height: 8 };
+    // tiers of drooping, irregular boughs; the variants differ in tier count, taper and spacing (not one cone repeated)
+    const nT = 4 + variant, taper = 0.42 - variant * 0.06;
+    const tiers = Array.from({ length: nT }, (_, i) => { const g = lumpy(new THREE.ConeGeometry(Math.max(0.5, 2.1 - i * taper) * (0.9 + r() * 0.2), 2.4 - i * 0.22, 10, 3, true).translate(0, 2.2 + i * (1.45 - variant * 0.12), 0), 0.16); return g; });
+    out = { trunk, crown: tint(mergeGeometries(tiers.map((g) => (g.index ? g.toNonIndexed() : g)))!, ["#2f5a33", "#2a5236", "#36603a"][variant]!, 0.22), height: 8 };
   } else if (kind === "palm") {
     const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.35, 3, 0), new THREE.Vector3(1.1, 6.2, 0), new THREE.Vector3(1.9, 8.2, 0)]);
     const trunk = tint(new THREE.TubeGeometry(curve, 16, 0.2, 8), "#8a7155", 0.2);
@@ -273,36 +364,54 @@ function treeGeometry(kind: Species): { trunk: THREE.BufferGeometry; crown: THRE
     }
     out = { trunk, crown: tint(mergeGeometries(fronds)!, "#3f6f2f", 0.2), height: 10 };
   } else {
-    const trunk = tint(new THREE.CylinderGeometry(0.16, 0.3, 3.0, 8).translate(0, 1.5, 0), "#5b4532");
-    const blobs = Array.from({ length: 7 }, () => ((g) => (g.index ? g.toNonIndexed() : g))(lumpy(new THREE.IcosahedronGeometry(1.1 + r() * 0.8, 2).translate((r() - 0.5) * 2.2, 3.4 + r() * 1.9, (r() - 0.5) * 2.2), 0.22)));
-    out = { trunk, crown: tint(mergeGeometries(blobs)!, "#4f7f35", 0.22), height: 6.5 };
+    // three silhouettes, not one lollipop: 0 = a spreading shade tree (a forked trunk, a broad flat-bottomed crown),
+    // 1 = a tall oval tree, 2 = a young tree with a light, open crown on a slim trunk
+    const shapes = [{ h: 2.6, w: 3.4, cy: 3.6, ch: 1.5, n: 11, fork: true, tr: [0.3, 0.17] }, { h: 3.2, w: 1.7, cy: 4.4, ch: 2.6, n: 9, fork: false, tr: [0.26, 0.15] }, { h: 2.4, w: 1.6, cy: 3.2, ch: 1.4, n: 6, fork: false, tr: [0.15, 0.08] }][variant]!;
+    const trunkParts: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(shapes.tr[1]!, shapes.tr[0]!, shapes.h, 8).translate(0, shapes.h / 2, 0)];
+    if (shapes.fork) for (const a of [0.5, 2.6, 4.4]) { const lb = new THREE.CylinderGeometry(0.07, 0.13, 1.6, 6); lb.translate(0, 0.8, 0); lb.rotateZ(0.65); lb.rotateY(a); lb.translate(0, shapes.h - 0.1, 0); trunkParts.push(lb); }
+    const trunk = tint(mergeGeometries(trunkParts.map((g) => (g.index ? g.toNonIndexed() : g)))!, "#5b4532");
+    const blobs = Array.from({ length: shapes.n }, (_, i) => {
+      const a = (i / shapes.n) * Math.PI * 2 + r() * 0.6, rad = (i === 0 ? 0 : 0.45 + r() * 0.55) * shapes.w;
+      const sz = 0.75 + r() * 0.7, g = new THREE.IcosahedronGeometry(sz, 2);
+      g.scale(1, shapes.fork ? 0.7 : 1.1, 1); // a shade tree's crown is flatter
+      g.translate(Math.cos(a) * rad, shapes.cy + (r() - 0.35) * shapes.ch - (shapes.fork ? rad * 0.25 : 0), Math.sin(a) * rad);
+      return ((x) => (x.index ? x.toNonIndexed() : x))(lumpy(g, 0.22));
+    });
+    out = { trunk, crown: tint(mergeGeometries(blobs)!, ["#4a7a33", "#55853a", "#5e9040"][variant]!, 0.24), height: shapes.cy + shapes.ch };
   }
-  treeGeo[kind] = out;
+  treeGeo.set(key, out);
   return out;
 }
 /** Instanced trees scattered over an area (rejection-sampled against `free`), swaying in the wind. */
 export function forest(ctx: WorldCtx, t: Terrain | null, o: { kind: Species; count: number; area: { x0: number; x1: number; z0: number; z1: number }; free: (x: number, z: number) => boolean; scale?: [number, number] }): number {
-  const r = mulberry(ctx.seed + o.kind.length * 101), g = treeGeometry(o.kind);
+  const r = mulberry(ctx.seed + o.kind.length * 101), clump = new Noise2D(ctx.seed + 41);
   const trunkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
-  const crownMat = sway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: o.kind === "palm" ? THREE.DoubleSide : THREE.FrontSide }), g.height, o.kind === "palm" ? 0.35 : 0.22, o.kind === "palm" ? 1.1 : 0.8);
-  const trunks = new THREE.InstancedMesh(g.trunk, trunkMat, o.count), crowns = new THREE.InstancedMesh(g.crown, crownMat, o.count);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
+  const g0 = treeGeometry(o.kind, 0);
+  const crownMat = sway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: o.kind === "palm" ? THREE.DoubleSide : THREE.FrontSide }), g0.height, o.kind === "palm" ? 0.35 : 0.22, o.kind === "palm" ? 1.1 : 0.8);
+  // three variants of the species, one instanced pair each
+  const V = [0, 1, 2].map((v) => { const g = treeGeometry(o.kind, v); return { trunks: new THREE.InstancedMesh(g.trunk, trunkMat, o.count), crowns: new THREE.InstancedMesh(g.crown, crownMat, o.count), k: 0 }; });
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color(), e = new THREE.Euler();
   let k = 0;
-  for (let tries = 0; k < o.count && tries < o.count * 30; tries++) {
+  for (let tries = 0; k < o.count && tries < o.count * 40; tries++) {
     const x = o.area.x0 + r() * (o.area.x1 - o.area.x0), z = o.area.z0 + r() * (o.area.z1 - o.area.z0);
+    // groves and clearings: a low-frequency mask, not an even carpet
+    if (clump.fbm(x * 0.025, z * 0.025, 3) < -0.05 + (r() - 0.5) * 0.25) continue;
     if (!o.free(x, z)) continue;
     const y = t ? t.height(x, z) : 0;
     if (t && y < t.waterLevel + 0.3) continue;
     const sc = (o.scale?.[0] ?? 0.8) + r() * ((o.scale?.[1] ?? 1.4) - (o.scale?.[0] ?? 0.8));
-    m.compose(p.set(x, y - 0.1, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 6.28), s.setScalar(sc));
-    trunks.setMatrixAt(k, m); crowns.setMatrixAt(k, m);
+    const vv = V[Math.floor(r() * 3)]!;
+    m.compose(p.set(x, y - 0.1, z), q.setFromEuler(e.set((r() - 0.5) * 0.08, r() * 6.28, (r() - 0.5) * 0.08)), s.set(sc * (0.85 + r() * 0.3), sc * (0.85 + r() * 0.35), sc * (0.85 + r() * 0.3)));
+    vv.trunks.setMatrixAt(vv.k, m); vv.crowns.setMatrixAt(vv.k, m);
     // a near-neutral tint per tree (the species colour is in the vertex colours): variety without neon greens
-    crowns.setColorAt(k, col.setRGB(0.82 + r() * 0.22, 0.86 + r() * 0.18, 0.78 + r() * 0.2));
-    k++;
+    vv.crowns.setColorAt(vv.k, col.setRGB(0.8 + r() * 0.26, 0.84 + r() * 0.22, 0.76 + r() * 0.24));
+    vv.k++; k++;
   }
-  trunks.count = crowns.count = k;
-  for (const im of [trunks, crowns]) { im.castShadow = true; im.receiveShadow = true; im.instanceMatrix.needsUpdate = true; ctx.group.add(im); }
-  if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
+  for (const vv of V) {
+    vv.trunks.count = vv.crowns.count = vv.k;
+    for (const im of [vv.trunks, vv.crowns]) { im.castShadow = true; im.receiveShadow = true; im.instanceMatrix.needsUpdate = true; ctx.group.add(im); }
+    if (vv.crowns.instanceColor) vv.crowns.instanceColor.needsUpdate = true;
+  }
   return k;
 }
 /** Instanced grass blades (and optionally a crop: wheat / mustard / paddy rows) that sway. */

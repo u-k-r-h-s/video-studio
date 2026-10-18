@@ -1,0 +1,100 @@
+{
+ "id": "v6-riders",
+ "duration": 5,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "seed": 31,
+ "lighting": "golden-hour",
+ "sunAzimuth": 120,
+ "environment": {
+  "kind": "road",
+  "objects": [
+   {
+    "id": "door",
+    "kind": "door",
+    "x": 0,
+    "z": -8,
+    "params": {
+     "width": 1.0,
+     "height": 2.1,
+     "hinge": "left"
+    }
+   }
+  ],
+  "world": {
+   "sky": {
+    "clouds": 6,
+    "cloudSpeed": 2,
+    "birds": 4
+   },
+   "traffic": {
+    "mix": [
+     "scooter",
+     "motorcycle",
+     "bicycle",
+     "motorcycle",
+     "scooter"
+    ],
+    "rate": 24,
+    "lanes": 2,
+    "surface": "tarmac",
+    "parked": [
+     {
+      "kind": "scooter",
+      "x": 1.4,
+      "z": 0.3,
+      "heading": 0.0
+     },
+     {
+      "kind": "motorcycle",
+      "x": 3.9,
+      "z": 0.35,
+      "heading": 3.1416
+     }
+    ]
+   }
+  }
+ },
+ "characters": [
+  {
+   "id": "dadaji",
+   "asset": "rb-elder-man",
+   "start": {
+    "x": 5.2,
+    "z": 1.8,
+    "heading": -1.9
+   },
+   "events": [
+    {
+     "at": 0,
+     "action": "look",
+     "target": {
+      "x": 1.4,
+      "y": 1.2,
+      "z": 0.3
+     },
+     "duration": 5
+    }
+   ]
+  }
+ ],
+ "camera": {
+  "shot": "wide",
+  "move": "static",
+  "target": "dadaji",
+  "fixed": {
+   "position": [
+    1.2,
+    1.55,
+    6.8
+   ],
+   "lookAt": [
+    1.8,
+    0.85,
+    -1.6
+   ],
+   "fov": 50
+  }
+ }
+}

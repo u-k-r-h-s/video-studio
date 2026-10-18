@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { EnvironmentSpec3D } from "../spec";
 
 /**
@@ -18,24 +19,26 @@ export interface KitCtx {
   DZ: number;
   add: <T extends THREE.Object3D>(o: T, cast?: boolean) => T;
   mark: (id: string, p: THREE.Vector3) => void;
+  /** A named point that moves (an object whose world position is read each time it is resolved). */
+  markObject?: (id: string, o: THREE.Object3D) => void;
   doorway: (o: { dw: number; dh: number; leafColor: string; leafTex?: THREE.Texture; frameColor: string; glow: string; cold: string; inside: string }) => void;
   updates: ((t: number, dt: number, cam: THREE.Vector3) => void)[];
 }
 export type Clamp = (p: THREE.Vector3) => void;
 
-const std = (o: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial(o);
-function tex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, srgb = true): THREE.CanvasTexture {
+export const std = (o: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial => new THREE.MeshStandardMaterial(o);
+export function tex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, srgb = true): THREE.CanvasTexture {
   const c = document.createElement("canvas"); c.width = w; c.height = h;
   draw(c.getContext("2d")!);
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-const box = (w: number, h: number, d: number, m: THREE.Material): THREE.Mesh => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-const shade = (hex: string, k: number): string => { const c = new THREE.Color(hex); c.multiplyScalar(k); return `#${c.getHexString()}`; };
+export const box = (w: number, h: number, d: number, m: THREE.Material): THREE.Mesh => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+export const shade = (hex: string, k: number): string => { const c = new THREE.Color(hex); c.multiplyScalar(k); return `#${c.getHexString()}`; };
 
 /** Lime / mud plaster: a base colour with blotches, cracks and a darker plinth. */
-function plaster(color: string, r: () => number): THREE.CanvasTexture {
+export function plaster(color: string, r: () => number): THREE.CanvasTexture {
   return tex(512, 512, (g) => {
     g.fillStyle = color; g.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "60,40,20" : "255,250,235"},${r() * 0.06})`; const s = 4 + r() * 40; g.beginPath(); g.arc(r() * 512, r() * 512, s, 0, 7); g.fill(); }
@@ -45,7 +48,7 @@ function plaster(color: string, r: () => number): THREE.CanvasTexture {
   });
 }
 /** Packed earth with footprints, pebbles and (wet) dark patches. */
-function dirt(r: () => number, wet: number): THREE.CanvasTexture {
+export function dirt(r: () => number, wet: number): THREE.CanvasTexture {
   return tex(1024, 1024, (g) => {
     g.fillStyle = wet > 0.4 ? "#5e4a36" : "#a8865f"; g.fillRect(0, 0, 1024, 1024);
     for (let i = 0; i < 4000; i++) { const v = r(); g.fillStyle = `rgba(${v < 0.5 ? "70,50,30" : "200,175,140"},${0.05 + r() * 0.12})`; g.fillRect(r() * 1024, r() * 1024, 2 + r() * 6, 2 + r() * 6); }
@@ -55,11 +58,11 @@ function dirt(r: () => number, wet: number): THREE.CanvasTexture {
 function tiles(a: string, b: string, n = 8): THREE.CanvasTexture {
   return tex(512, 512, (g) => { const s = 512 / n; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { g.fillStyle = (i + j) % 2 ? a : b; g.fillRect(i * s, j * s, s, s); g.strokeStyle = "rgba(0,0,0,0.15)"; g.strokeRect(i * s, j * s, s, s); } });
 }
-function sign(text: string, bg: string, fg: string): THREE.CanvasTexture {
+export function sign(text: string, bg: string, fg: string): THREE.CanvasTexture {
   return tex(512, 160, (g) => { g.fillStyle = bg; g.fillRect(0, 0, 512, 160); g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(8, 8, 496, 144); g.fillStyle = fg; g.font = "bold 84px 'Kohinoor Devanagari', 'Devanagari Sangam MN', sans-serif"; g.textAlign = "center"; g.fillText(text, 256, 112); });
 }
 /** A warm practical light with a visible glowing source (bulb, lantern, string bulb). */
-function practical(ctx: KitCtx, p: THREE.Vector3, color: string, intensity: number, range: number, size = 0.07, flicker = 0): THREE.PointLight {
+export function practical(ctx: KitCtx, p: THREE.Vector3, color: string, intensity: number, range: number, size = 0.07, flicker = 0): THREE.PointLight {
   const l = new THREE.PointLight(color, intensity, range, 1.8); l.position.copy(p); ctx.group.add(l);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(size, 12, 8), new THREE.MeshBasicMaterial({ color })); bulb.position.copy(p); ctx.group.add(bulb);
   if (flicker) ctx.updates.push((t) => { l.intensity = intensity * (1 - flicker * 0.5 + flicker * 0.5 * (Math.sin(t * 17) * Math.sin(t * 7.3 + 1) * 0.5 + 0.5)); });
@@ -74,84 +77,29 @@ function tree(ctx: KitCtx, x: number, z: number, s: number, leaf = "#3f6b2e"): v
   const wind = ctx.spec.weather?.wind ?? 0.4, ph = ctx.r() * 6;
   ctx.updates.push((t) => { crown.rotation.z = Math.sin(t * 0.8 + ph) * 0.03 * wind; crown.rotation.x = Math.sin(t * 0.6 + ph) * 0.02 * wind; });
 }
+/** The countryside horizon: low rolling hills and a varied tree line (no buildings), coloured for the time of day, with
+ *  the far layer paler (aerial perspective). One merged mesh per layer. */
+export function farRural(ctx: KitCtx, z: number): void {
+  const day = ctx.day, r = ctx.r;
+  const layer = (zz: number, hill: string, treeC: string, hMax: number): void => {
+    const hills: THREE.BufferGeometry[] = [], trees: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 9; i++) { const g = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(18 + r() * 22, hMax * (0.4 + r() * 0.6), 10); g.translate(-90 + i * 22 + r() * 8, -0.5, zz - r() * 8); hills.push(g); }
+    for (let i = 0; i < 70; i++) {
+      const x = -95 + i * 2.8 + r() * 2, h = 4 + r() * 5, kind = r();
+      const g = kind < 0.35 ? new THREE.ConeGeometry(1.4 + r(), h, 7) : new THREE.IcosahedronGeometry(1.6 + r() * 1.6, 1);
+      if (kind < 0.35) g.translate(0, h / 2, 0); else { g.scale(1.2, 0.8 + r() * 0.4, 1); g.translate(0, 2.5 + r() * 3, 0); }
+      g.translate(x, 0, zz + 4 + r() * 4); trees.push(g);
+    }
+    const strip = (gs: THREE.BufferGeometry[]): THREE.BufferGeometry => mergeGeometries(gs.map((g) => (g.index ? g.toNonIndexed() : g)).map((g) => { for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k); return g; }))!;
+    ctx.add(new THREE.Mesh(strip(hills), std({ color: hill, roughness: 1 })), false);
+    ctx.add(new THREE.Mesh(strip(trees), std({ color: treeC, roughness: 1, flatShading: true })), false);
+  };
+  layer(z - 40, day ? "#9fb0a2" : "#141c24", day ? "#8ea294" : "#121a20", 16);
+  layer(z, day ? "#7b9468" : "#18221a", day ? "#4f6e3c" : "#141e16", 7);
+}
 /** Distant flat-coloured silhouettes (houses, hills, tree lines): depth without detail. */
 function far(ctx: KitCtx, color: string, z: number, n: number, hmin: number, hmax: number): void {
   for (let i = 0; i < n; i++) { const h = hmin + ctx.r() * (hmax - hmin), w = 3 + ctx.r() * 6; ctx.add(box(w, h, 2, std({ color, roughness: 1 })), false).position.set(-50 + (i / n) * 100 + ctx.r() * 3, h / 2, z - ctx.r() * 6); }
-}
-
-/** An Indian village lane: plastered houses with flat roofs and parapets, a tiled and a thatched neighbour, a charpai, pots, a hand pump, a neem tree, fields beyond. */
-export function villageKit(ctx: KitCtx): Clamp {
-  const { DX, DZ, r, day, wet, add, spec } = ctx;
-  const pal = spec.palette ?? {};
-  const wall = pal.wall ?? ["#d9b26f", "#cf8f5c", "#9fb7c9", "#e3d5b8", "#c98f9a"][Math.floor(r() * 5)]!, doorC = pal.door ?? ["#2f5d8a", "#7a3b2a", "#2e6b4f", "#6b4a8a"][Math.floor(r() * 4)]!, trim = pal.trim ?? "#f1e7d2";
-  const dirtTex = dirt(r, wet); dirtTex.repeat.set(10, 10);
-  (ctx.ground.material as THREE.MeshStandardMaterial).map = dirtTex; (ctx.ground.material as THREE.MeshStandardMaterial).color.set(day ? "#ffffff" : "#b9b0a6"); (ctx.ground.material as THREE.MeshStandardMaterial).roughnessMap = null;
-  const wallMat = std({ map: plaster(wall, r), roughness: 0.95 }); (wallMat.map as THREE.Texture).repeat.set(2, 1);
-  // the main house: front wall with the door, flat roof with a parapet, two shuttered windows, a raised platform (chabutra) and steps
-  const hw = 9, hh = 3.4, hd = 7, dw = 1.15, dh = 2.1;
-  const lw = hw / 2 + DX - dw / 2, rw = hw / 2 - DX - dw / 2;
-  add(box(lw, hh, 0.3, wallMat)).position.set(DX - dw / 2 - lw / 2, hh / 2, DZ);
-  add(box(rw, hh, 0.3, wallMat)).position.set(DX + dw / 2 + rw / 2, hh / 2, DZ);
-  add(box(dw, hh - dh, 0.3, wallMat)).position.set(DX, dh + (hh - dh) / 2, DZ);
-  add(box(hw, hh, hd, wallMat)).position.set(DX, hh / 2, DZ - hd / 2 - 0.16);
-  const parapet = std({ color: shade(wall, 0.88), roughness: 0.95 });
-  add(box(hw + 0.2, 0.45, 0.2, parapet)).position.set(DX, hh + 0.22, DZ + 0.02);
-  add(box(hw + 0.3, 0.12, hd + 0.3, std({ color: "#8a7a66", roughness: 1 }))).position.set(DX, hh + 0.02, DZ - hd / 2);
-  const wood = std({ color: shade(doorC, 0.9), roughness: 0.8 });
-  for (const x of [DX - 2.8, DX + 2.8]) {
-    add(box(1.0, 1.1, 0.12, std({ color: "#1e1a16", roughness: 0.9 }))).position.set(x, 1.7, DZ + 0.13);
-    for (const sx of [-1, 1]) { const sh = add(box(0.5, 1.1, 0.06, wood)); sh.position.set(x + sx * 0.78, 1.7, DZ + 0.2); sh.rotation.y = sx * 0.5; }
-    for (let k = -2; k <= 2; k++) add(box(0.03, 1.1, 0.05, std({ color: "#3a3a3a", metalness: 0.8, roughness: 0.4 }))).position.set(x + k * 0.18, 1.7, DZ + 0.19);
-  }
-  // a low plinth along the wall and one step at the door (people stand in front of it, not in it)
-  add(box(hw, 0.22, 0.45, std({ color: shade(wall, 0.75), roughness: 1 }))).position.set(DX, 0.11, DZ + 0.38);
-  add(box(1.4, 0.12, 0.35, std({ color: shade(wall, 0.7), roughness: 1 }))).position.set(DX, 0.06, DZ + 0.75);
-  // a painted name and number by the door (the "address"), a bell rope / switch (the "doorbell")
-  const nameplate = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.28), std({ map: sign("घर 7", "#f2e6c8", "#7a2a1a"), roughness: 0.7 })); nameplate.position.set(DX + dw / 2 + 0.75, 2.35, DZ + 0.16); ctx.group.add(nameplate);
-  ctx.mark("address", nameplate.position.clone());
-  const bell = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.03), std({ color: "#d8d2c0", roughness: 0.6 })); bell.position.set(DX + dw / 2 + 0.2, 1.35, DZ + 0.16); ctx.group.add(bell);
-  ctx.mark("doorbell", bell.position.clone());
-  ctx.doorway({ dw, dh, leafColor: doorC, frameColor: trim, glow: "#ffcf8a", cold: "#ffe2b0", inside: "#6a5642" });
-  // a bare bulb over the door: the light of the lane at night
-  if (!day) practical(ctx, new THREE.Vector3(DX, dh + 0.45, DZ + 0.35), "#ffc87a", 22, 9, 0.06);
-  // neighbours: a clay-tiled house and a thatched hut, set back; a low boundary wall
-  const tileRoof = std({ color: "#9a4a32", roughness: 0.85, flatShading: true });
-  const nb = (x: number, color: string, kind: "tile" | "thatch"): void => {
-    const m = std({ map: plaster(color, r), roughness: 0.95 });
-    add(box(6, 2.9, 6, m)).position.set(x, 1.45, DZ - 3.5);
-    if (kind === "tile") { const g = new THREE.CylinderGeometry(0.01, 4.6, 1.6, 4, 1); g.rotateY(Math.PI / 4); g.scale(1, 1, 1.05); add(new THREE.Mesh(g, tileRoof)).position.set(x, 3.7, DZ - 3.5); }
-    else add(new THREE.Mesh(new THREE.ConeGeometry(4.6, 2.2, 10), std({ color: "#b39463", roughness: 1, flatShading: true }))).position.set(x, 4.0, DZ - 3.5);
-    add(box(0.9, 1.9, 0.1, std({ color: shade(doorC, 0.6), roughness: 0.8 }))).position.set(x + 1, 0.95, DZ + 0.02);
-  };
-  nb(DX - 11, ["#e6d3b0", "#b7c9a8", "#d7a98a"][Math.floor(r() * 3)]!, "tile"); nb(DX + 11, "#d8c59e", "thatch");
-  add(box(5, 0.9, 0.3, wallMat)).position.set(DX - 7.5, 0.45, DZ + 2.4); add(box(5, 0.9, 0.3, wallMat)).position.set(DX + 7.5, 0.45, DZ + 2.4);
-  // a charpai (woven cot), a cluster of matkas (clay pots), a hand pump, a laundry line
-  // set dressing to the left of the door, clear of where conversations are staged (right of the door, in front)
-  const cot = new THREE.Group(); cot.position.set(DX - 4.6, 0, DZ + 1.6); cot.rotation.y = -0.25;
-  const frame = std({ color: "#6b4a2b", roughness: 0.8 });
-  for (const [x, z] of [[-0.9, -0.45], [0.9, -0.45], [-0.9, 0.45], [0.9, 0.45]] as const) { const leg = box(0.08, 0.45, 0.08, frame); leg.position.set(x, 0.22, z); cot.add(leg); }
-  const weave = tex(256, 128, (g) => { g.fillStyle = "#c9b58a"; g.fillRect(0, 0, 256, 128); g.strokeStyle = "#8a6f45"; g.lineWidth = 2; for (let i = 0; i < 256; i += 8) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - 64, 128); g.stroke(); g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 64, 128); g.stroke(); } });
-  const bed = box(1.9, 0.06, 0.95, std({ map: weave, roughness: 1 })); bed.position.y = 0.46; cot.add(bed);
-  add(cot);
-  const clay = std({ color: "#a5583a", roughness: 0.7 });
-  for (let i = 0; i < 3; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(0.22 - i * 0.03, 16, 12), clay); p.scale.y = 0.9; p.position.set(DX - 2.4 + i * 0.42, 0.2, DZ + 0.9 + (i % 2) * 0.25); add(p); }
-  const pump = new THREE.Group(); pump.position.set(DX - 5.2, 0, DZ + 3.4);
-  const iron = std({ color: "#2f4f6f", metalness: 0.6, roughness: 0.5 });
-  const post = box(0.14, 1.1, 0.14, iron); post.position.y = 0.55; pump.add(post);
-  const spout = box(0.3, 0.07, 0.07, iron); spout.position.set(0.18, 0.8, 0); pump.add(spout);
-  const handle = box(0.6, 0.05, 0.05, iron); handle.position.set(-0.3, 1.1, 0); handle.rotation.z = 0.25; pump.add(handle);
-  const basin = box(0.9, 0.12, 0.7, std({ color: "#8a8a82", roughness: 0.9 })); basin.position.set(0.25, 0.06, 0); pump.add(basin);
-  add(pump);
-  const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(DX - 9, 2.4, DZ + 0.5), new THREE.Vector3(DX - 6.5, 2.1, DZ + 0.7), new THREE.Vector3(DX - 4, 2.4, DZ + 0.5)]), 20, 0.01, 4), std({ color: "#222" }));
-  add(line, false);
-  for (let i = 0; i < 4; i++) { const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.7), std({ color: ["#c0392b", "#e1b12c", "#2980b9", "#f5f0e6"][i]!, roughness: 0.9, side: THREE.DoubleSide })); cloth.position.set(DX - 8.3 + i * 1.0, 1.85, DZ + 0.58); ctx.group.add(cloth); const ph = r() * 6; ctx.updates.push((t) => { cloth.rotation.x = Math.sin(t * 1.6 + ph) * 0.12 * (spec.weather?.wind ?? 0.4); }); }
-  tree(ctx, DX + 6.5, DZ + 3.8, 1.25, "#3d6b2c"); tree(ctx, DX - 14, DZ + 4.5, 1.1); tree(ctx, DX + 15, 6, 1.3, "#4c7a35");
-  // beyond: fields and a tree line across the lane, far hills
-  const field = tex(512, 512, (g) => { g.fillStyle = day ? "#7d9a3e" : "#2c3a20"; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 512; i += 10) { g.fillStyle = `rgba(40,60,20,${0.3})`; g.fillRect(0, i, 512, 3); } }); field.repeat.set(12, 4);
-  add(new THREE.Mesh(new THREE.BoxGeometry(140, 0.05, 30), std({ map: field, roughness: 1 })), false).position.set(0, 0.02, 22);
-  for (let i = 0; i < 10; i++) tree(ctx, -45 + i * 10 + r() * 4, 34 + r() * 6, 1.4 + r() * 0.6, "#355e2a");
-  far(ctx, day ? "#8fa3a8" : "#141c26", -40, 14, 4, 12);
-  return (p) => { if (p.z < DZ + 0.7) p.z = DZ + 0.7; if (p.y < 0.35) p.y = 0.35; };
 }
 
 /** A bazaar: shop fronts with Hindi signboards and shutters, stalls with awnings, crates of fruit and vegetables, sacks, bunting. */
@@ -316,9 +264,12 @@ export function roadKit(ctx: KitCtx, o: { traffic?: boolean; lanes?: { z: number
   // a kachcha road: packed earth with wheel ruts (no tarmac, no centre line)
   const road = o.dirt ? tex(1024, 256, (g) => { g.fillStyle = wet > 0.4 ? "#5a4636" : "#a98a62"; g.fillRect(0, 0, 1024, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "80,60,40" : "210,185,150"},${0.08 + r() * 0.12})`; g.fillRect(r() * 1024, r() * 256, 2 + r() * 6, 2 + r() * 4); } for (const y of [70, 100, 156, 186]) { g.fillStyle = "rgba(90,68,45,0.35)"; g.fillRect(0, y, 1024, 10); } }) : tex(1024, 256, (g) => { g.fillStyle = wet > 0.4 ? "#3a3c40" : "#55575b"; g.fillRect(0, 0, 1024, 256); for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "30,30,30" : "120,120,120"},0.15)`; g.fillRect(r() * 1024, r() * 256, 3, 3); } g.fillStyle = "#e8e2c8"; for (let x = 0; x < 1024; x += 128) g.fillRect(x, 124, 64, 8); }); road.repeat.set(10, 1);
   add(new THREE.Mesh(new THREE.BoxGeometry(160, 0.04, 6), std({ map: road, roughness: wet > 0.4 ? 0.35 : 0.85, metalness: wet > 0.4 ? 0.2 : 0 })), false).position.set(0, 0.03, roadZ);
-  const field = (z: number, d: number, c: string): void => { const t = tex(512, 512, (g) => { g.fillStyle = c; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 512; i += 12) { g.fillStyle = "rgba(30,45,15,0.35)"; g.fillRect(0, i, 512, 4); } }); t.repeat.set(16, d / 3); add(new THREE.Mesh(new THREE.BoxGeometry(160, 0.06, d), std({ map: t, roughness: 1 })), false).position.set(0, 0.03, z); };
-  if (o.traffic) { field(-17, 12, day ? "#9aa64a" : "#2a3020"); field(12, 14, day ? "#c2a94a" : "#30301e"); }
-  else { field(-3.2, 9, day ? "#9aa64a" : "#2a3020"); field(16, 12, day ? "#c2a94a" : "#30301e"); }
+  const field = (z: number, d: number, c: string): void => {
+    if (z + d / 2 > 3) throw new Error(`roadKit: a crop field reaching z ${(z + d / 2).toFixed(1)} would show in the foreground`); const t = tex(512, 512, (g) => { g.fillStyle = c; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 512; i += 12) { g.fillStyle = "rgba(30,45,15,0.35)"; g.fillRect(0, i, 512, 4); } }); t.repeat.set(16, d / 3); add(new THREE.Mesh(new THREE.BoxGeometry(160, 0.06, d), std({ map: t, roughness: 1 })), false).position.set(0, 0.03, z); };
+  // crop fields lie BEHIND the action only: a striped field on the camera side (z > 4) showed as a band of stripes along
+  // the bottom of every frame (the cameras stand at z 6..14 and look down at the actors)
+  if (o.traffic) { field(-17, 12, day ? "#9aa64a" : "#2a3020"); field(-31, 14, day ? "#c2a94a" : "#30301e"); }
+  else { field(-3.2, 9, day ? "#9aa64a" : "#2a3020"); field(-17, 12, day ? "#c2a94a" : "#30301e"); }
   // the roadside tea shack (the facade with the door), a bench, a kettle on a stove
   const shackMat = std({ map: plaster("#c9b28a", r), roughness: 0.95 });
   add(box(1.4, 2.6, 0.2, shackMat)).position.set(DX - 1.2, 1.3, DZ); add(box(1.4, 2.6, 0.2, shackMat)).position.set(DX + 1.2, 1.3, DZ); add(box(1.0, 0.45, 0.2, shackMat)).position.set(DX, 2.38, DZ);
@@ -335,6 +286,6 @@ export function roadKit(ctx: KitCtx, o: { traffic?: boolean; lanes?: { z: number
   for (let i = 0; i < 6; i++) { const x = -30 + i * 12; add(box(0.18, 7, 0.18, poleM)).position.set(x, 3.5, poleZ); add(box(1.4, 0.1, 0.1, poleM)).position.set(x, 6.7, poleZ); }
   for (let w = 0; w < 2; w++) for (let i = 0; i < 5; i++) { const x0 = -30 + i * 12, y = 6.7, z = poleZ + (w - 0.5) * 1.2; add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(x0, y, z), new THREE.Vector3(x0 + 6, y - 0.6, z), new THREE.Vector3(x0 + 12, y, z)]), 16, 0.012, 4), std({ color: "#222" })), false); }
   for (let i = 0; i < 9; i++) tree(ctx, -40 + i * 10 + r() * 4, (i % 2 ? -10 : 24) + r() * 3, 1.2 + r() * 0.6);
-  far(ctx, day ? "#93a4b2" : "#121a24", -45, 10, 8, 18); far(ctx, day ? "#a6b4c0" : "#161e28", 60, 10, 6, 14);
+  farRural(ctx, -45);
   return (p) => { const zMin = o.traffic ? 0.6 : DZ + 0.7; if (p.z < zMin) p.z = zMin; if (p.y < 0.35) p.y = 0.35; };
 }

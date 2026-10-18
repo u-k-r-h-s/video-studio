@@ -59,7 +59,10 @@ export class CinematicCamera {
   step(t: number, dt: number): THREE.PerspectiveCamera {
     const fx = this.spec.fixed;
     if (fx) {
-      this.camera.position.set(...fx.position); this.camera.lookAt(new THREE.Vector3(...fx.lookAt));
+      const u = fx.to ? Math.min(1, Math.max(0, t / Math.max(1e-3, this.duration))) : 0, e = u * u * (3 - 2 * u);
+      const P = new THREE.Vector3(...fx.position), L = new THREE.Vector3(...fx.lookAt);
+      if (fx.to) { P.lerp(new THREE.Vector3(...fx.to.position), e); L.lerp(new THREE.Vector3(...fx.to.lookAt), e); }
+      this.camera.position.copy(P); this.camera.lookAt(L);
       this.camera.fov = fx.fov ?? FRAMINGS[this.spec.shot].fov; this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld(true);
       return this.camera;
     }
@@ -115,7 +118,10 @@ export class CinematicCamera {
         const test = (p: THREE.Vector3): number => { const q = p.clone(); this.clamp?.(q); return q.distanceTo(p); };
         const mid = S.clone().lerp(T, 0.38);
         // the open side; when both sides are open, the side the subject faces (we see faces, not backs)
-        const ta = test(mid.clone().addScaledVector(perp, 4)), tb = test(mid.clone().addScaledVector(perp, -4));
+        // probe at camera height: a ground-level probe was "clamped" by the terrain under it, so the chosen side flipped
+        // with the local ground height instead of with what blocks the camera
+        const probeY = f.height * (subj.height / 1.8);
+        const ta = test(mid.clone().addScaledVector(perp, 4).setY(probeY)), tb = test(mid.clone().addScaledVector(perp, -4).setY(probeY));
         const pref = this.spec.front ? new THREE.Vector3(this.spec.front.x, 0, this.spec.front.z) : fwd;
         if (ta > tb + 0.01 || (Math.abs(ta - tb) <= 0.01 && perp.dot(pref) < 0)) perp.negate();
         // a little toward the subject's front, so the face reads

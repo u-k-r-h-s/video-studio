@@ -38,7 +38,8 @@ export class Kit {
   get<T extends THREE.Material>(key: string, make: () => T): T { let m = this.cache.get(key) as T | undefined; if (!m) { m = make(); this.cache.set(key, m); } return m; }
   paint(c: string): THREE.MeshPhysicalMaterial { return this.get(`paint${c}`, () => new THREE.MeshPhysicalMaterial({ color: c, metalness: 0.35, roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.07, envMapIntensity: 1.25 })); }
   matte(c: string, rough = 0.7, metal = 0): THREE.MeshStandardMaterial { return this.get(`matte${c}${rough}${metal}`, () => new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: metal })); }
-  get glass(): THREE.MeshPhysicalMaterial { return this.get("glass", () => new THREE.MeshPhysicalMaterial({ color: "#2b3b48", metalness: 0.05, roughness: 0.04, transparent: true, opacity: this.night ? 0.62 : 0.55, envMapIntensity: 1.8, clearcoat: 1, clearcoatRoughness: 0.02 })); }
+  // tinted, mostly reflective glass: the cabin reads as glazed (a driver's silhouette shows), never as an open frame
+  get glass(): THREE.MeshPhysicalMaterial { return this.get("glass", () => new THREE.MeshPhysicalMaterial({ color: "#1a2530", metalness: 0.2, roughness: 0.03, transparent: true, opacity: this.night ? 0.86 : 0.8, envMapIntensity: 2.2, clearcoat: 1, clearcoatRoughness: 0.02 })); }
   get chrome(): THREE.MeshStandardMaterial { return this.get("chrome", () => new THREE.MeshStandardMaterial({ color: "#d9dde2", metalness: 1, roughness: 0.16, envMapIntensity: 1.4 })); }
   get rubber(): THREE.MeshStandardMaterial { return this.get("rubber", () => new THREE.MeshStandardMaterial({ color: "#16171a", roughness: 0.92 - 0.3 * this.wet, metalness: 0 })); }
   get trim(): THREE.MeshStandardMaterial { return this.get("trim", () => new THREE.MeshStandardMaterial({ color: "#1d1f22", roughness: 0.55, metalness: 0.2 })); }
@@ -178,42 +179,103 @@ function lampAt(parts: Parts, lens: THREE.Material, housing: THREE.Material, x: 
 
 // ---------------- riders and drivers ----------------
 interface RiderPose { hip: THREE.Vector3; hands: [THREE.Vector3, THREE.Vector3]; feet: [THREE.Vector3, THREE.Vector3]; lean: number; helmet: boolean; shirt: string; pants: string; scale?: number }
-/** A seated person (driver / rider), posed: torso leaning toward the bars, arms by IK to the grips, legs by IK to the pegs. */
+/** A tapered limb from A (radius ra) to B (radius rb): a truncated cone with rounded joint caps (a muscle that thins
+ *  toward the joint reads as an arm or a leg; a constant-radius capsule reads as a mannequin tube). */
+export function taper(a: THREE.Vector3, b: THREE.Vector3, ra: number, rb: number, seg = 10): THREE.BufferGeometry {
+  const len = a.distanceTo(b), g = new THREE.CylinderGeometry(rb, ra, Math.max(0.001, len), seg, 2);
+  // a slight belly a third of the way down (the muscle), not a straight cone
+  const pz = g.attributes.position!;
+  for (let i = 0; i < pz.count; i++) { const y = pz.getY(i) / len + 0.5, k = 1 + 0.12 * Math.sin(Math.min(1, Math.max(0, 1 - y)) * Math.PI) * (1 - y); pz.setX(i, pz.getX(i) * k); pz.setZ(i, pz.getZ(i) * k); }
+  g.computeVertexNormals();
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+  g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+  return g;
+}
+const ball = (p: THREE.Vector3, r: number): THREE.BufferGeometry => new THREE.SphereGeometry(r, 12, 8).translate(p.x, p.y, p.z);
+
+// ---------------- riders and drivers ----------------
+interface RiderPose { hip: THREE.Vector3; hands: [THREE.Vector3, THREE.Vector3]; feet: [THREE.Vector3, THREE.Vector3]; lean: number; helmet: boolean; shirt: string; pants: string; scale?: number }
+/**
+ * A seated person (driver / rider), posed: a pelvis on the seat, a torso with shoulders leaning toward the bars, arms by IK
+ * to the grips (short sleeves over bare forearms, hands closed around the grip), legs by IK to the pegs or pedals (shaped
+ * shoes), a head with hair, ears and nose (or a helmet with a visor). Joints are rounded so the bends read.
+ */
 function rider(kit: Kit, p: RiderPose, parts: Parts, dynamicLegs = false): { legs?: { thigh: THREE.Mesh[]; shin: THREE.Mesh[]; foot: THREE.Mesh[] } } {
-  const s = p.scale ?? 1, cloth = kit.matte(p.shirt, 0.85), pants = kit.matte(p.pants, 0.9), shoe = kit.matte("#1b1b1b", 0.6);
+  const s = p.scale ?? 1, cloth = kit.matte(p.shirt, 0.85), pants = kit.matte(p.pants, 0.9), shoe = kit.matte("#2a211b", 0.55), hair = kit.matte("#1a1412", 0.7);
   const up = V(0, 1, 0), fwd = V(1, 0, 0);
-  const neck = p.hip.clone().add(V(Math.sin(p.lean) * 0.52 * s, Math.cos(p.lean) * 0.52 * s, 0));
-  // torso: a tapered loft from the hips to the shoulders, leaning
-  const torso = loft([{ x: 0, yb: -0.11 * s, yt: 0.11 * s, wb: 0.17 * s, n: 3 }, { x: 0.3 * s, yb: -0.1 * s, yt: 0.1 * s, wb: 0.19 * s, n: 3 }, { x: 0.5 * s, yb: -0.09 * s, yt: 0.09 * s, wb: 0.21 * s, n: 4 }, { x: 0.56 * s, yb: -0.06 * s, yt: 0.06 * s, wb: 0.12 * s, n: 3 }], 18);
+  // lean forward until the hands reach the grips with the elbows bent (~85% of the arm's length), as a rider does:
+  // a fixed lean left the arms locked straight out to grips 0.8 m away
+  const grip = p.hands[0]!.clone().add(p.hands[1]!).multiplyScalar(0.5);
+  const reachAt = (l: number): number => p.hip.clone().addScaledVector(V(Math.sin(l), Math.cos(l), 0), 0.46 * s).distanceTo(grip);
+  let lean = p.lean;
+  for (let l = p.lean; l <= 0.85; l += 0.01) { lean = l; if (reachAt(l) <= 0.48 * s) break; }
+  const dirUp = V(Math.sin(lean), Math.cos(lean), 0);
+  p = { ...p, lean };
+  const neck = p.hip.clone().addScaledVector(dirUp, 0.52 * s);
+  // pelvis on the seat, then a torso that is wider at the chest than the waist (a shirt over shoulders)
+  parts.add(new THREE.SphereGeometry(1, 16, 10).scale(0.15 * s, 0.1 * s, 0.17 * s).translate(p.hip.x, p.hip.y + 0.02, p.hip.z), pants);
+  const torso = loft([{ x: 0, yb: -0.1 * s, yt: 0.1 * s, wb: 0.155 * s, n: 3 }, { x: 0.18 * s, yb: -0.095 * s, yt: 0.095 * s, wb: 0.15 * s, n: 3 }, { x: 0.38 * s, yb: -0.1 * s, yt: 0.11 * s, wb: 0.19 * s, n: 3 }, { x: 0.48 * s, yb: -0.085 * s, yt: 0.095 * s, wb: 0.2 * s, n: 3 }, { x: 0.53 * s, yb: -0.05 * s, yt: 0.05 * s, wb: 0.08 * s, n: 3 }], 18);
   torso.applyMatrix4(new THREE.Matrix4().makeRotationZ(Math.PI / 2 - p.lean)); torso.translate(p.hip.x, p.hip.y, p.hip.z);
   parts.add(torso, cloth);
-  const head = neck.clone().add(V(0.03 * s, 0.14 * s, 0));
-  parts.add(new THREE.SphereGeometry(0.105 * s, 16, 12).translate(head.x, head.y, head.z), kit.skin);
-  parts.add(limb(neck, head.clone().add(V(0, -0.06 * s, 0)), 0.045 * s), kit.skin);
-  if (p.helmet) {
-    parts.add(new THREE.SphereGeometry(0.135 * s, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62).translate(head.x - 0.01, head.y + 0.01, head.z), kit.paint(["#b8231d", "#1d1d1f", "#e8e8e8", "#1f4f9a"][Math.floor(Math.abs(head.x * 997) % 4)]!));
-    parts.add(new THREE.SphereGeometry(0.128 * s, 16, 10, -Math.PI * 0.32, Math.PI * 0.64, Math.PI * 0.32, Math.PI * 0.26).rotateY(Math.PI / 2).translate(head.x + 0.005, head.y, head.z), kit.glass);
-  } else parts.add(new THREE.SphereGeometry(0.11 * s, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5).translate(head.x - 0.01, head.y + 0.02, head.z), kit.matte("#151515", 0.8));
-  // arms: shoulder -> elbow (IK, elbow out and down) -> hand on the grip
-  for (const [i, side] of [[0, -1], [1, 1]] as const) {
-    const sh = neck.clone().add(V(-0.03 * s, -0.05 * s, side * 0.2 * s)), hand = p.hands[i]!;
-    // arm lengths with slack (the elbow always bends a little, never a straight rod), elbow out and down
-    const el = knee(sh, hand, 0.33 * s, 0.31 * s, V(-0.2, -1, side * 0.9));
-    parts.add(limb(sh, el, 0.05 * s), cloth); parts.add(limb(el, hand, 0.042 * s), cloth);
-    parts.add(new THREE.SphereGeometry(0.045 * s, 10, 8).translate(hand.x, hand.y, hand.z), kit.skin);
+  // collar and neck
+  parts.add(new THREE.TorusGeometry(0.06 * s, 0.015 * s, 6, 14).rotateX(Math.PI / 2).rotateZ(-p.lean).translate(neck.x, neck.y - 0.005, neck.z), cloth);
+  const head = neck.clone().add(V(0.035 * s, 0.15 * s, 0));
+  parts.add(taper(neck.clone().add(V(0, -0.02, 0)), head.clone().add(V(-0.01, -0.07 * s, 0)), 0.048 * s, 0.045 * s, 8), kit.skin);
+  // the head: a slightly long skull, a jaw, ears, a nose
+  parts.add(new THREE.SphereGeometry(1, 18, 14).scale(0.098 * s, 0.112 * s, 0.09 * s).translate(head.x, head.y, head.z), kit.skin);
+  // eyes (dark, small) and brows: a face reads at a glance
+  for (const z of [-1, 1]) {
+    parts.add(new THREE.SphereGeometry(0.011 * s, 8, 6).translate(head.x + 0.088 * s, head.y + 0.008 * s, head.z + z * 0.034 * s), kit.matte("#1b1410", 0.4));
+    parts.add(new THREE.BoxGeometry(0.008 * s, 0.006 * s, 0.03 * s).translate(head.x + 0.092 * s, head.y + 0.03 * s, head.z + z * 0.034 * s), hair);
   }
-  // legs: hip -> knee (IK, knee forward and up) -> foot
-  const legs = { thigh: [] as THREE.Mesh[], shin: [] as THREE.Mesh[], foot: [] as THREE.Mesh[] };
+  for (const z of [-1, 1]) parts.add(new THREE.SphereGeometry(1, 8, 6).scale(0.014 * s, 0.026 * s, 0.012 * s).translate(head.x - 0.01, head.y - 0.005, head.z + z * 0.09 * s), kit.skin);
+  parts.add(new THREE.ConeGeometry(0.014 * s, 0.035 * s, 6).rotateZ(-Math.PI / 2).translate(head.x + 0.105 * s, head.y - 0.015 * s, head.z), kit.skin);
+  if (p.helmet) {
+    // an open-face helmet: the shell covers the crown, back and sides; the face opening is cut at the front (phi = PI)
+    const hcol = kit.paint(["#b8231d", "#1d1d1f", "#e8e8e8", "#1f4f9a"][Math.floor(Math.abs(head.x * 997) % 4)]!);
+    parts.add(new THREE.SphereGeometry(0.128 * s, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.36).translate(head.x - 0.005, head.y + 0.012, head.z), hcol);
+    parts.add(new THREE.SphereGeometry(0.128 * s, 22, 14, Math.PI + 0.75, Math.PI * 2 - 1.5, Math.PI * 0.36, Math.PI * 0.24).translate(head.x - 0.005, head.y + 0.012, head.z), hcol);
+    // a short peak over the brow, a chin strap
+    parts.add(new THREE.CylinderGeometry(0.07 * s, 0.07 * s, 0.008 * s, 16, 1, false, -Math.PI / 2, Math.PI).scale(0.9, 1, 1.25).rotateZ(-0.25).translate(head.x + 0.105 * s, head.y + 0.055 * s, head.z), kit.matte("#151515", 0.4));
+    parts.add(new THREE.TorusGeometry(0.075 * s, 0.005 * s, 4, 12, Math.PI).rotateY(Math.PI / 2).rotateX(Math.PI).translate(head.x + 0.005, head.y - 0.005, head.z), kit.trim);
+  } else {
+    // hair: a cap of hair over the crown and back of the head, a fringe line at the forehead
+    // hair: a cap over the crown down to a hairline above the brow, and down to the nape at the back and sides
+    // (the face side, phi = PI, is left open below the hairline)
+    parts.add(new THREE.SphereGeometry(0.104 * s, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.3).scale(1.02, 1, 1.02).translate(head.x - 0.006, head.y + 0.014, head.z), hair);
+    parts.add(new THREE.SphereGeometry(0.104 * s, 20, 12, Math.PI + 0.95, Math.PI * 2 - 1.9, Math.PI * 0.3, Math.PI * 0.3).scale(1.02, 1, 1.02).translate(head.x - 0.006, head.y + 0.014, head.z), hair);
+  }
+  // arms: shoulder -> elbow (IK, elbow out and down) -> wrist -> a closed hand around the grip
   for (const [i, side] of [[0, -1], [1, 1]] as const) {
-    const hp = p.hip.clone().add(V(0, 0, side * 0.1 * s)), ft = p.feet[i]!;
+    const sh = neck.clone().add(V(-0.03 * s, -0.06 * s, side * 0.19 * s)), hand = p.hands[i]!;
+    const wrist = hand.clone().add(V(-0.06 * s, 0.01, 0));
+    const el = knee(sh, wrist, 0.3 * s, 0.26 * s, V(-0.2, -1, side * 0.9));
+    parts.add(ball(sh, 0.058 * s), cloth); // the shoulder (deltoid) under the sleeve
+    const sleeveEnd = sh.clone().lerp(el, 0.62);
+    parts.add(taper(sh, sleeveEnd, 0.056 * s, 0.05 * s), cloth); // a short sleeve
+    parts.add(taper(sleeveEnd.clone().lerp(sh, 0.05), el, 0.04 * s, 0.035 * s), kit.skin);
+    parts.add(ball(el, 0.034 * s), kit.skin);
+    parts.add(taper(el, wrist, 0.036 * s, 0.024 * s), kit.skin);
+    // the hand: a flattened fist around the grip (palm + a knuckle ridge), thumb on top
+    parts.add(new THREE.SphereGeometry(1, 10, 8).scale(0.05 * s, 0.035 * s, 0.045 * s).translate(hand.x - 0.01, hand.y + 0.008, hand.z), kit.skin);
+    parts.add(new THREE.SphereGeometry(1, 8, 6).scale(0.03 * s, 0.014 * s, 0.014 * s).translate(hand.x + 0.01, hand.y + 0.03 * s, hand.z - side * 0.015), kit.skin);
+  }
+  // legs: hip -> knee (IK, knee forward and up) -> ankle -> a shaped shoe
+  const legs = { thigh: [] as THREE.Mesh[], shin: [] as THREE.Mesh[], foot: [] as THREE.Mesh[] };
+  const shoeGeo = (): THREE.BufferGeometry => loft([{ x: -0.07 * s, yb: 0, yt: 0.065 * s, wb: 0.04 * s, n: 4 }, { x: 0.0, yb: 0, yt: 0.075 * s, wb: 0.048 * s, n: 4 }, { x: 0.1 * s, yb: 0, yt: 0.05 * s, wb: 0.05 * s, n: 4 }, { x: 0.16 * s, yb: 0.005, yt: 0.035 * s, wb: 0.038 * s, n: 3 }], 14);
+  for (const [i, side] of [[0, -1], [1, 1]] as const) {
+    const hp = p.hip.clone().add(V(0.02, 0, side * 0.095 * s)), ft = p.feet[i]!;
     if (dynamicLegs) {
-      const th = new THREE.Mesh(new THREE.CapsuleGeometry(0.065 * s, 0.4 * s, 3, 8), pants), sn = new THREE.Mesh(new THREE.CapsuleGeometry(0.05 * s, 0.38 * s, 3, 8), pants), fo = new THREE.Mesh(new THREE.BoxGeometry(0.22 * s, 0.07 * s, 0.1 * s), shoe);
+      // pedalling legs are placed every frame (bicycle): tapered segments along +Y, a shoe
+      const th = new THREE.Mesh(new THREE.CylinderGeometry(0.052 * s, 0.07 * s, 0.45 * s, 10), pants), sn = new THREE.Mesh(new THREE.CylinderGeometry(0.035 * s, 0.052 * s, 0.42 * s, 10), pants), fo = new THREE.Mesh(shoeGeo(), shoe);
+      for (const m of [th, sn, fo]) { m.castShadow = true; }
       legs.thigh.push(th); legs.shin.push(sn); legs.foot.push(fo); parts.loose.push(th, sn, fo);
       continue;
     }
-    const kn = knee(hp, ft, 0.44 * s, 0.42 * s, fwd.clone().add(up.clone().multiplyScalar(0.4)));
-    parts.add(limb(hp, kn, 0.065 * s), pants); parts.add(limb(kn, ft.clone().add(V(0, 0.04, 0)), 0.05 * s), pants);
-    parts.add(new THREE.BoxGeometry(0.24 * s, 0.08 * s, 0.1 * s).translate(ft.x + 0.06, ft.y, ft.z), shoe);
+    const ankle = ft.clone().add(V(0, 0.07 * s, 0));
+    const kn = knee(hp, ankle, 0.44 * s, 0.41 * s, fwd.clone().add(up.clone().multiplyScalar(0.4)));
+    parts.add(taper(hp, kn, 0.075 * s, 0.05 * s), pants); parts.add(ball(kn, 0.05 * s), pants); parts.add(taper(kn, ankle, 0.05 * s, 0.035 * s), pants);
+    parts.add(shoeGeo().translate(ft.x, ft.y, ft.z), shoe);
   }
   return dynamicLegs ? { legs } : {};
 }
@@ -235,13 +297,17 @@ function car(kit: Kit, r: () => number): VehicleModel {
   const cabin: Station[] = [{ x: g0, yb: 0.95, yt: 1.0, wb: W - 0.04, wt: W - 0.08, n: 6 }, { x: g0 + (hatch ? 0.12 : 0.45), yb: 0.95, yt: roofY - 0.04, wb: W - 0.05, wt: W - 0.2, n: 6 }, { x: g0 + (hatch ? 0.35 : 0.7), yb: 0.95, yt: roofY, wb: W - 0.05, wt: W - 0.2, n: 6 }, { x: g1 - 0.75, yb: 0.95, yt: roofY, wb: W - 0.05, wt: W - 0.2, n: 6 }, { x: g1, yb: 0.95, yt: 0.99, wb: W - 0.05, wt: W - 0.1, n: 6 }];
   parts.add(loft(cabin, 32), kit.glass);
   // the roof skin (painted) over the middle of the glasshouse, and the pillars
-  const rx0 = g0 + (hatch ? 0.3 : 0.65), rx1 = g1 - 0.78;
-  parts.add(loft([{ x: rx0 - 0.05, yb: roofY - 0.06, yt: roofY + 0.012, wb: W - 0.19, n: 8 }, { x: rx0 + 0.05, yb: roofY - 0.06, yt: roofY + 0.022, wb: W - 0.19, n: 8 }, { x: rx1 - 0.05, yb: roofY - 0.06, yt: roofY + 0.022, wb: W - 0.19, n: 8 }, { x: rx1 + 0.05, yb: roofY - 0.06, yt: roofY + 0.012, wb: W - 0.19, n: 8 }], 24), paint);
+  // the roof panel: a full painted skin over the glasshouse top, overhanging the glass a little (a solid roofline with
+  // a gentle crown), from the top of the windscreen to the top of the rear window
+  const rx0 = g0 + (hatch ? 0.28 : 0.6), rx1 = g1 - 0.7;
+  parts.add(loft([{ x: rx0 - 0.08, yb: roofY - 0.05, yt: roofY + 0.01, wb: W - 0.17, n: 6 }, { x: rx0 + 0.06, yb: roofY - 0.06, yt: roofY + 0.04, wb: W - 0.15, n: 7 }, { x: (rx0 + rx1) / 2, yb: roofY - 0.06, yt: roofY + 0.055, wb: W - 0.15, n: 7 }, { x: rx1 - 0.06, yb: roofY - 0.06, yt: roofY + 0.04, wb: W - 0.15, n: 7 }, { x: rx1 + 0.08, yb: roofY - 0.05, yt: roofY + 0.01, wb: W - 0.17, n: 6 }], 28), paint);
+  // pillars: round, but thick enough to read as body (they follow the glass edge exactly; flat boxes stood proud of it)
   for (const z of [-1, 1]) {
-    const zb = z * (W - 0.045), zt = z * (W - 0.195);
-    parts.add(tube(V(g1 - 0.02, 0.97, zb), V(rx1 + 0.04, roofY - 0.01, zt), 0.035, 8), paint); // A pillar
-    parts.add(tube(V(g0 + 0.04, 0.97, zb), V(rx0 - 0.03, roofY - 0.01, zt), hatch ? 0.07 : 0.045, 8), paint); // C pillar
-    parts.add(new THREE.BoxGeometry(0.07, roofY - 1.0, 0.02).translate((rx0 + rx1) / 2 + 0.05, (roofY + 0.97) / 2, (Math.abs(zb) + Math.abs(zt)) / 2 * z), kit.trim); // B pillar
+    const zb = z * (W - 0.045), zt = z * (W - 0.18);
+    parts.add(tube(V(g1 - 0.02, 0.97, zb), V(rx1 + 0.03, roofY - 0.01, zt), 0.05, 10), paint); // A pillar
+    parts.add(tube(V(g0 + 0.05, 0.97, zb), V(rx0 - 0.03, roofY - 0.01, zt), hatch ? 0.11 : 0.075, 10), paint); // C pillar
+    parts.add(tube(V((rx0 + rx1) / 2 + 0.05, 0.97, zb), V((rx0 + rx1) / 2 + 0.05, roofY - 0.02, zt), 0.042, 8), kit.trim); // B pillar
+    parts.add(new THREE.BoxGeometry(g1 - g0 - 0.1, 0.03, 0.03).translate((g0 + g1) / 2, 0.975, z * (W - 0.03)), kit.trim); // belt seal
     // door seams, handles, a shoulder crease
     for (const x of [g1 - 0.05, (rx0 + rx1) / 2 + 0.05, hatch ? -hl + 0.95 : g0 + 0.25]) parts.add(new THREE.BoxGeometry(0.008, 0.62, 0.006).translate(x, 0.65, z * (W + 0.002)), kit.trim);
     for (const x of [(rx0 + rx1) / 2 - 0.15, hatch ? -hl + 0.8 : g0 + 0.15]) parts.add(rbox(x - 0.09, x + 0.09, 0.84, 0.875, 0.012).applyMatrix4(M(0, 0, z * (W + 0.006))), kit.chrome);
@@ -366,6 +432,9 @@ function bus(kit: Kit, r: () => number): VehicleModel {
   for (let i = 0; i < 6; i++) parts.add(new THREE.BoxGeometry(0.02, 0.025, 1.2).translate(-hl - 0.01, 1.5 + i * 0.07, 0), kit.trim); // engine vents
   parts.add(new THREE.BoxGeometry(0.02, 0.9, 2.1).translate(-hl - 0.005, 2.3, 0), kit.glass);
   for (const [x, f] of [[hl + 0.15, 1], [-hl - 0.15, -1]] as const) root.add(plate(kit, `DL 1PC ${1000 + Math.floor(r() * 9000)}`, true, x, 0.55, f, 0.55));
+  // at night the saloon is lit (a warm ceiling strip and the glow it casts on the seats): the bus reads as a bus
+  if (kit.night) parts.add(new THREE.BoxGeometry(2 * hl - 1.4, 0.04, 1.6).translate(-0.4, 2.62, 0), kit.get("busLight", () => new THREE.MeshStandardMaterial({ color: "#fff1d6", emissive: "#ffe6b8", emissiveIntensity: 2.2 })));
+  if (kit.night) for (const z of [-1, 1]) parts.add(new THREE.BoxGeometry(2 * hl - 1.6, 0.8, 0.01).translate(-0.4, 2.12, z * (W - 0.03)), kit.get("busGlow", () => new THREE.MeshBasicMaterial({ color: "#6a5236", transparent: true, opacity: 0.85 })));
   // interior: seat backs seen through the windows
   for (let x = -hl + 0.8; x < hl - 2.2; x += 0.8) for (const z of [-0.75, 0.75]) parts.add(rbox(x - 0.05, x + 0.05, 1.2, 1.95, 0.4).applyMatrix4(M(0, 0, z)), kit.interior);
   const wr = 0.5, wheels: THREE.Object3D[] = [], fx = hl - 2.05, bx = -hl + 2.6;

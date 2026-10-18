@@ -62,7 +62,9 @@ export const CAMERA_SHOTS = ["wide", "medium", "closeup", "over_shoulder"] as co
 export const CAMERA_MOVES = ["static", "follow", "tracking", "push_in", "pull_out", "pan", "tilt", "handheld"] as const;
 export interface CameraSpec3D {
   /** A locked-off camera at an exact position looking at a point (inspection and test shots); overrides the framing. */
-  fixed?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number };
+  fixed?: { position: [number, number, number]; lookAt: [number, number, number]; fov?: number;
+    /** An eased move to a second framing over the whole shot (an establishing pan / crane), a pure function of t. */
+    to?: { position: [number, number, number]; lookAt: [number, number, number] } };
   shot: (typeof CAMERA_SHOTS)[number];
   move: (typeof CAMERA_MOVES)[number];
   /** Character id the camera frames, or a named set point ("door"). */
@@ -120,9 +122,37 @@ export interface EnvironmentSpec3D {
   weather?: { rain?: number; fog?: number; wind?: number };
   /** House / building colours for kits that have them (neighbourhood siding, door). */
   palette?: { wall?: string; door?: string; trim?: string; roof?: string };
+  /** Animals in the set (dog, cat...), from the asset registry. */
+  animals?: AnimalSpec3D[];
+  /** Hand pump / tap use in the village set. */
+  interactions?: InteractionSpec3D;
   /** The living world around the set, decided by the visual plan from the story (visualPlan.ts planWorld). Only what is
    *  listed is built: no traffic indoors, no sun at night, no birds in a storm. */
   world?: WorldSpec3D;
+}
+
+/** An animal from the asset registry, moved by the timeline (every value a pure function of t). */
+export interface AnimalSpec3D {
+  id: string;
+  /** Registry id (config/assets3d.json, category "animal"). */
+  asset: string;
+  /** Time-stamped points; the animal eases between them (a repeated point = it stays). */
+  path: { at: number; x: number; z: number }[];
+  start?: { heading?: number };
+  /** Turn to look at a point (when standing). */
+  face?: { at: number; x: number; z: number }[];
+  /** Filled in by the host from the registry: clip names by role, and the height to scale the model to. */
+  clips?: Record<string, string>;
+  height?: number;
+  /** Clip roles from the registry (eat, rest, react, idle2) played for a while when standing. */
+  actions?: { at: number; duration: number; clip: string }[];
+}
+/** Everyday interactions of the village set, evaluated from t (handle angle, flow, bucket level). */
+export interface InteractionSpec3D {
+  /** A hand pump is worked between `from` and `to` (strokes per second); its water falls into the bucket under it. */
+  handpump?: { from: number; to: number; rate?: number; bucket?: boolean; /** Litres already in the bucket at the start of the shot (it was being filled before). */ bucketStart?: number };
+  /** A tap opened at `open` and closed at `close`, filling a bucket under it. */
+  tap?: { open: number; close: number; bucket?: boolean; bucketStart?: number };
 }
 
 export type VehicleKind3D = "car" | "auto" | "bus" | "scooter" | "motorcycle" | "bicycle";

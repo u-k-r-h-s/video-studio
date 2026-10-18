@@ -1,9 +1,10 @@
 import * as THREE from "three";
-import { interiorKit, marketKit, roadKit, villageKit, type Clamp, type KitCtx } from "./kits";
+import { interiorKit, marketKit, roadKit, type Clamp, type KitCtx } from "./kits";
 import { birds, clouds, windTick, type WorldCtx } from "./world/nature";
 import { natureKit } from "./world/landscape";
 import { cityKit } from "./world/city";
 import { straightLane, traffic, type Lane } from "./world/vehicles";
+import { villageLane } from "./world/village";
 import type { EnvironmentSpec3D, SetObject3D } from "../spec";
 import { glowSprite, lightShaft } from "./effects";
 import type { LightingRig } from "./lighting";
@@ -24,6 +25,8 @@ export interface SetInstance {
   cues: { kind: "door"; at: number; volume?: number }[];
   /** What the world system built (counts of trees, grass blades, vehicles by kind, birds...): evidence for the report. */
   info: Record<string, unknown>;
+  /** Evaluated before the characters each frame (interactions whose moving parts hands follow). */
+  pre(t: number): void;
   /** A pavement / path where background walkers can go (city), if the set has one. */
   walkway?: { z: number; x0: number; x1: number };
 }
@@ -174,7 +177,8 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
 
   const frontZ = DZ + 0.6;
   let kitClamp: Clamp | null = null;
-  const kit: KitCtx = { spec, group, ground, r, day, wet, DX, DZ, add, mark, doorway, updates };
+  const kit: KitCtx = { spec, group, ground, r, day, wet, DX, DZ, add, mark, doorway, updates, markObject: (id, o) => { named.set(id, o); } };
+  const pre: ((t: number) => void)[] = [];
   // the living world (world/*): only what the visual plan put in spec.world is built
   const W = spec.world;
   const info: Record<string, unknown> = { kit: spec.kind };
@@ -184,7 +188,7 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   let walkway: SetInstance["walkway"];
   if (spec.kind === "nature") { const n = natureKit(kit, wctx, W?.landscape ?? { relief: "hills", forest: 0.5, grass: 0.7 }); kitClamp = n.clamp; Object.assign(info, n.info); }
   else if (spec.kind === "city") { const c = cityKit(kit, { lanes: W?.traffic?.lanes ?? 4, streetlights: W?.streetlights ?? true }); kitClamp = c.clamp; lanes = c.lanes; walkway = c.sidewalk; }
-  else if (spec.kind === "village") kitClamp = villageKit(kit);
+  else if (spec.kind === "village") { const v = villageLane(kit, spec.interactions); kitClamp = v.clamp; pre.push(...v.pre); info.interactions = Object.keys(spec.interactions ?? {}); }
   else if (spec.kind === "market") kitClamp = marketKit(kit);
   else if (spec.kind === "interior") kitClamp = interiorKit(kit, { outage: spec.lightsOut });
   else if (spec.kind === "road") { const ls: { z: number; dir: 1 | -1 }[] = []; kitClamp = roadKit(kit, { traffic: !!W?.traffic, lanes: ls, dirt: W?.traffic?.surface === "dirt" }); lanes = ls.map((l) => (l.dir > 0 ? straightLane(-75, 75, l.z) : straightLane(75, -75, l.z))); }
@@ -347,6 +351,7 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
 
   return {
     group, cues, info, ...(walkway ? { walkway } : {}),
+    pre: (t) => { for (const p of pre) p(t); },
     clampCamera: (p) => { if (kitClamp) { kitClamp(p); return; } if ((spec.kind === "warehouse-exterior" || spec.kind === "neighborhood") && p.z < frontZ) p.z = frontZ; if (p.y < 0.35) p.y = 0.35; },
     named: (id) => { const o = named.get(id); return o ? o.getWorldPosition(new THREE.Vector3()) : null; },
     update: (t, dt, cam) => { for (const u of updates) u(t, dt, cam); },

@@ -1,0 +1,93 @@
+{
+ "_comment": "Reusable 3D asset registry (props, animals, houses, vegetation, vehicles). Files live under assets/3d/ and are git-ignored; this file records where each came from, its licence and how to place it. Characters keep their own catalogue (config/characters3d.json). Procedural assets (built in code) are listed with file: null so every id resolves to something known.",
+ "assets": {
+  "dog-shiba": {
+   "category": "animal",
+   "file": "assets/3d/animals/dog-shiba/model.glb",
+   "bytes": 851196,
+   "source": "https://poly.pizza/m/y4wdQpg767 (Quaternius, Ultimate Animated Animal Pack)",
+   "licence": "CC0 1.0",
+   "attribution": "not required (credit: Quaternius)",
+   "purpose": "village dog: idle, walk, gallop, eating, sit-like Idle_2_HeadLow",
+   "height": 0.62,
+   "forward": "+z",
+   "clips": {
+    "idle": "Idle",
+    "idle2": "Idle_2",
+    "rest": "Idle_2_HeadLow",
+    "walk": "Walk",
+    "run": "Gallop",
+    "eat": "Eating",
+    "react": "Idle_HitReact_Left"
+   }
+  },
+  "cat-blob": {
+   "category": "animal",
+   "file": "assets/3d/animals/cat/model.glb",
+   "bytes": 111948,
+   "source": "https://poly.pizza/m/2f54vbV0In (Quaternius, Ultimate Monsters Bundle: Cat)",
+   "licence": "CC0 1.0",
+   "attribution": "not required (credit: Quaternius)",
+   "purpose": "evaluated for the village cat; rejected for foreground use (a legless cartoon monster: 4 bones, hops instead of walking)",
+   "height": 0.32,
+   "forward": "+z",
+   "foreground": false,
+   "clips": {
+    "idle": "CharacterArmature|Idle",
+    "walk": "CharacterArmature|Walk"
+   }
+  },
+  "handpump": {
+   "category": "prop",
+   "file": null,
+   "source": "procedural (runtime/world/village.ts)",
+   "licence": "original",
+   "purpose": "India Mark II hand pump with working handle, water and drain platform"
+  },
+  "water-tap": {
+   "category": "prop",
+   "file": null,
+   "source": "procedural (runtime/world/village.ts)",
+   "licence": "original",
+   "purpose": "standpipe with a tap that opens and closes"
+  },
+  "bucket": {
+   "category": "prop",
+   "file": null,
+   "source": "procedural (runtime/world/village.ts)",
+   "licence": "original",
+   "purpose": "steel bucket that fills"
+  },
+  "charpai": {
+   "category": "prop",
+   "file": null,
+   "source": "procedural (runtime/world/village.ts)",
+   "licence": "original",
+   "purpose": "woven cot"
+  },
+  "village-house": {
+   "category": "house",
+   "file": null,
+   "source": "procedural (runtime/world/village.ts)",
+   "licence": "original",
+   "purpose": "plastered house: flat roof with parapet, tiled roof, or thatch"
+  },
+  "cat": {
+   "category": "animal",
+   "file": "assets/3d/animals/cat-quaternius/model.glb",
+   "bytes": 238672,
+   "source": "https://poly.pizza/m/qKICY6xla2 (Quaternius, Cat)",
+   "licence": "CC0 1.0",
+   "attribution": "not required (credit: Quaternius)",
+   "purpose": "village cat: idle, walk, run, eating",
+   "height": 0.3,
+   "forward": "+z",
+   "clips": {
+    "idle": "AnimalArmature|AnimalArmature|AnimalArmature|Idle",
+    "walk": "AnimalArmature|AnimalArmature|AnimalArmature|Walk",
+    "run": "AnimalArmature|AnimalArmature|AnimalArmature|Run",
+    "eat": "AnimalArmature|AnimalArmature|AnimalArmature|Idle_Eating"
+   }
+  }
+ }
+}

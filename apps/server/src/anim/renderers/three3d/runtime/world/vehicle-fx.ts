@@ -101,7 +101,7 @@ export function vehicleFx(o: FxOptions, actors: FxActor[], parked: VehicleModel[
 
   // ---- particles
   const emitters = actors.map((a, i) => ({ a, i, ex: o.exhaust && a.model.anchors.exhaust && EXHAUST[a.kind] > 0 && !(o.electric ?? []).includes(a.kind) }));
-  const EX = { K: 16, period: 0.11 }, DU = { K: 30, period: 0.06 }, SP = { K: 14, period: 0.035 };
+  const EX = { K: 16, period: 0.11 }, DU = { K: 18, period: 0.05 }, SP = { K: 14, period: 0.035 };
   const nEx = emitters.filter((e) => e.ex).length * EX.K;
   const nDu = o.dust ? actors.reduce((n, a) => n + a.model.anchors.rearWheels.length, 0) * DU.K : 0;
   const nSp = o.spray ? actors.reduce((n, a) => n + a.model.anchors.rearWheels.length, 0) * SP.K : 0;
@@ -179,9 +179,11 @@ export function vehicleFx(o: FxOptions, actors: FxActor[], parked: VehicleModel[
           const back = new THREE.Vector3(-1, 0, 0).applyAxisAngle(up, st.yaw), side = new THREE.Vector3(0, 0, 1).applyAxisAngle(up, st.yaw);
           if (kind === "dust") {
             const amount = Math.min(1, Math.max(0, (st.v - 0.8) / 3.2)) * (a.model.anchors.width < 1 ? 0.4 : 0.62) * (a.kind === "bicycle" ? 0.45 : 1), u = age / (cfg.K * cfg.period);
-            tmp.addScaledVector(back, (0.6 + h1) * age).addScaledVector(side, (h2 - 0.5) * 1.4 * age); tmp.y += 0.5 * age + 0.2;
-            pool2.pos.set([tmp.x, tmp.y, tmp.z], n * 3); pool2.size[n] = 0.45 + 2.0 * age + 0.25 * h3;
-            pool2.alpha[n] = amount * Math.min(1, age / 0.12) * (1 - u) ** 1.4; pool2.col.set([dustCol.r, dustCol.g, dustCol.b], n * 3);
+            // low puffs that roll off the tyre and settle: under a metre high and ~1.3 m across at most, gone in 0.9 s
+            // (a long-lived, growing cloud read as a flat yellow band across the frame)
+            tmp.addScaledVector(back, (0.5 + 0.8 * h1) * age).addScaledVector(side, (h2 - 0.5) * 0.9 * age); tmp.y += 0.18 + 0.35 * age * (1 - 0.5 * age);
+            pool2.pos.set([tmp.x, Math.min(0.95, tmp.y), tmp.z], n * 3); pool2.size[n] = 0.28 + 1.1 * age + 0.2 * h3;
+            pool2.alpha[n] = amount * 0.8 * Math.min(1, age / 0.1) * (1 - u) ** 2; pool2.col.set([dustCol.r, dustCol.g, dustCol.b], n * 3);
           } else {
             // thrown up and back from the tyre, falling under gravity, gone when it lands
             const amount = Math.min(1, Math.max(0, (st.v - 2) / 5)) * 0.75 * Math.min(1, o.wet) * (a.model.anchors.width < 1 ? 0.5 : 1);
