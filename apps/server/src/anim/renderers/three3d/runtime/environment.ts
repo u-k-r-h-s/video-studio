@@ -176,6 +176,8 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   };
 
   const frontZ = DZ + 0.6;
+  // "stage": the middle of where the action is blocked (establishing shots frame the place around it)
+  mark("stage", spec.kind === "warehouse-exterior" ? new THREE.Vector3(DX + 1.6, 0, DZ + 2.4) : spec.kind === "nature" ? new THREE.Vector3(0, 0, 2) : spec.kind === "interior" ? new THREE.Vector3(DX - 1.7, 0, DZ + 2.4) : new THREE.Vector3(DX - 1.2, 0, DZ + 4.5));
   let kitClamp: Clamp | null = null;
   const kit: KitCtx = { spec, group, ground, r, day, wet, DX, DZ, add, mark, doorway, updates, markObject: (id, o) => { named.set(id, o); } };
   const pre: ((t: number) => void)[] = [];
@@ -338,15 +340,22 @@ export async function buildSet(spec: EnvironmentSpec3D, scene: THREE.Scene, imag
   }
   // daylight air: a few motes drifting in the sun (a subtle depth cue, never a fog band)
   if (day && !rain && spec.kind !== "interior") {
-    const N = 160, pos = new Float32Array(N * 3), base = new Float32Array(N * 4);
-    for (let i = 0; i < N; i++) base.set([(r() - 0.5) * 10, 0.3 + r() * 3.5, (r() - 0.5) * 10, r() * 6.28], i * 4);
-    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: "#fff6dc", size: 0.02, transparent: true, opacity: 0.55, depthWrite: false }));
+    // the drift is computed in the vertex shader from (t, camera): the buffer never changes after set-up. Rewriting it on
+    // the CPU every frame made the drawn motes depend on how many uploads the GPU had seen: a chunk that fast-forwards
+    // (no draws, one upload) drew a few mote pixels differently from the continuous render with identical positions
+    const N = 160, base = new Float32Array(N * 3), phase = new Float32Array(N);
+    for (let i = 0; i < N; i++) { base.set([(r() - 0.5) * 10, 0.3 + r() * 3.5, (r() - 0.5) * 10], i * 3); phase[i] = r() * 6.28; }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(base, 3)); geo.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
+    const mat = new THREE.PointsMaterial({ color: "#fff6dc", size: 0.02, transparent: true, opacity: 0.55, depthWrite: false });
+    const uT = { value: 0 }, uCam = { value: new THREE.Vector3() };
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uT = uT; sh.uniforms.uCam = uCam;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform float uT; uniform vec3 uCam; attribute float aPhase;")
+        .replace("#include <begin_vertex>", "vec3 transformed = vec3(uCam.x + position.x + sin(uT * 0.3 + aPhase) * 0.3, position.y + sin(uT * 0.21 + aPhase * 2.0) * 0.15, uCam.z - 4.0 + position.z + cos(uT * 0.25 + aPhase) * 0.3);");
+    };
+    const pts = new THREE.Points(geo, mat);
     pts.frustumCulled = false; group.add(pts);
-    updates.push((t, _dt, cam) => {
-      for (let i = 0; i < N; i++) { const ph = base[i * 4 + 3]!; pos.set([cam.x + base[i * 4]! + Math.sin(t * 0.3 + ph) * 0.3, base[i * 4 + 1]! + Math.sin(t * 0.21 + ph * 2) * 0.15, cam.z - 4 + base[i * 4 + 2]! + Math.cos(t * 0.25 + ph) * 0.3], i * 3); }
-      geo.attributes.position!.needsUpdate = true;
-    });
+    updates.push((t, _dt, cam) => { uT.value = t; uCam.value.copy(cam); });
   }
 
   return {

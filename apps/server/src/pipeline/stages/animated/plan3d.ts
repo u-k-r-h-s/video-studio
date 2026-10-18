@@ -42,6 +42,8 @@ export function shot3dSpec(svc: PipelineServices, p: Project, story: Story, inde
   const before = [...new Set(story.shots.slice(0, index).filter((s) => sceneOf(s) === sceneOf(shot)).flatMap((s) => s.subjectIds))];
   // where the previous shot of this scene left everyone (the cut must not move them)
   const carry = index > 0 && sceneOf(story.shots[index - 1]!) === sceneOf(shot) ? endsOf(svc, p, story, index - 1) : undefined;
+  // the previous shot's camera (same scene): a planned camera move opens on it, so the cut between them is invisible
+  const prevCamera = index > 0 && sceneOf(story.shots[index - 1]!) === sceneOf(shot) ? cameraOf(svc, p, story, index - 1) : undefined;
   // one casting for the whole story: the best-fitting library model per character, no two characters alike
   const catalog = loadCatalog(undefined, (k) => existsSync(characterFile(k)));
   const plan = visualPlanOf(svc, p, story), style = artStyleOf(plan.artStyle);
@@ -59,11 +61,20 @@ export function shot3dSpec(svc: PipelineServices, p: Project, story: Story, inde
   }
   return compileShot3D({
     shot, story, characters: p.characters, duration, width: profile.video.width, height: profile.video.height, fps: profile.video.fps, seed: index + 1,
-    cast: (c) => ({ ...castFor(c), ...(cast[c.id] ? { asset: cast[c.id]! } : {}) }), indexInScene: sceneShots.findIndex((s) => s.id === shot.id), speech, scene: { order, before, ...(carry ? { carry } : {}) },
+    cast: (c) => ({ ...castFor(c), ...(cast[c.id] ? { asset: cast[c.id]! } : {}) }), indexInScene: sceneShots.findIndex((s) => s.id === shot.id), speech, ...(prevCamera ? { prevCamera } : {}), scene: { order, before, ...(carry ? { carry } : {}) },
     direction: { location: plan.locations.find((l) => l.locationId === shot.locationId) ?? plan.locations[0]!, shot: plan.shots[index], style },
     // the AI-painted location picture becomes the plate behind the 3D set
     backdrop: (l) => { const rel = animPaths.final(`loc-${l.id}`); const abs = svc.store.resolve(p.id, rel); return existsSync(abs) ? abs : undefined; },
   });
+}
+
+/** The camera spec of story shot `index` (its own composition; the duration does not change it). */
+const cameras = new Map<string, Shot3DSpec["camera"]>();
+function cameraOf(svc: PipelineServices, p: Project, story: Story, index: number): Shot3DSpec["camera"] {
+  const key = `${p.id}|${index}|${story.shots.map((s) => s.id + s.locationId + s.shotType + s.subjectIds.join("+")).join()}`;
+  let c = cameras.get(key);
+  if (!c) { c = shot3dSpec(svc, p, story, index, 4).spec.camera; cameras.set(key, c); }
+  return c;
 }
 
 /** End positions of story shot `index` (compiled without timing: walks end at their targets whatever the duration). */

@@ -3,7 +3,8 @@ import { DEFAULT_DURATION, placeAction } from "../../actions";
 import { classifyProp, impliedActions } from "../../semantics";
 import type { ArtStyle } from "./artStyle";
 import type { SceneDirection, ShotDirection } from "./visualPlan";
-import type { Action3D, CameraSpec3D, CharacterEvent3D, CharacterSpec3D, Expression, LightingPreset, PropSpec3D, SetObject3D, Shot3DSpec, SpeechSpec3D } from "./spec";
+import { objectOf } from "./cinematography";
+import type { Action3D, CameraSpec3D, CharacterEvent3D, CharacterSpec3D, Expression, InteractionSpec3D, LightingPreset, PropSpec3D, SetObject3D, Shot3DSpec, SpeechSpec3D } from "./spec";
 
 /**
  * The 3D animation compiler: the Director's shot (semantic actions, objects, shot size, camera motion, emotion) -> a
@@ -38,6 +39,8 @@ export interface Compile3DInput {
   scene?: { order: string[]; before?: string[]; carry?: Record<string, { x: number; z: number; heading: number }> };
   /** Lip-sync per character id: the lines spoken in this shot (shot-local times). */
   speech?: Record<string, SpeechSpec3D[]>;
+  /** The previous shot's camera when it is in the same scene: a planned MOVE opens on it (an invisible cut). */
+  prevCamera?: CameraSpec3D;
   /** The story's visual plan for this shot's location and this shot (visualPlan.ts); without it the place's words decide. */
   direction?: { location: SceneDirection; shot?: ShotDirection; style: ArtStyle };
 }
@@ -94,7 +97,7 @@ function targetOf(a: Pick<ShotAnimAction, "toward" | "to" | "action">, here: { x
   if (/(door|entrance|gate|building|warehouse|house|home|porch|inside|in there)/.test(t)) return a.action === "walk" || a.action === "run" || a.action === "enter" ? "door-front" : /(inside|in there|interior)/.test(t) ? "doorway" : "door";
   if (a.to === "left" || /\bleft\b/.test(t)) return { x: here.x - 3, z: here.z - 1, y: 1.5 };
   if (a.to === "right" || /\bright\b/.test(t)) return { x: here.x + 3, z: here.z - 1, y: 1.5 };
-  if (/(away|back|behind|street|road)/.test(t)) return { x: here.x + 1.5, z: here.z + 7 };
+  if (/(away|back|behind|street|road|along|lane|gali)/.test(t)) return { x: here.x + 1.5, z: here.z + 7 };
   if (/(sound|noise|voice|shadow|figure|dark)/.test(t)) return "doorway";
   // leaving with nowhere named: off along the set, not into the house (the doorway is a point behind the wall)
   if (a.action === "exit") return { x: here.x - 8, z: here.z + 0.4 };
@@ -316,6 +319,19 @@ export function compileShot3D(inp: Compile3DInput): { spec: Shot3DSpec; notes: s
     });
   }
 
+  // the village hand pump: a shot about pumping water stages the lead at the pump and works it (handle, flow, bucket)
+  let interactions: InteractionSpec3D | undefined;
+  // (it replaces an implied walk: a character working the pump stands at it)
+  if (kit === "village" && characters[0] && objectOf(shot) === "pump" && /(pump|fill|water|draw)/i.test(shot.action)) {
+    characters[0].start = { x: PUMP_STAND.x, z: PUMP_STAND.z, heading: Math.PI / 2 };
+    // a later shot of the scene cuts INTO the pumping (hand on the grip, at full stroke); the first one starts it
+    // (the bucket keeps what the earlier pump shots of the scene put in it: about 2.5 l per shot)
+    const later = (inp.indexInScene ?? 0) > 0;
+    characters[0].events = [{ at: later ? -1.5 : 0, action: "reach", target: "pump-handle", duration: D + 2 }];
+    interactions = { handpump: { from: later ? -1 : Math.min(0.6, D * 0.1), to: Math.max(D - 0.4, D * 0.8), bucketStart: Math.min(10, (inp.indexInScene ?? 0) * 2.5) } };
+    notes.push(`${characters[0].id} works the hand pump`);
+  }
+
   // camera: shot size + movement from the Director; a moving subject is tracked from a slight side angle
   const moving = characters[0]?.events.some((e) => e.action === "walk" || e.action === "run");
   let move = CAMERA_MOVE[shot.motion.type];
@@ -343,6 +359,17 @@ export function compileShot3D(inp: Compile3DInput): { spec: Shot3DSpec; notes: s
     // on the face of the one it is about (lips and expression must read on a phone)
     ...(camShot !== "over_shoulder" && camShot !== "closeup" && characters.length > 1 ? { frameWith: farthest(characters) } : {}),
   };
+  // the coverage was planned for this shot in its scene (a direction lent from another shot keeps the per-shot mapping)
+  const cov = dir?.shot?.shotId === shot.id && dir.shot.coverage?.from === shot.shotType ? dir.shot.coverage : undefined;
+  const covCam = cov && (who || cov.purpose === "establishing") ? coverageCamera(cov, shot, characters, kit, !!moving, interactions, street) : null;
+  if (covCam) notes.push(`camera: ${covCam.purpose} (${cov!.reason})`);
+  // a planned move: open on the previous shot's composition and travel to this one (a cut there would read as a jump)
+  if (covCam && cov!.transition === "move") {
+    // from the place down into the scene is a long crane (~7 m): 3.2 s keeps it a glide; closer on the same action, 1.8 s
+    const enter = entryFrom(inp.prevCamera, characters, inp.characters, D, inp.prevCamera?.purpose === "establishing" ? 3.2 : 1.8);
+    if (enter) { covCam.enter = enter; notes.push(`camera moves in from the previous shot (${cov!.transitionReason}), ${enter.duration.toFixed(1)} s`); }
+    else notes.push(`camera cuts: the previous shot's framing is not on this set (${cov!.transitionReason})`);
+  }
   const spec: Shot3DSpec = {
     id: shot.id, duration: D, width: inp.width, height: inp.height, fps: inp.fps, seed: inp.seed, lighting,
     ...(dir ? { style: { id: dir.style.id, shading: dir.style.shading, exposure: dir.style.exposure } } : {}),
@@ -351,11 +378,68 @@ export function compileShot3D(inp: Compile3DInput): { spec: Shot3DSpec; notes: s
       weather: dir ? { rain: dir.location.rain, wind: dir.location.wind, ...(dir.location.fog !== undefined ? { fog: dir.location.fog } : {}) } : { rain: rainy ? 0.8 : 0, wind: night ? 0.3 : 0.7 },
       ...(dir ? { palette: dir.location.palette, lightsOut: dir.location.lightsOut } : {}),
       ...(dir?.location.world ? { world: dir.location.world } : {}),
+      ...(interactions ? { interactions } : {}),
     },
     ...(dir?.location.sunAzimuth !== undefined ? { sunAzimuth: dir.location.sunAzimuth } : {}),
-    characters, camera,
+    characters, camera: covCam ?? camera,
   };
   return { spec, notes };
+}
+
+/** The entry move from the previous camera, or null when it cannot open on it (no camera, a fixed one, or it frames
+ *  someone who is not in this shot). Duration: the planned length, at most 75 % of the shot (it must arrive and hold). */
+function entryFrom(prev: CameraSpec3D | undefined, cs: CharacterSpec3D[], all: Character[], D: number, want: number): CameraSpec3D["enter"] | null {
+  if (!prev || prev.fixed) return null;
+  const isCharacter = (id: string | undefined) => !!id && all.some((c) => c.id === id);
+  const here = (id: string | undefined) => !id || !isCharacter(id) || cs.some((c) => c.id === id);
+  if (!here(prev.target) || !here(prev.frameWith) || !here(prev.toward)) return null;
+  // every field the composition depends on, as the previous shot ended (a push-in / pull-out at its end point)
+  const from: NonNullable<CameraSpec3D["enter"]>["from"] = {
+    shot: prev.shot, move: prev.move === "follow" || prev.move === "tracking" ? "static" : prev.move, target: prev.target, toward: prev.toward ?? null, side: prev.side ?? null, behind: prev.behind ?? null,
+    angle: prev.angle ?? null, frameWith: prev.frameWith ?? null, heightOffset: prev.heightOffset ?? null, fovScale: prev.fovScale ?? null, atEnd: prev.move === "push_in" || prev.move === "pull_out",
+  };
+  return { from, duration: +Math.min(want, D * 0.75).toFixed(2) };
+}
+
+const PUMP_STAND = { x: DOOR.x + 2.48, z: DOOR.z + 5.38 }; // village.ts "pump-stand": behind the grip, facing the pump (+x)
+const POINT_OF: Record<string, (pumping: boolean) => string> = { pump: () => "pump-spout", tap: () => "tap", bucket: (p) => (p ? "pump-spout" : "tap") };
+
+/** The camera for a planned coverage (cinematography.ts): who / what it frames, from where, how it moves. */
+function coverageCamera(cov: NonNullable<ShotDirection["coverage"]>, shot: Shot, cs: CharacterSpec3D[], kit: SceneDirection["kit"], moving: boolean, interactions: InteractionSpec3D | undefined, street: boolean): CameraSpec3D {
+  // the place itself: a raised wide on the set's "stage" point, with or without anyone in it
+  if (cov.purpose === "establishing") return { shot: "wide", move: cov.move === "follow" ? "static" : cov.move, target: "stage", side: 1, angle: cov.angle, heightOffset: cov.heightOffset, fovScale: cov.fovScale, purpose: cov.purpose, ...(street ? { front: { x: 0, z: 1 } } : {}) };
+  const lead = cs[0]!;
+  const speakerId = shot.dialogue.find((d) => cs.some((c) => c.id === d.characterId))?.characterId;
+  const speaker = cs.find((c) => c.id === speakerId) ?? lead;
+  const listener = cs.find((c) => c.id !== speaker.id);
+  const base = { heightOffset: cov.heightOffset, fovScale: cov.fovScale, purpose: cov.purpose, ...(street ? { front: { x: 0, z: 1 } } : {}) };
+  const heading = (c: CharacterSpec3D): number => (typeof c.start.heading === "number" ? c.start.heading : 0);
+  // the open front of a street set (z+): the side of the subject whose angle puts the camera there
+  const frontSide = (h: number, a: number): number => (Math.cos(h + a) >= Math.cos(h - a) ? 1 : -1);
+  const move: CameraSpec3D["move"] = moving && cov.move === "static" ? "follow" : cov.move;
+  // what the character is working: a wide keeps the whole pump and bucket in frame with them (context), a medium the
+  // handle in their hands (action); the insert is the water (detail)
+  const workingAt = interactions?.handpump ? "pump-spout" : undefined;
+  const single = (c: CharacterSpec3D, purpose = cov.purpose): CameraSpec3D => ({ ...base, purpose, shot: cov.shot === "medium" ? "medium" : "closeup", move: move === "follow" ? "static" : move, target: c.id, side: frontSide(heading(c), cov.angle), angle: cov.angle, ...(cov.shot === "medium" && workingAt ? { frameWith: "pump-handle" } : {}) });
+  // an object detail: only where the set has the object (the village pump / tap); elsewhere the hands and face carry it
+  if (cov.purpose === "insert") {
+    const point = cov.object && kit === "village" ? POINT_OF[cov.object]?.(!!interactions?.handpump) : undefined;
+    return point ? { ...base, shot: "insert", move: "static", target: point, side: 1, angle: cov.angle } : single(lead, "single");
+  }
+  // over the shoulder: behind the listener, on the shoulder toward the open front, looking at the speaker's face
+  if (cov.purpose === "ots") {
+    if (!listener || speaker === listener) return single(speaker, "single");
+    const side = Math.sign(speaker.start.x - listener.start.x) || 1;
+    return { ...base, shot: "over_shoulder", move: "static", target: listener.id, toward: speaker.id, behind: true, side };
+  }
+  if (cov.purpose === "single") return single(speaker);
+  // tracking: from the side of a walk along the set; a walk INTO the set (toward the houses) is followed from behind
+  // three-quarters (a side camera would run into the porches)
+  if (cov.purpose === "tracking" && Math.cos(heading(lead)) < -0.5) return { ...base, shot: cov.shot === "medium" ? "medium" : "wide", move, target: lead.id, side: frontSide(heading(lead), 2.5), angle: 2.5 };
+  if (cov.purpose === "reaction") return single(lead);
+  // wides with people: the master, the two-shot, tracking; everyone shares the frame
+  const shotSize: CameraSpec3D["shot"] = cov.shot === "medium" ? "medium" : "wide";
+  return { ...base, shot: shotSize, move, target: lead.id, side: frontSide(heading(lead), cov.angle), angle: cov.angle, ...(cs.length > 1 && !moving ? { frameWith: farthest(cs) } : workingAt ? { frameWith: workingAt } : {}) };
 }
 
 function farthest(cs: CharacterSpec3D[]): string {

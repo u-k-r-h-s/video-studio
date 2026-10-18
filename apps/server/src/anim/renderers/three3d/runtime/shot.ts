@@ -147,7 +147,8 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
     const c = chars.get(id);
     if (c) return { position: c.root.position.clone(), heading: c.currentHeading, height: c.height, head: c.headPosition() };
     const p = set.named(id);
-    return p ? { position: p.clone().setY(0), heading: 0, height: 1.8 } : null;
+    // a set point keeps its real height in `head` (an insert looks AT it: a spout, a tap, a bucket rim)
+    return p ? { position: p.clone().setY(0), heading: 0, height: 1.8, head: p.clone(), place: true } : null;
   }, (p) => set.clampCamera(p));
   const faceLight = new THREE.SpotLight(rig.daylight ? "#fff4e6" : "#ffe2c4", rig.daylight ? 1.5 : spec.lighting === "power-outage" ? 3.2 : 5, 3.6, 0.32, 0.9, 2);
   faceLight.castShadow = false; scene.add(faceLight, faceLight.target);
@@ -186,7 +187,8 @@ export async function createShot(spec: Shot3DSpec, assets: ShotAssets): Promise<
     for (const r of reactions) cam!.kick(t, r, 1);
     // a soft, shadowless face light from the camera side on the shot's subject: faces read at night and in dark rooms
     // (stronger at night, a touch by day), as animation lighting does
-    const subject = chars.get(spec.camera.target) ?? lead;
+    // the face light is on whom the shot is about (over the shoulder: the speaker the camera looks at, not the listener)
+    const subject = (spec.camera.shot === "over_shoulder" && spec.camera.toward ? chars.get(spec.camera.toward) : undefined) ?? chars.get(spec.camera.target) ?? lead;
     if (subject) {
       const head = subject.headPosition();
       // 1.6 m from the face on the camera's side, whatever the shot size: in a wide shot a light placed "35% of the way

@@ -58,7 +58,7 @@ export interface PropSpec3D {
   restAt?: { x: number; y: number; z: number; rotation?: number };
 }
 
-export const CAMERA_SHOTS = ["wide", "medium", "closeup", "over_shoulder"] as const;
+export const CAMERA_SHOTS = ["wide", "medium", "closeup", "over_shoulder", "insert"] as const;
 export const CAMERA_MOVES = ["static", "follow", "tracking", "push_in", "pull_out", "pan", "tilt", "handheld"] as const;
 export interface CameraSpec3D {
   /** A locked-off camera at an exact position looking at a point (inspection and test shots); overrides the framing. */
@@ -78,16 +78,28 @@ export interface CameraSpec3D {
   angle?: number;
   /** Keep this named thing in the frame too (a door that opens, what the character looks at): the camera widens and re-centres. */
   frameWith?: string;
-  /** Timed changes: at `at` seconds blend to a new framing/target over `blend` seconds. */
-  keys?: { at: number; shot?: CameraSpec3D["shot"]; target?: string; behind?: boolean; side?: number; blend?: number; frameWith?: string | null }[];
+  /** Timed moves inside the shot: at `at` seconds the camera travels from where it is to the key's composition (the
+   *  framing in force with the key's fields changed) over `blend` seconds, eased in and out (no overshoot), arcing around
+   *  what it looks at. Fields left out keep their value. */
+  keys?: CameraKey3D[];
+  /** The shot opens on another composition (the previous shot's, so the cut is invisible) and moves to its own:
+   *  `from` = the fields that differ, held until `at` (default 0), then the move takes `duration` seconds. */
+  enter?: { from: CameraState3D; at?: number; duration: number };
   handheld?: number;
   /** Camera height relative to the framing's (m): negative = a low angle looking up, positive = looking down. */
   heightOffset?: number;
   /** Lens: < 1 a longer lens (narrower, the camera backs off to keep the framing), > 1 wider. */
   fovScale?: number;
+  /** What the shot is for (cinematography.ts): establishing, master, two-shot, ots, single, reaction, insert, tracking. */
+  purpose?: string;
   /** The set's open front (a direction on the ground): a two-shot with both sides free is taken from there, facade behind. */
   front?: { x: number; z: number };
 }
+
+/** The parts of a camera that make a composition (what a key or an entry move changes). `atEnd`: a push-in / pull-out
+ *  taken at its end point (the previous shot's last frame). */
+export type CameraState3D = Partial<Pick<CameraSpec3D, "shot" | "move" | "target">> & { [K in "toward" | "side" | "behind" | "angle" | "heightOffset" | "fovScale" | "frameWith"]?: CameraSpec3D[K] | null } & { atEnd?: boolean };
+export type CameraKey3D = CameraState3D & { at: number; blend?: number };
 
 export const LIGHTING_PRESETS = [
   "sunny-day", "cloudy-day", "overcast", "golden-hour", "sunset", "rainy-day", "night", "cinematic-night", "rainy-night",

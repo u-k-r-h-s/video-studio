@@ -286,7 +286,8 @@ export class Character3D {
       if (Character3D.AFTER_ARRIVAL.has(e.action) && this.arrivedAt !== null && t < this.arrivedAt + 0.38) continue; // settle + a beat
       if (Character3D.AFTER_ARRIVAL.has(e.action) && t < this.holdUntil && e.action !== "react" && e.action !== "surprise" && e.action !== "fear") continue; // still hesitating
       if ((e.action === "walk" || e.action === "run") && t < this.holdUntil) continue;
-      this.startAt.set(e, t);
+      // an event timed before the shot (a cut INTO an action: a hand already on the pump) is under way at the first frame
+      this.startAt.set(e, e.at < 0 ? e.at : t);
       switch (e.action) {
         case "walk": case "run": {
           const p = e.target !== undefined ? this.world.resolve(e.target) : null;

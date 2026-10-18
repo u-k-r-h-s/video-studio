@@ -1,6 +1,7 @@
 import type { Location, Shot, Story } from "@studio/shared";
 import { artStyleOf, type ArtStyleId, type Palette } from "./artStyle";
 import type { EnvironmentSpec3D, LightingPreset, VehicleKind3D, WorldSpec3D } from "./spec";
+import { planCoverage, type Coverage } from "./cinematography";
 
 /**
  * The scene-by-scene visual direction of a story, decided BEFORE anything is rendered and from the story alone:
@@ -19,7 +20,11 @@ export interface SceneDirection {
   /** Sun turned around the set for an open landscape (front light by day, raking at golden hour); else the preset's. */
   sunAzimuth?: number;
 }
-export interface ShotDirection { shotId: string; locationId: string; angle: number; side: number; heightOffset: number; fovScale: number; why: string }
+export interface ShotDirection {
+  shotId: string; locationId: string; angle: number; side: number; heightOffset: number; fovScale: number; why: string;
+  /** What the shot is for in its scene and the camera that serves it (cinematography.ts); the compiler prefers it. */
+  coverage?: Coverage;
+}
 export interface VisualPlan { artStyle: ArtStyleId; locations: SceneDirection[]; shots: ShotDirection[] }
 
 const text = (l: Location): string => `${l.name} ${l.visualIdentity} ${l.description} ${l.lighting}`.toLowerCase();
@@ -120,6 +125,7 @@ export function planVisuals(story: Story, styleId?: string): VisualPlan {
   const locations = story.locations.map((l, i) => directLocation(l, style.palettes[(hash(l.id) + i) % style.palettes.length]!));
   const shots: ShotDirection[] = [];
   let prev: { angle: number; loc: string } | null = null;
+  const coverage = planCoverage(story.shots);
   story.shots.forEach((s, i) => {
     const size = sizeOf(s), list = ANGLES[size];
     let k = (hash(s.sceneId || s.locationId) + i) % list.length;
@@ -131,7 +137,8 @@ export function planVisuals(story: Story, styleId?: string): VisualPlan {
     const high = s.shotType === "high-angle" || s.emotion === "sad";
     const heightOffset = low ? -0.55 : high ? 0.7 : size === "wide" ? 0.25 : 0;
     const fovScale = (size === "close" ? 0.88 : size === "wide" ? 1.05 : 1) * style.lens;
-    shots.push({ shotId: s.id, locationId: s.locationId, angle, side, heightOffset, fovScale: +fovScale.toFixed(2), why: `${size}${low ? ", low angle" : high ? ", high angle" : ""}` });
+    const cov = coverage[i]!;
+    shots.push({ shotId: s.id, locationId: s.locationId, angle, side, heightOffset, fovScale: +fovScale.toFixed(2), why: `${size}${low ? ", low angle" : high ? ", high angle" : ""}; ${cov.purpose}: ${cov.reason}`, coverage: { ...cov, fovScale: +(cov.fovScale * style.lens).toFixed(2) } });
     prev = { angle, loc: s.locationId };
   });
   return { artStyle: style.id, locations, shots };
